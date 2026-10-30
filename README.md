@@ -4,6 +4,9 @@
 日常表情提醒不依赖电脑、USB 数据线或网络；电脑端保留读数同步与可选 Windows 通知。
 沿用 StackChan + Unit ToF4M（U172 / VL53L1X），不更换原厂软件路线。
 
+当前设备已部署，实际 ToF 与 USB 数据接收通过；原厂固件槽和配置区保留。
+备份与实测记录见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
+
 ## 接线与摆放
 
 关机后，用附带 Grove 线连接 ToF4M 与机器人**机头左侧、USB-C 下方的红色 PORT A**。
@@ -50,7 +53,7 @@ OTA 机制见 [ESP-IDF 文档](https://docs.espressif.com/projects/esp-idf/en/v5
 
 ## Windows 使用
 
-先完成下面的固件构建与部署。确认机器人已运行含距离采样的固件后，双击根目录
+本机设备现已运行含距离采样的固件，可双击根目录
 `Start-DistanceReminder.cmd`，或从项目目录运行：
 
 ```powershell
@@ -100,7 +103,7 @@ OTA 机制见 [ESP-IDF 文档](https://docs.espressif.com/projects/esp-idf/en/v5
 ToF 寄存器驱动依据 ST 官方代码改编，来源与许可保留在其目录。
 
 构建成功、模拟通过与真实传感器/Windows通知验证是不同结果。
-首次部署前应备份设备现有内容并确认刷写方案；现有构建脚本只编译，不自动刷写。
+本机首次部署的备份与分区核验已完成；现有构建脚本仍只编译，不自动刷写。
 原厂在线更新可能覆盖本地新增功能，升级前需保留本地修改。
 
 ## 本地 Git

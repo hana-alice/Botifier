@@ -1,5 +1,5 @@
 {
-  "RecordedAt": "2026-10-30T12:25:14.1776838+08:00",
+  "RecordedAt": "2026-10-30T13:30:15.649048+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
@@ -15,9 +15,21 @@
   },
   "Device": {
     "Port": "COM38",
-    "FirmwareVersionFromBootLog": "1.5.1",
     "IDFFromBootLog": "v5.5.4",
-    "ToF4MVerified": false
+    "ToF4MVerified": true,
+    "HistoricalBootLogVersion": "1.5.1",
+    "FirmwareVersionFromVerifiedOriginalBackup": "1.6.0",
+    "IDFFromVerifiedOriginalBackup": "v5.5.4",
+    "FlashBytes": 16777216,
+    "CurrentSlot": "ota_0",
+    "OriginalFirmwarePreservedInSlot": "ota_1",
+    "Backup": {
+      "Path": ".tools/device-backups/20261030-124710/flash-original.bin",
+      "Bytes": 16777216,
+      "SHA256": "9334bf7752c87f2faa0ea29005f067c9197dad25cc55d0ce57463b1d1c9ad3df",
+      "DeviceMD5": "b202384152810e7e18aacc558270eb4a",
+      "WholeFlashVerified": true
+    }
   },
   "Dependencies": [
     {
@@ -58,7 +70,7 @@
     }
   ],
   "HostTest": "motion_math_test, vl53l1x_driver_test and proximity_policy_test passed 3/3; 11 driver and 16 proximity scenario groups",
-  "FirmwareBuild": "passed; official 1.6.0 base with standalone proximity rule, robot warning symbol and optional USB telemetry; not flashed",
+  "FirmwareBuild": "passed and deployed to ota_0; standalone proximity rule, robot warning symbol and optional USB telemetry",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
     "Bytes": 3741584,
@@ -74,8 +86,8 @@
     "PcUnitTests": "56 passed",
     "Simulation": "1 simulated reminder, no serial access",
     "Notification": "Native Windows request succeeded with simulated 300 mm; helper exited 0; visual display not independently confirmed",
-    "HardwareTested": false,
-    "Flashed": false,
+    "HardwareTested": true,
+    "Flashed": true,
     "DefaultThresholdMm": 400,
     "DefaultHysteresisMm": 80,
     "DefaultHoldMs": 5000,
@@ -85,7 +97,31 @@
     "RobotBehavior": "Standalone median/dwell/hysteresis; AngryDecorator while close; clears on recovery, invalidity or stale sample. Existing face is required; no computer connection needed.",
     "ParameterScope": "Robot uses ProximityConfig firmware defaults. PC settings only affect the separate optional PC reminder.",
     "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
-    "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active."
+    "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active.",
+    "HardwareTestScope": "Real ToF sampling and USB/PC protocol verified. Gesture, visual expression and AI-mode regression pending.",
+    "DeviceBootLog": "logs/device-distance-first-boot.log",
+    "DeploymentRecord": "DEVICE_DEPLOYMENT.md",
+    "OtaConfirmation": "Independent 8 KiB otadata read: seq5/VALID/CRC correct; original sector1 byte-identical. USB hardware reset then HAL reports ota_0 state2 with valid ranging.",
+    "ActualSampleWindow": {
+      "FirstSeq": 29,
+      "LastSeq": 1044,
+      "Frames": 1016,
+      "ValidFrames": 1016,
+      "ProtocolRejected": 0,
+      "InternalSequenceGaps": 0,
+      "MedianDistanceMm": 800,
+      "MinDistanceMm": 787,
+      "MaxDistanceMm": 815,
+      "MedianIntervalMs": 100,
+      "MeanIntervalMs": 99.635468,
+      "MinIntervalMs": 80,
+      "MaxIntervalMs": 120,
+      "AlertEdges": 0
+    },
+    "OtaConfirmationRecord": ".tools/device-backups/20261030-124710/ota-confirmation.json",
+    "RebootLog": "logs/device-distance-reboot.log",
+    "PcLiveTest": "Real COM38/no-notify: safe and live distance; P paused while sampling continued; P resumed waiting to safe; Q exit0 and port released.",
+    "PhysicalGestureTest": "Pending: no close-range input captured; face symbol/AI mode, unplug recovery and absolute accuracy not verified."
   },
   "UsbSamplingBaselineBinary": {
     "Bytes": 3734928,

@@ -13,13 +13,13 @@
 | ESP-IDF | v5.5.4，commit `735507283d5b2f9fb363a1901172dbd9e847945d` |
 | Python | IDF 使用已有 Python 3.12.10 创建的本地 venv；系统原默认是 3.14.3 |
 | 工具目录 | `.tools/esp-idf-v5.5.4` 和 `.tools/espressif`，未修改系统级 PATH |
-| 设备 | COM38，USB VID 303A / PID 1001；启动日志确认 StackChan 1.5.1 / ESP-IDF v5.5.4 |
+| 设备 | COM38，USB VID 303A / PID 1001；实际备份确认原厂槽 StackChan 1.6.0 / ESP-IDF v5.5.4，现运行距离提醒构建 |
 | C++ 主机测试 | 运动数学、真实 ToF 驱动及本机过近规则，3/3 通过；驱动 11 组场景、规则 16 组场景 |
 | 电脑端测试 | 56 项通过；无硬件模拟产生 1 次电脑端提醒 |
 | 当前固件构建 | 含采样、本机判断与表情符号；产物大小和 SHA256 见下文与 environment.json |
-| 固件刷写 | 本次没有刷写；源码版本不代表设备运行版本 |
+| 固件刷写 | 已备份整片 16 MiB 并校验；距离固件写入 ota_0，原厂 ota_1、资源与配置区保留并核验 |
 | 配网 | 用户确认更换为 AX300 后连接成功；热点排查结束，不再作为开发阻塞 |
-| ToF4M | 用户确认已到货、尚未接线；已核对红色 PORT A 位于机头左侧 USB-C 下方 |
+| ToF4M | 用户确认已接线；新固件已返回约 80 cm 的有效读数，约 10 Hz |
 | 摆放目标 | 用户计划将 ToF 固定在电脑屏幕边框，Grove 线连接机器人；USB 较短，先近处测试 |
 
 完整版本、依赖 commit 和固件 SHA256 见 [environment.json](environment.json)。
@@ -38,8 +38,8 @@ Windows 编译通过，实际程序 dry-run 的 JSON、动作范围、结束姿�
 
 源码核对：`Hal::launchApp()` 走 OTA，下载项可能独立运行，不保证继承原厂 Home 控件。
 原厂 Home 手势从显示区域最底部 20px 内开始、向上超过 50px，松手显示按钮后再点击。
-本地当前分区表只有 ota_0/ota_1，无独立 factory 分区；未读取设备分区表或确认另一槽的内容，
-不能据此直接改启动分区。未找到已启用的、可确认返回原厂主菜单的特殊物理按键组合。
+本次已读取实际分区表，只有 ota_0/ota_1，无独立 factory 分区；备份中 ota_0 是已标为 ABORTED 的
+flappy_bird，ota_1 是有效原厂 1.6.0。距离固件替换 ota_0，保留 ota_1。未找到已启用的、可确认返回原厂主菜单的特殊物理按键组合。
 这些是当前 1.6.0 源码结论，不把它当作机内当前 App 的已验证退出协议。
 RST 短按重启、长按约 3 秒进入下载模式的操作依据为
 [官方硬件说明](https://docs.m5stack.com/zh_CN/StackChan)。
@@ -105,7 +105,7 @@ python .\scripts\Capture-DeviceLog.py --port COM38 --seconds 120 --log .\logs\de
 
 - 已初始化根 Git 仓库并保留原厂源码子仓库历史；两个开发分支均为 `feature/distance-reminder`，未推送。
 - 固件在 HAL 初始化后启动独立采样任务，不随普通菜单卸载；外部 PORT A 使用 I²C0 / SDA2 / SCL1，
-  内部 `board_get_i2c_bus()` 的 I²C1 / GPIO12、11 保持原用途。已检查源码中的控制器分配，物理接线待验证。
+  内部 `board_get_i2c_bus()` 的 I²C1 / GPIO12、11 保持原用途。已检查控制器分配，并在红色 PORT A 实际收到有效 ToF 数据。
 - ToF 驱动采用 ST 官方 VL53L1X 寄存器配置，Long 模式、50 ms 测量预算、100 ms 周期。
   只把有效状态及 40–4000 mm 范围的读数标记有效；读失败、无目标、超时都不会复用旧读数。
 - 用户已明确：过近时由机器人本机表情提醒，电脑信息同步保留供后续开发。因此本机规则不依赖电脑或网络。
@@ -132,9 +132,11 @@ python .\scripts\Capture-DeviceLog.py --port COM38 --seconds 120 --log .\logs\de
 但没有已确认能直接由本机电脑触发的局域网入口，现机 1.5.1 的工具/平台可调用性未验证；
 不能断言首次技术上必须 USB。Wi-Fi 距离同步、无线改本机参数及电脑直接 OTA 入口尚未实现。
 
-实际 ToF 读数、USB 事件接收、生气符号显示、跨菜单/AI 模式运行尚未进行实机验证。
-当前构建没有刷入机器人；首次部署必须先备份设备并核对实际分区、启动槽及资源兼容性，
-保留 Wi-Fi、绑定和校准数据。不能以构建或模拟通过代替实机结果。
+当前构建已刷入，实际 ToF 读数与 USB `SC_DISTANCE` 数据接收通过；HAL 日志确认运行 ota_0，
+20 秒检查后独立读回启动记录为 VALID，USB 重启后仍运行 ota_0 并持续测距。
+电脑程序实连、P 暂停/恢复、Q 退出也已通过；生气符号和跨菜单/AI 模式仍待现场验证。
+部署前已完成整片备份、分区和资源兼容性核对；刷写后保护区域摘要确认原厂槽、Wi-Fi/绑定所在 NVS、
+bootloader、分区表及资源未被刷写改变。备份、修正旧设备版本记录与上机证据见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 安装方法、运行参数与固定传感器方向的限制见 [README.md](README.md)。
 
 官方依据：[固件构建说明](https://github.com/m5stack/StackChan/blob/f901cc2969189f3f0e96af1442c0f96e77e1e2c1/firmware/README.md)、
