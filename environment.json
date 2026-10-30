@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T13:30:15.649048+08:00",
+  "RecordedAt": "2026-10-30T14:23:40.583613+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "84c6e47ce82469acb3b44b537c64da26a58577b8"
+    "LocalImplementationCommit": "e24db6d6dafeb28e577344bbb55e896493c634b0"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -69,12 +69,12 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "motion_math_test, vl53l1x_driver_test and proximity_policy_test passed 3/3; 11 driver and 16 proximity scenario groups",
+  "HostTest": "motion_math_test, vl53l1x_driver_test and proximity_policy_test passed 3/3; 11 driver and 17 proximity scenario groups",
   "FirmwareBuild": "passed and deployed to ota_0; standalone proximity rule, robot warning symbol and optional USB telemetry",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3741584,
-    "SHA256": "272b23202cc98049d62afe971ba037a67a8bf48422b0f1169b41d1b952bc0505"
+    "Bytes": 3742576,
+    "SHA256": "f8637727a7990dd1cef68f35bd8a349193a94ea40d8db4dbf23dc880c6dbaeed"
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -90,18 +90,18 @@
     "Flashed": true,
     "DefaultThresholdMm": 400,
     "DefaultHysteresisMm": 80,
-    "DefaultHoldMs": 5000,
+    "DefaultHoldMs": 1000,
     "DefaultCooldownMs": 60000,
-    "BuildLog": "logs/firmware-20261030-122220.log",
-    "HostTestLog": "logs/host-tests-20261030-121851-333-test.log",
-    "RobotBehavior": "Standalone median/dwell/hysteresis; AngryDecorator while close; clears on recovery, invalidity or stale sample. Existing face is required; no computer connection needed.",
+    "BuildLog": "logs/firmware-20261030-141414.log",
+    "HostTestLog": "logs/host-tests-20261030-141212-019-test.log",
+    "RobotBehavior": "Standalone median/dwell/hysteresis; 1000 ms robot dwell; red 80 px angry symbol, 8 px border and top TOO CLOSE label. Clears overlay on recovery/invalidity/staleness without restoring old emotions. Existing face required; PC optional.",
     "ParameterScope": "Robot uses ProximityConfig firmware defaults. PC settings only affect the separate optional PC reminder.",
     "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
     "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active.",
-    "HardwareTestScope": "Real ToF sampling and USB/PC protocol verified. Gesture, visual expression and AI-mode regression pending.",
-    "DeviceBootLog": "logs/device-distance-first-boot.log",
+    "HardwareTestScope": "Updated binary deployed and verified; 1203 valid real samples, zero sequence gaps, 4 alert on/off cycles with 1000 ms filtered dwell; updated visual appearance awaits user comparison.",
+    "DeviceBootLog": "logs/device-faster-warning.log",
     "DeploymentRecord": "DEVICE_DEPLOYMENT.md",
-    "OtaConfirmation": "Independent 8 KiB otadata read: seq5/VALID/CRC correct; original sector1 byte-identical. USB hardware reset then HAL reports ota_0 state2 with valid ranging.",
+    "OtaConfirmation": "Independent otadata read: seq7/VALID/CRC correct; original seq2 VALID sector byte-identical. USB hardware reset then valid ranging and HAL reports ota_0 state2.",
     "ActualSampleWindow": {
       "FirstSeq": 29,
       "LastSeq": 1044,
@@ -116,17 +116,99 @@
       "MeanIntervalMs": 99.635468,
       "MinIntervalMs": 80,
       "MaxIntervalMs": 120,
-      "AlertEdges": 0
+      "AlertEdges": 0,
+      "Note": "First deployed build stable-distance baseline; retained as historical evidence."
     },
-    "OtaConfirmationRecord": ".tools/device-backups/20261030-124710/ota-confirmation.json",
-    "RebootLog": "logs/device-distance-reboot.log",
+    "OtaConfirmationRecord": ".tools/device-backups/20261030-141710-faster-warning/ota-confirmation.json",
+    "RebootLog": "logs/device-faster-warning-reboot.log",
     "PcLiveTest": "Real COM38/no-notify: safe and live distance; P paused while sampling continued; P resumed waiting to safe; Q exit0 and port released.",
-    "PhysicalGestureTest": "Pending: no close-range input captured; face symbol/AI mode, unplug recovery and absolute accuracy not verified."
+    "PhysicalGestureTest": "First version confirmed effective by user. Updated version: 4 physical near/recovery cycles observed; visual prominence still awaits user feedback.",
+    "DefaultHoldScope": "Robot proximity dwell after median warmup",
+    "DefaultPcHoldMs": 5000,
+    "UpdatedSampleWindow": {
+      "frames": 1203,
+      "first_seq": 194,
+      "last_seq": 1396,
+      "valid": 1203,
+      "sequence_gaps": 0,
+      "median_interval_ms": 100.0,
+      "edges": [
+        {
+          "seq": 377,
+          "uptime_ms": 39402,
+          "alert": true,
+          "distance_mm": 434,
+          "median_mm": 432,
+          "dwell_ms": 1000
+        },
+        {
+          "seq": 605,
+          "uptime_ms": 62142,
+          "alert": false,
+          "distance_mm": 531,
+          "median_mm": 521,
+          "dwell_ms": null
+        },
+        {
+          "seq": 957,
+          "uptime_ms": 97242,
+          "alert": true,
+          "distance_mm": 408,
+          "median_mm": 408,
+          "dwell_ms": 1000
+        },
+        {
+          "seq": 1006,
+          "uptime_ms": 102122,
+          "alert": false,
+          "distance_mm": 545,
+          "median_mm": 518,
+          "dwell_ms": null
+        },
+        {
+          "seq": 1025,
+          "uptime_ms": 104022,
+          "alert": true,
+          "distance_mm": 373,
+          "median_mm": 382,
+          "dwell_ms": 1000
+        },
+        {
+          "seq": 1035,
+          "uptime_ms": 105022,
+          "alert": false,
+          "distance_mm": 527,
+          "median_mm": 527,
+          "dwell_ms": null
+        },
+        {
+          "seq": 1060,
+          "uptime_ms": 107522,
+          "alert": true,
+          "distance_mm": 418,
+          "median_mm": 419,
+          "dwell_ms": 1000
+        },
+        {
+          "seq": 1195,
+          "uptime_ms": 120982,
+          "alert": false,
+          "distance_mm": 547,
+          "median_mm": 547,
+          "dwell_ms": null
+        }
+      ]
+    }
   },
   "UsbSamplingBaselineBinary": {
     "Bytes": 3734928,
     "SHA256": "7e8abe2683a943240296cf8f9f0f9971f5fb0fc0292bb40b39ecae217adc5d42",
     "SourceCommit": "47b08697986d077b2e5ef17c7900b422d49d20d4",
     "Note": "USB sampling and PC reminder before standalone robot expression; historical artifact metadata, current build path has been replaced."
+  },
+  "FirstDeployedDistanceBinary": {
+    "Path": ".tools/device-backups/20261030-124710/distance-first-working.bin",
+    "Bytes": 3741584,
+    "SHA256": "272b23202cc98049d62afe971ba037a67a8bf48422b0f1169b41d1b952bc0505"
   }
 }

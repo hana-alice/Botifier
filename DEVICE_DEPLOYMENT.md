@@ -30,7 +30,7 @@
 | `wn9_data` | 289665 | `dbba353b4b5cb923984de753012671aa122cd4373739173956d2071ba9618eb3` |
 | `wn9_index` | 1200 | `5810ee84beac8e73b4080a7b765e09900627ff973f2654811dd6a8557f0769b4` |
 
-因此保留原 assets。已部署镜像为子仓库 `84c6e47ce82469acb3b44b537c64da26a58577b8` 的距离提醒构建，3,741,584 字节，SHA256 `272b23202cc98049d62afe971ba037a67a8bf48422b0f1169b41d1b952bc0505`。
+因此保留原 assets。首次部署镜像为子仓库 `84c6e47ce82469acb3b44b537c64da26a58577b8` 的距离提醒构建，3,741,584 字节，SHA256 `272b23202cc98049d62afe971ba037a67a8bf48422b0f1169b41d1b952bc0505`；本轮调参后的当前版本见下文。
 
 仅写 app 到 ota_0 `0x20000`（擦除范围 `0x20000–0x3b1fff`），校验后再写 `0xd000` 的单个 4096 字节启动扇区，记录 seq5 / NEW / CRC `0xc8210fcd`。保留另一启动扇区、原厂 ota_1、bootloader、分区表、NVS、phy_init、assets。普通 `idf.py flash` 会额外写入这些分区，本次不使用。
 
@@ -46,7 +46,7 @@
 
 首次部署尝试在第一条写入前因重复 `run_stub()` 被拒绝，没有修改 flash。外部已运行 stub 交给 `esptool.main` 时需正确标记 `sync_stub_detected`，避免再次覆盖 RAM 工具；失败日志 `deployment.log` 保留，修正后的执行另记日志。
 
-## 上机结果
+## 首次部署的上机结果
 
 两次写入与 MD5 校验成功。启动前再次核对保护区域，与原备份一致：bootloader、分区表、NVS、phy_init、原厂 ota_1、第二 OTA 记录、assets 均未被刷写改变。运行固件可能正常更新设置，不能把这次部署前后的校验延伸为运行时永不写配置。
 
@@ -71,4 +71,35 @@ HAL 首次报告 `ota confirm check: partition=ota_0, state=1`，随后请求 `m
 电脑程序也已使用真实 COM38 运行：`python -m distance_reminder --port COM38 --no-notify`。
 控制台显示 `state=safe sensor=ranging robot_alert=off` 和实时约 800 mm 距离；按 P 进入 paused 时继续接收距离，再按 P 经 waiting 恢复 safe，按 Q 正常退出码 0 并释放串口。此次关闭桌面通知，不据此声称实际近距通知弹窗通过。
 
-现场下一步：打开原厂 DANCE（不是应用市场下载项），手掌放在 ToF 前约 20–30 cm 持续至少 7 秒，再移到 50 cm 外；观察脸旁生气符号出现和解除，并同步核对 `robot_alert`。本次采集窗口没有出现近距输入，视觉验收仍待用户操作。
+用户随后确认“可以的，有效果”，并反馈感应等待太长、符号不明显。该反馈确认第一版可用，不能代替后续新版视觉验收。
+
+## 第二次调参：更快、更明显
+
+按用户实测反馈，将机器人持续判定从 5 秒缩短到 1 秒，保留三样本中值和 48 cm 恢复迟滞。
+在约 10 Hz 采样下，从新出现的近距输入到告警，含滤波预计约 1.1–1.2 秒；精确现场时延仍需日志中有实际近距边沿才能确认。
+电脑通知仍使用独立的默认 5 秒，不借本次修改改变其规则。
+
+原 40 px 角落图标改成水平居中、眼睛上方的 80×80 px 红图，并加 8 px 红边框及顶部 “TOO CLOSE”。
+提示容器不接收点击和滚动；原 Home 手势、底部语音气泡保持原区域。解除只删除提示图层，不恢复旧 emotion，因此不会覆盖期间收到的新表情。
+这是源码坐标核对；任意远程自定义眼嘴位置可能与提示重叠，未做截图对照验收。
+
+固件子仓库提交 `e24db6d`；二进制 3,742,576 字节，SHA256 `f8637727a7990dd1cef68f35bd8a349193a94ea40d8db4dbf23dc880c6dbaeed`。
+源码变更为 `distance_sensor/proximity_policy.h`（默认时长）、`stackchan/stackchan.cpp`（独立提示层）、`stackchan/avatar/decorators/angry.cpp` 与同目录 `decorators.h`（复用缩放接口），以及 `tests/proximity_policy_test.cpp`（默认时序与原场景回归）；路径相对 firmware/main，测试相对 firmware。未改变电脑规则或原 AI 表情数据。
+最新构建日志 `logs/firmware-20261030-141414.log`；CTest 3/3，规则 17 组，包含默认 999 ms 不触发、1000 ms 触发和移远中值恢复。
+
+上一版可用镜像另存 `20261030-124710/distance-first-working.bin`。本次刷写前再次备份当前前 128 KiB（含运行后的 NVS 和启动记录），保存在 `.tools/device-backups/20261030-141710-faster-warning/`，原完整备份继续保留。
+仍只写 ota_0 和启动扇区 0；新记录 seq7 / NEW，保留原厂槽和另一 VALID 记录，逐段校验当前配置及原资源。
+部署日志 `logs/device-update-faster-warning.log`；两次写入、当前 NVS/bootloader/分区表/原厂槽/资源的保护摘要均通过。
+独立读回新版启动记录为 seq7 / VALID / CRC 正确，sector1 全扇区与原记录相同；同目录 `ota-confirmation.json` 可核对。USB 重启后的日志 `logs/device-faster-warning-reboot.log` 仍有有效测距，HAL 确认 `ota_0, state=2`。
+
+新版采集 `logs/device-faster-warning.log` 共 1203 帧（seq194–1396），全部有效、无序号缺帧，采样间隔中位 100 ms；汇总 `logs/device-faster-warning-summary.json`。
+实际记录到 4 次触发和 4 次解除。四次从中值近距成立到 `robot_alert=true` 均为 **1000 ms**，从首次远距读数到两个样本的中值恢复均约 **100 ms**。
+
+| 周期 | 近距判定成立 uptime(ms) | 告警开启 | 告警解除 |
+| --- | ---: | ---: | ---: |
+| 1 | 38402 | 39402 | 62142 |
+| 2 | 96242 | 97242 | 102122 |
+| 3 | 103022 | 104022 | 105022 |
+| 4 | 106522 | 107522 | 120982 |
+
+这些是传感器与本机规则的真实时延，不包含肉眼观察或 LCD 渲染延迟；新版红框、文字与图标的实际观感尚待用户反馈。
