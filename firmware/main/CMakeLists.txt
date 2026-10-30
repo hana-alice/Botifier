@@ -19,6 +19,10 @@ set(STACK_CHAN_INCLUDE_DIRS
     "."
 )
 list(APPEND STACK_CHAN_SOURCES main.cpp)
+list(APPEND STACK_CHAN_SOURCES
+    distance_sensor/service.cpp
+    distance_sensor/vl53l1x.cpp
+)
 
 # Define source files
 set(SOURCES "audio/audio_codec.cc"
