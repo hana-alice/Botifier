@@ -44,7 +44,19 @@ public:
         // Alert belongs exclusively to Signal; a queued idle action cannot
         // interrupt it, and a caller cannot manufacture a sensor alert here.
         if (in_alert_ || mood == Mood::Alert) return;
+        reaction_active_ = false;
         begin(mood, now_ms);
+        schedule_mood(now_ms);
+        pending_play_ = true;
+    }
+
+    void react(std::uint32_t now_ms) noexcept
+    {
+        initialize(now_ms);
+        if (in_alert_) return;
+        reaction_active_ = true;
+        reaction_start_ = now_ms;
+        begin(Mood::Surprise, now_ms);
         schedule_mood(now_ms);
         pending_play_ = true;
     }
@@ -55,6 +67,7 @@ public:
         const auto delta = now_ms - last_ms_;
         last_ms_ = now_ms;
         if (signal == Signal::Alert) {
+            reaction_active_ = false;
             in_alert_ = true;
             mood_ = Mood::Alert;
             blink_active_ = look_active_ = false;
@@ -63,6 +76,8 @@ public:
             last_signal_ = signal;
             return frame_;
         }
+
+        if (signal == Signal::Unavailable) reaction_active_ = false;
 
         bool changed_signal = false;
         if (in_alert_) {
@@ -82,6 +97,16 @@ public:
         last_signal_ = signal;
         if (delta == 0 && !changed_signal && !pending_play_) return frame_;
         pending_play_ = false;
+
+        if (reaction_active_) {
+            const auto reaction_age = now_ms - reaction_start_;
+            if (reaction_age >= 2400) {
+                reaction_active_ = false;
+                begin(Mood::Idle, now_ms);
+            } else if (reaction_age >= 700 && mood_ != Mood::Happy) {
+                begin(Mood::Happy, now_ms);
+            }
+        }
 
         if (mood_ != Mood::Idle && now_ms - mood_start_ >= duration(mood_)) {
             begin(Mood::Idle, now_ms);
@@ -352,6 +377,8 @@ private:
     bool initialized_ = false;
     bool in_alert_ = false;
     bool pending_play_ = false;
+    bool reaction_active_ = false;
+    std::uint32_t reaction_start_ = 0;
     Signal last_signal_ = Signal::Unavailable;
     Mood mood_ = Mood::Idle;
     Frame frame_, base_, from_;

@@ -53,3 +53,8 @@ target_include_directories(pet_motion_test PRIVATE ../main)
 
 target_compile_features(pet_motion_test PRIVATE cxx_std_17)
 add_test(NAME pet_motion_test COMMAND $<TARGET_FILE:pet_motion_test>)
+
+add_executable(snap_detector_test snap_detector_test.cpp)
+target_include_directories(snap_detector_test PRIVATE ../main)
+target_compile_features(snap_detector_test PRIVATE cxx_std_17)
+add_test(NAME snap_detector_test COMMAND $<TARGET_FILE:snap_detector_test>)

@@ -394,6 +394,7 @@ void StackChanCamera::SetExplainUrl(const std::string& url, const std::string& t
 
 bool StackChanCamera::Capture()
 {
+    std::lock_guard<std::mutex> capture_lock(capture_mutex_);
     if (encoder_thread_.joinable()) {
         encoder_thread_.join();
     }
@@ -853,6 +854,7 @@ bool StackChanCamera::Capture()
 
 bool StackChanCamera::StreamCaptures()
 {
+    std::lock_guard<std::mutex> capture_lock(capture_mutex_);
     if (encoder_thread_.joinable()) {
         encoder_thread_.join();
     }
@@ -965,6 +967,74 @@ bool StackChanCamera::StreamCaptures()
     }
 
     return true;
+}
+
+StackChanCamera::LumaSampleResult StackChanCamera::TrySampleLumaGrid(std::array<uint8_t, 32 * 24>& out)
+{
+    std::unique_lock<std::mutex> capture_lock(capture_mutex_, std::try_to_lock);
+    if (!capture_lock.owns_lock()) {
+        return LumaSampleResult::Busy;
+    }
+    if (!streaming_on_ || video_fd_ < 0) {
+        return LumaSampleResult::Unavailable;
+    }
+
+    // Query the sensor dimensions, not frame_: Capture() can rotate its copy.
+    struct v4l2_format format = {};
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(video_fd_, VIDIOC_G_FMT, &format) != 0) {
+        return LumaSampleResult::Unavailable;
+    }
+    const auto& pix = format.fmt.pix;
+    if (pix.pixelformat != V4L2_PIX_FMT_YUYV && pix.pixelformat != V4L2_PIX_FMT_YUV422P) {
+        return LumaSampleResult::Unavailable;
+    }
+    if (pix.width < 32 || pix.height < 24 || (pix.width & 1) != 0 || pix.width > UINT32_MAX / 2) {
+        return LumaSampleResult::InvalidFrame;
+    }
+
+    struct v4l2_buffer buf = {};
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+    // esp_video 1.3.1 uses portMAX_DELAY here, even with O_NONBLOCK.
+    if (ioctl(video_fd_, VIDIOC_DQBUF, &buf) != 0) {
+        return LumaSampleResult::Unavailable;
+    }
+
+    LumaSampleResult result = LumaSampleResult::InvalidFrame;
+    std::array<uint8_t, 32 * 24> sample{};
+    if (buf.index < mmap_buffers_.size()) {
+        const auto& mapping = mmap_buffers_[buf.index];
+        const uint64_t row_bytes = static_cast<uint64_t>(pix.width) * 2;
+        const uint64_t tight_size = row_bytes * pix.height;
+        const uint64_t stride = pix.bytesperline ? pix.bytesperline : row_bytes;
+        const uint64_t required = stride * (static_cast<uint64_t>(pix.height) - 1) + row_bytes;
+        // This version's DVP YUV422P is packed YUYV, as in Capture() above.
+        // DVP reports no bytesperline. Accept that only for an exact, tight frame.
+        const bool known_stride = pix.bytesperline != 0 || buf.bytesused == tight_size;
+        if (mapping.start && mapping.start != MAP_FAILED &&
+            (buf.flags & V4L2_BUF_FLAG_ERROR) == 0 && known_stride && stride >= row_bytes &&
+            buf.bytesused <= mapping.length && required <= buf.bytesused && required <= mapping.length) {
+            const auto* pixels = static_cast<const uint8_t*>(mapping.start);
+            for (size_t row = 0; row < 24; ++row) {
+                const uint64_t y = (2 * row + 1) * static_cast<uint64_t>(pix.height) / (2 * 24);
+                for (size_t column = 0; column < 32; ++column) {
+                    const uint64_t x = (2 * column + 1) * static_cast<uint64_t>(pix.width) / (2 * 32);
+                    sample[row * 32 + column] = pixels[static_cast<size_t>(y * stride + x * 2)];
+                }
+            }
+            result = LumaSampleResult::Ready;
+        }
+    }
+
+    // Every successful dequeue is returned, including malformed/unsupported frames.
+    if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+        return LumaSampleResult::InvalidFrame;
+    }
+    if (result == LumaSampleResult::Ready) {
+        out = sample;
+    }
+    return result;
 }
 
 bool StackChanCamera::SetHMirror(bool enabled)

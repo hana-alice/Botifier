@@ -11,7 +11,7 @@ public:
     DistancePetAvatar();
     ~DistancePetAvatar() override;
     void init(lv_obj_t* parent);
-    void tick(std::uint32_t now_ms, distance_pet::Signal signal);
+    void tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react = false);
 
 private:
     struct View;

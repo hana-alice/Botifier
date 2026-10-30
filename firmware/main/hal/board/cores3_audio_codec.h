@@ -17,8 +17,10 @@ private:
 
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
+    bool input_cleanup_pending_ = false;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
+    bool CloseInputChecked();
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
@@ -31,6 +33,9 @@ public:
 
     virtual void SetOutputVolume(int volume) override;
     virtual void EnableInput(bool enable) override;
+    // One owner must serialize checked input operations and reads. A failed
+    // transition requires a successful TryEnableInput(false) before handoff.
+    bool TryEnableInput(bool enable);
     virtual void EnableOutput(bool enable) override;
 };
 

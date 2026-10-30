@@ -1,5 +1,6 @@
 #include "app_distance.h"
 #include "pet_avatar.h"
+#include "snap_service.h"
 
 #include <assets/assets.h>
 #include <distance_sensor/service.h>
@@ -113,7 +114,7 @@ std::uint32_t state_color(distance_sensor::ProximityState state)
 }  // namespace
 
 struct AppDistance::View {
-    enum class Mode { Live, Tune };
+    enum class Mode { Live, Tune, Snap };
 
     struct Row {
         std::unique_ptr<Label> label;
@@ -131,18 +132,21 @@ struct AppDistance::View {
     std::unique_ptr<Label> live_state;
     std::unique_ptr<Button> tune_home;
     std::unique_ptr<Button> live_button;
-    std::unique_ptr<Label> title;
+    std::unique_ptr<Button> mode_button;
     std::unique_ptr<Label> telemetry;
     std::array<Row, 3> rows;
     std::unique_ptr<Button> save_button;
     std::unique_ptr<Label> save_status;
     std::unique_ptr<Label> apply_status;
+    std::unique_ptr<Label> snap_levels;
+    std::unique_ptr<Label> snap_result;
 
     Mode mode = Mode::Tune;
     Mode requested_mode = Mode::Live;
     DistancePetAvatar* live_avatar = nullptr;
     bool save_requested = false;
     std::uint32_t edit_revision = 0;
+    std::uint32_t last_snap_event = 0;
 
     explicit View(AppDistance& app)
     {
@@ -161,9 +165,10 @@ struct AppDistance::View {
         tune_home->onClick().connect([&app]() { app.close(); });
         live_button = make_button(*tune_page, 232, 4, 80, "LIVE");
         live_button->onClick().connect([this]() { requested_mode = Mode::Live; });
-        title = make_label(*tune_page, 96, 14, 128, &lv_font_montserrat_20);
-        title->setTextAlign(LV_TEXT_ALIGN_CENTER);
-        title->setText("TUNE");
+        mode_button = make_button(*tune_page, 96, 4, 128, "SNAP");
+        mode_button->onClick().connect([this]() {
+            requested_mode = mode == Mode::Snap ? Mode::Tune : Mode::Snap;
+        });
         telemetry = make_label(*tune_page, 8, 47, 304, &lv_font_montserrat_14);
         telemetry->setTextAlign(LV_TEXT_ALIGN_CENTER);
 
@@ -186,11 +191,16 @@ struct AppDistance::View {
         save_status = make_label(*tune_page, 98, 198, 214, &lv_font_montserrat_14, kMuted);
         save_status->setText("SAVE to keep");
         apply_status = make_label(*tune_page, 98, 219, 214, &lv_font_montserrat_14, kMuted);
+        snap_levels = make_label(*tune_page, 8, 198, 304, &lv_font_montserrat_14, kMuted);
+        snap_result = make_label(*tune_page, 8, 219, 304, &lv_font_montserrat_14, kMuted);
+        snap_levels->addFlag(LV_OBJ_FLAG_HIDDEN);
+        snap_result->addFlag(LV_OBJ_FLAG_HIDDEN);
         save_button->onClick().connect([this]() {
             save_requested = true;
             set_enabled(*save_button, false);
             set_save_status("SAVING...", kNear);
         });
+        last_snap_event = snap_sense::snapshot().accepted;
         apply_mode();
     }
 
@@ -227,18 +237,37 @@ struct AppDistance::View {
             live_controls->addFlag(LV_OBJ_FLAG_HIDDEN);
             tune_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(tune_page->get());
+            const bool snap = mode == Mode::Snap;
+            mode_button->label().setText(snap ? "DISTANCE" : "SNAP");
+            const char* names[] = {snap ? "SENS 1..5" : "TRIP cm",
+                                   snap ? "CAM assist" : "CLEAR +cm",
+                                   snap ? "LISTEN" : "WAIT sec"};
+            for (std::size_t i = 0; i < rows.size(); ++i) rows[i].label->setText(names[i]);
+            for (auto* object : {save_button->get(), save_status->get(), apply_status->get()}) {
+                if (snap) lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
+                else lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
+            }
+            for (auto* object : {snap_levels->get(), snap_result->get()}) {
+                if (snap) lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
+                else lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
+            }
         }
     }
 
-    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot)
+    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot,
+                    const snap_sense::Snapshot& heard)
     {
+        const bool new_event = heard.accepted != last_snap_event;
+        last_snap_event = heard.accepted;
         if (!live_avatar) return;
         auto signal = distance_pet::Signal::Unavailable;
         if (!snapshot.stale && snapshot.valid && snapshot.filtered_mm >= 0) {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
-        live_avatar->tick(now, signal);
+        const bool react = new_event && signal == distance_pet::Signal::Ready &&
+                           now - heard.last_accepted_ms <= 500;
+        live_avatar->tick(now, signal, react);
     }
 
     void raise_controls()
@@ -276,6 +305,16 @@ struct AppDistance::View {
 
     void adjust(std::size_t row, int direction)
     {
+        if (mode == Mode::Snap) {
+            auto next = snap_sense::config();
+            if (row == 0) next.sensitivity = static_cast<unsigned>(
+                std::clamp(static_cast<int>(next.sensitivity) + direction, 1, 5));
+            else if (row == 1) next.camera_required = direction > 0;
+            else next.listening = direction > 0;
+            snap_sense::set_config(next);
+            show_snap(snap_sense::snapshot());
+            return;
+        }
         const auto previous = distance_sensor::config();
         auto next = previous;
         if (row == 0) {
@@ -305,7 +344,37 @@ struct AppDistance::View {
         }
     }
 
-    void update(const distance_sensor::Snapshot& snapshot, const distance_sensor::ProximityConfig& requested)
+    void show_snap(const snap_sense::Snapshot& heard)
+    {
+        char text[96];
+        const auto& config = heard.config;
+        std::snprintf(text, sizeof(text), "MIC %s  CAM %s", snap_sense::status_text(heard.status),
+                      snap_sense::camera_status_text(heard.camera_status));
+        telemetry->setText(text);
+        telemetry->setTextColor(lv_color_hex(heard.status == snap_sense::Status::AudioError ? kAlert : kForeground));
+        std::snprintf(text, sizeof(text), "%u", config.sensitivity);
+        rows[0].value->setText(text);
+        rows[1].value->setText(config.camera_required ? "ON" : "OFF");
+        rows[2].value->setText(config.listening ? "ON" : "OFF");
+        set_enabled(*rows[0].minus, config.sensitivity > 1);
+        set_enabled(*rows[0].plus, config.sensitivity < 5);
+        set_enabled(*rows[1].minus, config.camera_required);
+        set_enabled(*rows[1].plus, !config.camera_required);
+        set_enabled(*rows[2].minus, config.listening);
+        set_enabled(*rows[2].plus, !config.listening);
+        std::snprintf(text, sizeof(text), "P%lu R%lu N%lu", static_cast<unsigned long>(heard.audio.peak),
+                      static_cast<unsigned long>(heard.audio.rms), static_cast<unsigned long>(heard.audio.noise));
+        snap_levels->setText(text);
+        std::snprintf(text, sizeof(text), "OK%lu%s NO%lu%s M%u %s",
+                      static_cast<unsigned long>(std::min<std::uint32_t>(heard.accepted, 9999)), heard.accepted > 9999 ? "+" : "",
+                      static_cast<unsigned long>(std::min<std::uint32_t>(heard.rejected, 9999)), heard.rejected > 9999 ? "+" : "",
+                      heard.visual.changed_cells,
+                      snap_sense::decision_text(heard.last_decision));
+        snap_result->setText(text);
+    }
+
+    void update(const distance_sensor::Snapshot& snapshot, const distance_sensor::ProximityConfig& requested,
+                const snap_sense::Snapshot& heard)
     {
         char text[96];
         char centimeters[24];
@@ -318,6 +387,10 @@ struct AppDistance::View {
         live_distance->setText(text);
         live_state->setText(usable ? state_text(snapshot.proximity_state) : quality);
         live_state->setTextColor(lv_color_hex(usable ? color : kNear));
+        if (mode == Mode::Snap) {
+            show_snap(heard);
+            return;
+        }
         format_cm(raw_centimeters, sizeof(raw_centimeters), snapshot.stale ? -1 : snapshot.raw_mm);
         std::snprintf(text, sizeof(text), "F%s R%scm %s %s", centimeters, raw_centimeters,
                       state_text(snapshot.proximity_state), quality);
@@ -364,19 +437,22 @@ AppDistance::~AppDistance()
 
 void AppDistance::onOpen()
 {
+    snap_sense::start(); // An unavailable microphone must not prevent ranging or UI.
     const auto current = distance_sensor::snapshot();
+    const auto heard = snap_sense::snapshot();
     LvglLockGuard lock;
     _view.reset();
     _view = std::make_unique<View>(*this);
-    _view->update(current, distance_sensor::config());
+    _view->update(current, distance_sensor::config(), heard);
     _last_refresh_ms = GetHAL().millis();
 }
 
 void AppDistance::onRunning()
 {
+    const auto current = distance_sensor::snapshot();
+    const auto heard = snap_sense::snapshot();
     const auto now = GetHAL().millis();
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
-    const auto current = distance_sensor::snapshot();
     if (refresh) {
         _last_refresh_ms = now;
     }
@@ -388,12 +464,13 @@ void AppDistance::onRunning()
         if (!_view) {
             return;
         }
+        const auto previous_mode = _view->mode;
         _view->apply_mode();
-        _view->update_pet(now, current);
+        _view->update_pet(now, current, heard);
         GetStackChan().update();
         _view->raise_controls();
-        if (refresh) {
-            _view->update(current, distance_sensor::config());
+        if (refresh || previous_mode != _view->mode) {
+            _view->update(current, distance_sensor::config(), heard);
         }
         save = _view->save_requested;
         _view->save_requested = false;
@@ -413,6 +490,8 @@ void AppDistance::onRunning()
 
 void AppDistance::onClose()
 {
+    // Input handoff can wait for I2S. Never hold the display lock while stopping.
+    snap_sense::stop();
     if (!_view) {
         return;
     }

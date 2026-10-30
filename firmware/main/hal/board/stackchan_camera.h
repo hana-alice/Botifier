@@ -3,8 +3,11 @@
 
 #ifndef CONFIG_IDF_TARGET_ESP32
 #include <lvgl.h>
+#include <array>
+#include <cstdint>
 #include <thread>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include <freertos/FreeRTOS.h>
@@ -20,6 +23,9 @@ struct JpegChunk {
 };
 
 class StackChanCamera : public Camera {
+public:
+    enum class LumaSampleResult { Ready, Busy, Unavailable, InvalidFrame };
+
 private:
     struct FrameBuffer {
         uint8_t* data         = nullptr;
@@ -43,6 +49,9 @@ private:
     std::string explain_url_;
     std::string explain_token_;
     std::thread encoder_thread_;
+    // Serializes capture driver operations. It does not extend the lifetime of
+    // the existing GetFrameData() pointer after Capture/StreamCaptures returns.
+    std::mutex capture_mutex_;
 
 public:
     StackChanCamera(const esp_video_init_config_t& config);
@@ -51,6 +60,11 @@ public:
     virtual void SetExplainUrl(const std::string& url, const std::string& token);
     virtual bool Capture() override;
     bool StreamCaptures();
+
+    // Silent raw-sensor sample; no shutter, preview, frame_ or JPEG allocation.
+    // Try only applies to capture_mutex_: the SDK's DQBUF can wait indefinitely.
+    // Call from a dedicated background task whose lifetime does not outlive this camera.
+    LumaSampleResult TrySampleLumaGrid(std::array<uint8_t, 32 * 24>& out);
 
     // 翻转控制函数
     virtual bool SetHMirror(bool enabled) override;

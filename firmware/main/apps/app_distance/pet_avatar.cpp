@@ -189,13 +189,17 @@ void DistancePetAvatar::init(lv_obj_t* parent)
     _key_elements.mouth = std::make_unique<PetMouth>(_view->panel);
 }
 
-void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal)
+void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react)
 {
-    if (_started && signal == _last_signal && now_ms - _last_tick < 33) return;
+    if (!react && _started && signal == _last_signal && now_ms - _last_tick < 33) return;
     _started = true;
     _last_tick = now_ms;
     _last_signal = signal;
-    const auto frame = _controller.update(now_ms, signal);
+    auto frame = _controller.update(now_ms, signal);
+    if (react && signal == distance_pet::Signal::Ready) {
+        _controller.react(now_ms);
+        frame = _controller.update(now_ms, signal);
+    }
     const auto color = lv_color_hex(frame.mood == distance_pet::Mood::Alert ? kSerious : kEyes);
     static_cast<PetEye*>(_key_elements.leftEye.get())->render(frame.left_eye, color);
     static_cast<PetEye*>(_key_elements.rightEye.get())->render(frame.right_eye, color);

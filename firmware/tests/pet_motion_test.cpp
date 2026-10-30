@@ -320,6 +320,36 @@ void one_hundred_thousand_frames_remain_finite_and_bounded()
     for (const bool seen : visited) check(seen, "long simulated history did not exercise every mood");
 }
 
+void sound_reaction_is_sequenced_and_distance_preempts_it()
+{
+    Controller controller(13);
+    controller.update(0, Signal::Ready);
+    controller.react(10);
+    check(controller.update(10, Signal::Ready).mood == Mood::Surprise, "sound starts a surprise at zero delta");
+    check(controller.update(709, Signal::Ready).mood == Mood::Surprise, "surprise has a readable hold");
+    check(controller.update(710, Signal::Ready).mood == Mood::Happy, "surprise becomes happy after 700ms");
+    check(controller.update(2410, Signal::Ready).mood == Mood::Idle, "reaction ends after 2400ms");
+    controller.react(2420);
+    check(controller.update(2420, Signal::Alert).mood == Mood::Alert, "distance alert preempts sound immediately");
+    controller.react(2420);
+    check(controller.update(2420, Signal::Alert).mood == Mood::Alert, "sound cannot override active alert");
+    check(controller.update(2440, Signal::Unavailable).mood == Mood::Idle, "invalid distance cancels sound reaction");
+    check(controller.update(3500, Signal::Ready).mood == Mood::Idle, "cancelled reaction must not replay");
+}
+
+void sound_reaction_handles_timestamp_wrap()
+{
+    Controller a(11), b(11);
+    const auto start = std::numeric_limits<std::uint32_t>::max() - 900u;
+    a.update(0, Signal::Ready);
+    b.update(start, Signal::Ready);
+    a.react(100);
+    b.react(start + 100);
+    for (std::uint32_t offset = 100; offset <= 3000; offset += 20) {
+        check_same(a.update(offset, Signal::Ready), b.update(start + offset, Signal::Ready));
+    }
+}
+
 } // namespace
 
 int main()
@@ -338,6 +368,8 @@ int main()
         {"different_seeds_change_the_idle_history", different_seeds_change_the_idle_history},
         {"uptime_rollover_preserves_the_same_relative_animation", uptime_rollover_preserves_the_same_relative_animation},
         {"one_hundred_thousand_frames_remain_finite_and_bounded", one_hundred_thousand_frames_remain_finite_and_bounded},
+        {"sound_reaction_is_sequenced_and_distance_preempts_it", sound_reaction_is_sequenced_and_distance_preempts_it},
+        {"sound_reaction_handles_timestamp_wrap", sound_reaction_handles_timestamp_wrap},
     };
     unsigned passed = 0;
     for (const auto& test : tests) {

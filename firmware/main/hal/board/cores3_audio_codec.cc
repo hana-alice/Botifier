@@ -6,6 +6,14 @@
 
 #define TAG "CoreS3AudioCodec"
 
+namespace {
+bool input_failure(const char* operation, int error) {
+    ESP_LOGE(TAG, "Input %s failed: %s (0x%x)", operation, esp_err_to_name(error),
+             static_cast<unsigned>(error));
+    return false;
+}
+} // namespace
+
 CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
     uint8_t aw88298_addr, uint8_t es7210_addr, bool input_reference) {
@@ -210,6 +218,73 @@ void CoreS3AudioCodec::EnableInput(bool enable) {
     AudioCodec::EnableInput(enable);
 }
 
+bool CoreS3AudioCodec::CloseInputChecked() {
+    input_cleanup_pending_ = true;
+    // esp_codec_dev_close discards the codec enable callback's error. Check
+    // the ADC shutdown ourselves before allowing the logical close to commit.
+    int result = in_codec_if_->enable(in_codec_if_, false);
+    if (result != ESP_CODEC_DEV_OK) return input_failure("ADC disable", result);
+    result = esp_codec_dev_close(input_dev_);
+    if (result != ESP_CODEC_DEV_OK) return input_failure("close", result);
+
+    i2s_chan_info_t info{};
+    result = i2s_channel_get_info(rx_handle_, &info);
+    if (result != ESP_OK) return input_failure("RX state", result);
+    if (!output_enabled_ && info.is_enabled) {
+        // The device wrapper also discards data_if->enable errors and clears
+        // its opened flag. A retry must reach the data interface even when
+        // that wrapper now considers itself closed.
+        result = data_if_->enable(data_if_, ESP_CODEC_DEV_TYPE_IN, false);
+        if (result != ESP_CODEC_DEV_OK) return input_failure("RX disable", result);
+        result = i2s_channel_get_info(rx_handle_, &info);
+        if (result != ESP_OK) return input_failure("RX state after disable", result);
+        if (info.is_enabled) return input_failure("RX still enabled", ESP_ERR_INVALID_STATE);
+    }
+    // ESP32-S3 may defer RX clock shutdown while duplex output is active.
+    // Its ADC is disabled above; do not change the speaker or its clock owner.
+    input_cleanup_pending_ = false;
+    AudioCodec::EnableInput(false);
+    return true;
+}
+
+bool CoreS3AudioCodec::TryEnableInput(bool enable) {
+    if (input_cleanup_pending_ && !CloseInputChecked()) return false;
+    if (enable == input_enabled_) return true;
+    if (!enable) return CloseInputChecked();
+
+    esp_codec_dev_sample_info_t fs = {
+        .bits_per_sample = 16,
+        .channel = 2,
+        .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
+        .sample_rate = (uint32_t)output_sample_rate_,
+        .mclk_multiple = 0,
+    };
+    if (input_reference_) fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
+
+    // Failed open may already have set the vendor's opened flag, so both open
+    // and gain failures require cleanup before any subsequent enable retry.
+    input_cleanup_pending_ = true;
+    auto rollback = [this](const char* operation, int error) {
+        input_failure(operation, error);
+        CloseInputChecked(); // Logs a separate error if cleanup remains pending.
+        return false;
+    };
+    int result = esp_codec_dev_open(input_dev_, &fs);
+    if (result != ESP_CODEC_DEV_OK) return rollback("open", result);
+    // The public gain wrapper discards this callback's return code. Preserve
+    // the existing channel and gain value while checking the actual write.
+    result = in_codec_if_->set_mic_channel_gain(in_codec_if_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
+                                               static_cast<int>(input_gain_));
+    if (result != ESP_CODEC_DEV_OK) return rollback("channel gain", result);
+    i2s_chan_info_t info{};
+    result = i2s_channel_get_info(rx_handle_, &info);
+    if (result != ESP_OK) return rollback("RX state after open", result);
+    if (!info.is_enabled) return rollback("RX not enabled", ESP_ERR_INVALID_STATE);
+    input_cleanup_pending_ = false;
+    AudioCodec::EnableInput(true);
+    return true;
+}
+
 void CoreS3AudioCodec::EnableOutput(bool enable) {
     if (enable == output_enabled_) {
         return;
@@ -232,8 +307,11 @@ void CoreS3AudioCodec::EnableOutput(bool enable) {
 }
 
 int CoreS3AudioCodec::Read(int16_t* dest, int samples) {
-    if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+    if (!input_enabled_ || input_cleanup_pending_) return 0;
+    const int result = esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t));
+    if (result != ESP_CODEC_DEV_OK) {
+        input_failure("read", result);
+        return 0;
     }
     return samples;
 }
