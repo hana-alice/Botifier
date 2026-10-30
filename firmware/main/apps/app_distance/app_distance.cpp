@@ -1,4 +1,5 @@
 #include "app_distance.h"
+#include "pet_avatar.h"
 
 #include <assets/assets.h>
 #include <distance_sensor/service.h>
@@ -139,11 +140,7 @@ struct AppDistance::View {
 
     Mode mode = Mode::Tune;
     Mode requested_mode = Mode::Live;
-    stackchan::avatar::Avatar* live_avatar = nullptr;
-    stackchan::Modifier* blink_modifier = nullptr;
-    stackchan::Modifier* breath_modifier = nullptr;
-    int blink_id = -1;
-    int breath_id = -1;
+    DistancePetAvatar* live_avatar = nullptr;
     bool save_requested = false;
     std::uint32_t edit_revision = 0;
 
@@ -205,16 +202,6 @@ struct AppDistance::View {
     void stop_live()
     {
         auto& stackchan = GetStackChan();
-        // Permanent modifiers do not self-expire. Check identity as well as ID
-        // so a cleared/reused pool slot cannot remove another app's modifier.
-        if (blink_id >= 0 && stackchan.getModifier(blink_id) == blink_modifier) {
-            stackchan.removeModifier(blink_id);
-        }
-        if (breath_id >= 0 && stackchan.getModifier(breath_id) == breath_modifier) {
-            stackchan.removeModifier(breath_id);
-        }
-        blink_id = breath_id = -1;
-        blink_modifier = breath_modifier = nullptr;
         if (live_avatar && stackchan.hasAvatar() && &stackchan.avatar() == live_avatar) {
             stackchan.resetAvatar();
         }
@@ -229,17 +216,10 @@ struct AppDistance::View {
         stop_live();
         mode = requested_mode;
         if (mode == Mode::Live) {
-            auto avatar = std::make_unique<stackchan::avatar::DefaultAvatar>();
+            auto avatar = std::make_unique<DistancePetAvatar>();
             avatar->init(lv_screen_active());
             live_avatar = avatar.get();
             GetStackChan().attachAvatar(std::move(avatar));
-            auto blink = std::make_unique<stackchan::BlinkModifier>(0, 3200, 160);
-            blink_modifier = blink.get();
-            blink_id = GetStackChan().addModifier(std::move(blink));
-            // Breath shifts face features only: no servo/motion modifier.
-            auto breath = std::make_unique<stackchan::BreathModifier>(0, 6, 3600, 100);
-            breath_modifier = breath.get();
-            breath_id = GetStackChan().addModifier(std::move(breath));
             tune_page->addFlag(LV_OBJ_FLAG_HIDDEN);
             live_controls->removeFlag(LV_OBJ_FLAG_HIDDEN);
             raise_controls();
@@ -248,6 +228,17 @@ struct AppDistance::View {
             tune_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(tune_page->get());
         }
+    }
+
+    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot)
+    {
+        if (!live_avatar) return;
+        auto signal = distance_pet::Signal::Unavailable;
+        if (!snapshot.stale && snapshot.valid && snapshot.filtered_mm >= 0) {
+            signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
+                     distance_pet::Signal::Alert : distance_pet::Signal::Ready;
+        }
+        live_avatar->tick(now, signal);
     }
 
     void raise_controls()
@@ -385,10 +376,9 @@ void AppDistance::onRunning()
 {
     const auto now = GetHAL().millis();
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
-    distance_sensor::Snapshot current;
+    const auto current = distance_sensor::snapshot();
     if (refresh) {
         _last_refresh_ms = now;
-        current = distance_sensor::snapshot();
     }
 
     bool save = false;
@@ -399,6 +389,7 @@ void AppDistance::onRunning()
             return;
         }
         _view->apply_mode();
+        _view->update_pet(now, current);
         GetStackChan().update();
         _view->raise_controls();
         if (refresh) {

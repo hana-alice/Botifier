@@ -46,3 +46,10 @@ target_include_directories(avatar_lifetime_test PRIVATE fakes/avatar_ui ../main)
 
 target_compile_features(avatar_lifetime_test PRIVATE cxx_std_17)
 add_test(NAME avatar_lifetime_test COMMAND $<TARGET_FILE:avatar_lifetime_test>)
+
+add_executable(pet_motion_test pet_motion_test.cpp)
+
+target_include_directories(pet_motion_test PRIVATE ../main)
+
+target_compile_features(pet_motion_test PRIVATE cxx_std_17)
+add_test(NAME pet_motion_test COMMAND $<TARGET_FILE:pet_motion_test>)
