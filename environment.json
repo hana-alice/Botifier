@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T18:36:21.127037+08:00",
+  "RecordedAt": "2026-10-30T20:34:52.3418150+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d"
+    "LocalImplementationCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,6 +15,8 @@
   },
   "Device": {
     "Port": "COM38",
+    "ConnectionStatus": "COM38 is the last deployed port; no StackChan USB serial currently enumerated. User deferred hardware access for this code-only snap implementation.",
+    "UpdatedThisIteration": false,
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
     "HistoricalBootLogVersion": "1.5.1",
@@ -69,12 +71,63 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 6/6: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups, 13 pet motion groups including 100000 frames and 64 transition pairs; lifetime regression also tested red",
-  "FirmwareBuild": "passed and deployed to COM38 ota_0; DISTANCE LIVE electronic pet, immediate warning, realtime TUNE and explicit NVS SAVE; only app and OTA metadata sector 0 written; independent readback confirms seq13 VALID",
+  "HostTest": "CTest 7/7: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups, 15 pet motion groups and 12 snap detector/fusion groups. Snap inputs are synthetic PCM/grids; real acoustic accuracy is unmeasured. Log: logs/host-tests-snap-final.log",
+  "FirmwareBuild": "ESP-IDF 5.5.4 build passed; new DISTANCE snap candidate interaction and camera motion corroboration are NOT DEPLOYED. User requested code completion without hardware access. Current binary differs from the last deployed pet build; seq13 VALID refers only to LastDeployedPetFirmwareBinary.",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
+    "Bytes": 3776496,
+    "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
+    "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
+    "BuildLog": "logs/firmware-20261030-203157.log",
+    "Flashed": false
+  },
+  "LastDeployedPetFirmwareBinary": {
+    "Path": ".tools/device-backups/20261030-182853-pet-face/distance-pet-working.bin",
     "Bytes": 3762976,
-    "SHA256": "527756678afd18f61865d1f25d87d24643b04e4375999c7d8c839587b42b50c3"
+    "SHA256": "527756678afd18f61865d1f25d87d24643b04e4375999c7d8c839587b42b50c3",
+    "SourceCommit": "e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d",
+    "OtaSequence": 13,
+    "OtaState": "VALID",
+    "Note": "Last confirmed physical deployment; the snap feature has not been written to the device."
+  },
+  "SnapPrototype": {
+    "Status": "code, full firmware build and synthetic/desktop verification complete; no device access or deployment",
+    "DefaultConfig": {
+      "Listening": true,
+      "CameraRequired": true,
+      "Sensitivity": 3,
+      "Persistence": "RAM only; reset on reboot"
+    },
+    "Controls": "DISTANCE -> TUNE -> SNAP; SENS 1..5, CAM assist and LISTEN. DISTANCE returns to distance tuning; LIVE shows the pet.",
+    "Reaction": "Surprise at acceptance; Happy after 700ms; return to normal after 2400ms. Distance Alert or unavailable/unready ToF preempts or suppresses the interaction.",
+    "Audio": "24kHz, 240-frame/10ms blocks, channel0 microphone and channel1 speaker reference. Transient heuristic with adaptive noise and playback/clipping/tonal/long-sound vetoes; no trained classifier or acoustic echo cancellation.",
+    "Visual": "32x24 local luma motion, not hand/finger pose recognition; frame age <=500ms and candidate-relative motion -600..+350ms; discard first queued frame and use next as baseline.",
+    "Cooldown": "1000ms in a continuous session; changing config or restarting resets detector warmup, visual baseline and fusion state.",
+    "Telemetry": "SC_SNAP v1 at most 5Hz; current sound levels, retained last transient duration/shape, decision and counters. No raw audio/images retained or uploaded by this service. SC_DISTANCE unchanged.",
+    "HostTests": "CTest 7/7 including 12 detector/fusion groups and 15 pet groups; logs/host-tests-snap-final.log",
+    "PcTests": "57 passed plus one no-hardware simulated reminder; logs/pc-tests-snap-final.log",
+    "DesktopView": {
+      "Manifest": ".tools/snap-ui-probe/manifest.json",
+      "ContactSheet": ".tools/snap-ui-probe/frames/contact.png",
+      "ProductionViewSHA256": "e563343acc7148a534ffc8a1440126f6751f7eef499f1099c47135509add760e",
+      "Screenshots": 15,
+      "BehaviorChecks": 24,
+      "GeometryChecks": 408,
+      "Clipped": 0,
+      "MaxCounterFooterPx": 269,
+      "FooterWidthPx": 304,
+      "TimingRegression": "Final source accepts an event timestamped 103ms during snapshot after entry at100ms and does not replay it. Isolated old-order control consumes it without reacting and fails as expected with exit42; logs/snap-render-old-order.log.",
+      "Limitations": "Actual LVGL9.4.0, View, wrappers, font and motion model; hardware services are substitutes; global warning decorator omitted; desktop XRGB8888 is not a physical LCD/touch test."
+    },
+    "RemainingHardwareChecks": [
+      "Real snap, clap, keyboard and background music samples; sensitivity and false positive calibration",
+      "Physical microphone/reference mapping, playback threshold and camera timing/lighting behavior",
+      "Task/heap/CPU usage and repeated DISTANCE close -> AI microphone reopen",
+      "SDK camera DQBUF and codec cleanup have no total hard timeout; camera faults can retain capture mutex and block subsequent photo capture"
+    ],
+    "NewDependencies": false,
+    "ServoMotionAdded": false,
+    "Flashed": false
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -88,12 +141,14 @@
     "Notification": "Native Windows request succeeded with simulated 300 mm; helper exited 0; visual display not independently confirmed",
     "HardwareTested": true,
     "Flashed": true,
+    "HardwareEvidenceSourceCommit": "e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d",
+    "HardwareEvidenceAppliesTo": "LastDeployedPetFirmwareBinary; the new snap firmware is not deployed",
     "DefaultThresholdMm": 400,
     "DefaultHysteresisMm": 80,
     "DefaultHoldMs": 0,
     "DefaultCooldownMs": 60000,
     "BuildLog": "logs/firmware-20261030-182654.log",
-    "HostTestLog": "logs/host-tests-20261030-182110-194-test.log",
+    "HostTestLog": "logs/host-tests-snap-final.log",
     "RobotBehavior": "DISTANCE LIVE electronic pet with 11 moods: eight exaggerated emotions plus Idle, Alert and Relief. Seeded irregular blinks, glances, affection sway and happy bounce. Sensor Alert immediately preempts animation; 280ms ordinary transitions and 33ms render gate, bypassed on signal changes. Alert to valid Ready plays one 1800ms Relief; invalid/stale data quietly idles without celebrating. Existing warning symbol/border/TOO CLOSE remains. No servo motion added.",
     "ParameterScope": "On-device TUNE edits threshold/recovery margin/dwell immediately for the next fresh sample. SAVE explicitly persists a validated versioned NVS blob. PC settings still only affect the separate optional PC reminder.",
     "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
