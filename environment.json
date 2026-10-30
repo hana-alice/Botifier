@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T14:51:59.095799+08:00",
+  "RecordedAt": "2026-10-30T16:52:34.8576108+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "3a64d7c82ed56ae160150a49abd3ee341e3262b5"
+    "LocalImplementationCommit": "2698e9bac05914a22a84185f6b6214d276bf6332"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -69,12 +69,12 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 4/4: motion, 11 sensor driver groups, 17 proximity groups, 8 snapshot groups",
-  "FirmwareBuild": "passed and deployed to ota_0; standalone reminder, optional USB telemetry and built-in DISTANCE diagnostics",
+  "HostTest": "CTest 5/5: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups; lifetime regression also tested red",
+  "FirmwareBuild": "passed and deployed to ota_0; animated DISTANCE LIVE, immediate warning, realtime TUNE and explicit NVS SAVE",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3751744,
-    "SHA256": "19b63305e95315708e83ab29e2ef8369dea49351634f07660f3f1f041deb62e8"
+    "Bytes": 3755584,
+    "SHA256": "2263d163805563ce04587427b5bcdff970d4c2b17fa2669110c695925bfb4cbe"
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -90,18 +90,18 @@
     "Flashed": true,
     "DefaultThresholdMm": 400,
     "DefaultHysteresisMm": 80,
-    "DefaultHoldMs": 1000,
+    "DefaultHoldMs": 0,
     "DefaultCooldownMs": 60000,
-    "BuildLog": "logs/firmware-distance-debug-20261030-143830.log",
-    "HostTestLog": "logs/host-tests-20261030-143819-846-test.log",
-    "RobotBehavior": "Standalone median/dwell/hysteresis; 1000 ms robot dwell; red 80 px angry symbol, 8 px border and top TOO CLOSE label. Clears overlay on recovery/invalidity/staleness without restoring old emotions. Existing face required; PC optional.",
-    "ParameterScope": "Robot uses ProximityConfig firmware defaults. PC settings only affect the separate optional PC reminder.",
+    "BuildLog": "logs/firmware-20261030-164246.log",
+    "HostTestLog": "logs/host-tests-20261030-164441-926-test.log",
+    "RobotBehavior": "DISTANCE LIVE shows a blinking/breathing face. Three-sample median below 400mm immediately warns with red symbol/border/TOO CLOSE; clears at 480mm or invalid/stale. No extra dwell by default. Sampling and LCD latency are separate.",
+    "ParameterScope": "On-device TUNE edits threshold/recovery margin/dwell immediately for the next fresh sample. SAVE explicitly persists a validated versioned NVS blob. PC settings still only affect the separate optional PC reminder.",
     "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
     "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active.",
-    "HardwareTestScope": "Diagnostics build: 903 valid continuous physical frames; PC parser accepts all; median and alert-state diagnostics match independent checks. UI touch/readability acceptance pending.",
-    "DeviceBootLog": "logs/device-distance-debug.log",
+    "HardwareTestScope": "902 consecutive physical frames: 892 valid/10 invalid; PC parser accepts all; independent median and rule checks match; two zero-dwell alert edges, invalid clear and far recovery. USB reboot: 301/301 valid frames. Physical TUNE/SAVE/button acceptance pending.",
+    "DeviceBootLog": "logs/device-distance-live.log",
     "DeploymentRecord": "DEVICE_DEPLOYMENT.md",
-    "OtaConfirmation": "Independent metadata read: seq9/VALID/CRC correct; original seq2 VALID sector byte-identical. USB reboot continues valid ranging and HAL reports ota_0 state2.",
+    "OtaConfirmation": "Independent metadata read: seq11/VALID/CRC correct; original seq2 VALID sector byte-identical. USB reboot continues valid ranging and HAL reports ota_0 state2.",
     "ActualSampleWindow": {
       "FirstSeq": 29,
       "LastSeq": 1044,
@@ -119,11 +119,11 @@
       "AlertEdges": 0,
       "Note": "First deployed build stable-distance baseline; retained as historical evidence."
     },
-    "OtaConfirmationRecord": ".tools/device-backups/20261030-144309-distance-debug/ota-confirmation.json",
-    "RebootLog": "logs/device-distance-debug-reboot.log",
+    "OtaConfirmationRecord": ".tools/device-backups/20261030-164605-distance-live/ota-confirmation.json",
+    "RebootLog": "logs/device-distance-live-reboot.log",
     "PcLiveTest": "Real COM38/no-notify: safe and live distance; P paused while sampling continued; P resumed waiting to safe; Q exit0 and port released.",
-    "PhysicalGestureTest": "First version confirmed effective by user. Updated version: 4 physical near/recovery cycles observed; visual prominence still awaits user feedback.",
-    "DefaultHoldScope": "Robot proximity dwell after median warmup",
+    "PhysicalGestureTest": "First reminder confirmed effective by user. Prior 1s build had four physical cycles; latest immediate build has two physical zero-dwell alert edges. New LIVE visual/touch feedback still pending.",
+    "DefaultHoldScope": "Robot extra dwell after median crossing; 0ms default, still sampled and filtered",
     "DefaultPcHoldMs": 5000,
     "UpdatedSampleWindow": {
       "frames": 1203,
@@ -200,14 +200,17 @@
       ],
       "Note": "Previous faster-warning build: four physical 1000 ms alert cycles; retained as historical evidence."
     },
-    "DiagnosticsEntry": "Built-in main menu DISTANCE; fixed HOME button returns; no market installation",
+    "DiagnosticsEntry": "Built-in DISTANCE defaults to LIVE animated face; TUNE opens distance readout and three live parameters; HOME returns",
     "DiagnosticsRefreshMs": 100,
     "DiagnosticsSnapshotTimeoutMs": 1500,
-    "DiagnosticsUIAcceptance": "Awaiting user confirmation: page readable, distance follows target and HOME returns",
+    "DiagnosticsUIAcceptance": "User confirmed previous read-only distance diagnostics responsive. New LIVE/TUNE buttons, visuals and edited SAVE/reboot round trip not yet independently confirmed.",
     "ProtocolOptionalDiagnostics": [
       "filtered_mm",
       "near_ms",
-      "proximity_state"
+      "proximity_state",
+      "threshold_mm",
+      "hysteresis_mm",
+      "hold_ms"
     ],
     "DiagnosticsSampleWindow": {
       "frames": 903,
@@ -224,7 +227,100 @@
       "median_mismatches": [],
       "alert_state_mismatches": [],
       "edges": []
-    }
+    },
+    "LiveSampleWindow": {
+      "frames": 902,
+      "valid": 892,
+      "first_seq": 149,
+      "last_seq": 1050,
+      "pc_parser_rejected": 0,
+      "sequence_gaps": [],
+      "median_interval_ms": 90,
+      "mean_interval_ms": 99.7669256381798,
+      "min_interval_ms": 90,
+      "max_interval_ms": 110,
+      "raw_min_mm": 103,
+      "raw_max_mm": 509,
+      "median_mismatches": [],
+      "rule_mismatches": [],
+      "configurations": [
+        {
+          "seq": 149,
+          "values": [
+            400,
+            80,
+            0
+          ]
+        }
+      ],
+      "alert_edges": [
+        {
+          "seq": 279,
+          "uptime_ms": 29652,
+          "robot_alert": true,
+          "distance_mm": 232,
+          "filtered_mm": 232,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 287,
+          "uptime_ms": 30452,
+          "robot_alert": false,
+          "distance_mm": 38,
+          "filtered_mm": -1,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 669,
+          "uptime_ms": 68572,
+          "robot_alert": true,
+          "distance_mm": 224,
+          "filtered_mm": 356,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 672,
+          "uptime_ms": 68862,
+          "robot_alert": false,
+          "distance_mm": 484,
+          "filtered_mm": 483,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        }
+      ]
+    },
+    "LiveRebootSampleWindow": {
+      "frames": 301,
+      "valid": 301,
+      "first_seq": 42,
+      "last_seq": 342,
+      "pc_parser_rejected": 0,
+      "sequence_gaps": [],
+      "median_interval_ms": 90.0,
+      "raw_min_mm": 427,
+      "raw_max_mm": 471,
+      "median_mismatches": [],
+      "rule_mismatches": [],
+      "configurations": [
+        {
+          "seq": 42,
+          "values": [
+            400,
+            80,
+            0
+          ]
+        }
+      ],
+      "alert_edges": []
+    },
+    "LivePersistence": "Implemented: explicit SAVE in sc_distance/config, version/size/range validation on load. Edited-value SAVE/reboot acceptance pending."
   },
   "UsbSamplingBaselineBinary": {
     "Bytes": 3734928,

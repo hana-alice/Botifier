@@ -125,4 +125,32 @@ HAL 首次报告 `ota confirm check: partition=ota_0, state=1`，随后请求 `m
 汇总 `logs/device-distance-debug-summary.json`；USB 重启日志 `logs/device-distance-debug-reboot.log` 仍有有效测距，HAL 确认 `ota_0, state=2`。
 
 刷写前旧版 25 秒窗口有 250 个连续有效帧、277–545 mm，未见采样停顿；首行有前次端口关闭留下的旧半帧拼接，已从统计中排除，不据此推断传感器停顿。
-页面实际可读性、距离跟随和 HOME 触摸返回仍需用户现场确认。尚无足够证据确定“不灵敏”的具体原因，需结合页面的 RAW/FILTERED/HOLD/状态与用户摆放对照。
+用户随后确认“可以的，很灵敏”，说明距离页面可用且读数跟随符合其现场感受；没有单独确认 HOME 触摸返回。用户推测此前表情显示不及时，目前没有 LCD 时延测量来确定该解释。
+
+## 第四次部署：动态表情与实时调参
+
+按用户要求，DISTANCE 默认进入 LIVE：复用 DefaultAvatar，只增加本页面拥有的 Blink/Breath 表情动画；底部固定 HOME/TUNE。切到 TUNE 可直接看 F（中值）/R（原始）cm、状态和有效性，三组 40 px 高加减按钮调整 TRIP cm、CLEAR +cm、WAIT sec，LIVE 返回验证表情。
+
+机器人默认等待从 1000 ms 改为 0 ms，中值低于 400 mm 当帧判定 Alert，恢复仍为 480 mm；保留三样本滤波和 1500 ms 断流清除。这是去掉额外的持续等待，不能据此声称光学采样或 LCD 零延迟。
+
+请求参数和快照在短临界区复制，policy 仍只由独立采样任务操作。每帧先应用参数，再处理新的有效/无效读数；真正修改时清除旧 latch 和计时，但保留仍新鲜的中值窗口，相同参数不重置。
+快照记录同一帧实际参数；SC_DISTANCE v1 新增可选 threshold_mm、hysteresis_mm、hold_ms，用于和屏幕交叉核对，原电脑端兼容。
+
+SAVE 请求由 app task 在 LVGL 锁内摘取、锁外写 NVS，锁内显示结果。只有显式 SAVE 才保存 sc_distance/config 单个版本化 blob；开机校验尺寸、版本和范围后恢复，错误或缺键使用默认。保存期间有新编辑会提示 NEWER EDITS，不将后续编辑误标为纯 SAVED。
+
+独立审查发现原 Avatar 基类没有虚析构，而 StackChan 通过 unique_ptr<Avatar> 持有派生脸；反复切页会使派生屏幕面板无法正确释放。因此仅增加 virtual ~Avatar() = default，未扩展其它脸部功能。现有 LVGL Object wrapper 对已由父容器删除的子对象有 isValid/release 防重删路径。
+新增实际 Avatar 头的生命周期回归：100 次 reset 与 100 次替换检查派生 RAII、五官、气泡和装饰资源释放；隔离移除虚析构后两组均运行失败，恢复后 2/2。该主机测试不包含真实 LCD 或 LVGL 分配器，不替代现场切页验收。
+
+最终固件 3,755,584 字节，SHA256 `2263d163805563ce04587427b5bcdff970d4c2b17fa2669110c695925bfb4cbe`；构建日志 `logs/firmware-20261030-164246.log`。CTest **5/5**（规则30组、快照9组、生命周期2组，另有原驱动11组与运动），日志 `logs/host-tests-20261030-164441-926-test.log`；电脑端57项与模拟通过，日志 `logs/pc-distance-live-tests.log`。
+
+上一版可用镜像已归档到 `20261030-144309-distance-debug/distance-third-working.bin`。本次配置前缀/启动记录备份和部署记录在 `.tools/device-backups/20261030-164605-distance-live/`；只写 ota_0 与启动扇区0，新记录 seq11 / NEW；原厂槽、当前配置、bootloader、分区表、资源及另一启动扇区保护摘要均通过。部署日志 `logs/device-update-distance-live.log`。
+
+独立读回 OTA 记录为 **seq11 / VALID / CRC 正确**，sector1 原 seq2 / VALID 全扇区不变；记录在同备份目录的 ota-confirmation.json。再次 USB 重启后，日志 `logs/device-distance-live-reboot.log` 返回 **301/301 有效帧**、无序号缺帧，HAL 确认 `ota_0, state=2`。
+
+首轮真实记录 `logs/device-distance-live.log` 为 seq149–1050 共 **902 连续帧**，892 有效、10 无效，PC 拒绝数0，无序号缺帧；采样间隔90–110 ms、平均99.767 ms。每个可独立计算的中值与上报一致，规则边界检查无不一致。
+出现两次近距开启：seq279（中值232 mm）和seq669（中值356 mm），均在进入 Alert 当帧 `near_ms=0 / hold_ms=0`，没有额外1秒等待。
+seq287 因无效测量清除；seq672 中值483 mm 达到恢复阈值后解除。首行旧半帧与 boot 日志拼接，已排除，未计作协议帧。
+汇总 `logs/device-distance-live-summary.json`；这些是采样与判断证据，不包含 LCD 显示时延。此窗口参数始终400/80/0，尚未记录现场加减或 SAVE，因此未声称编辑参数后的保存/重启往返已实测。
+
+固件提交 `2698e9bac05914a22a84185f6b6214d276bf6332`；本次改动文件为 apps/app_distance/app_distance.h/.cpp、distance_sensor/proximity_policy.h 与 service.h/.cpp、stackchan/avatar/avatar/avatar.h，以及 tests/CMakeLists.txt、proximity_policy_test.cpp、distance_snapshot_test.cpp、avatar_lifetime_test.cpp、专用 fakes/avatar_ui/。路径相对 firmware/main，测试路径相对 firmware。
+复用原脸、动画、图标、字体和 NVS，无新增依赖；两屏取代单一只读页，继续复用原告警图层。现场 LIVE/TUNE/HOME 触摸、表情观感、编辑后 SAVE/重启恢复及完整 AI 回归仍未独立验收。
