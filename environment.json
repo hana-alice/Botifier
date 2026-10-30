@@ -1,10 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T10:41:01.0040883+08:00",
+  "RecordedAt": "2026-10-30T12:04:37.5488292+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
-    "FirmwareVersion": "1.6.0"
+    "FirmwareVersion": "1.6.0",
+    "LocalImplementationCommit": "47b08697986d077b2e5ef17c7900b422d49d20d4"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -56,11 +57,30 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "motion_math_test passed 1/1",
-  "FirmwareBuild": "passed; official firmware 1.6.0, no distance feature added, not flashed",
+  "HostTest": "motion_math_test and vl53l1x_driver_test passed 2/2; driver has 11 scenario groups",
+  "FirmwareBuild": "passed; official 1.6.0 base with local distance sampling; not flashed",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
+    "Bytes": 3734928,
+    "SHA256": "7e8abe2683a943240296cf8f9f0f9971f5fb0fc0292bb40b39ecae217adc5d42"
+  },
+  "BaselineFirmwareBinary": {
     "Bytes": 3730352,
-    "SHA256": "324b15a2dbeba9e20e4cb979fdbbcb64e2499f9539d26593c412b08ebe532f63"
+    "SHA256": "324b15a2dbeba9e20e4cb979fdbbcb64e2499f9539d26593c412b08ebe532f63",
+    "Note": "Original official 1.6.0 build before distance changes; build path now contains the distance-enabled artifact."
+  },
+  "DistanceReminder": {
+    "Branch": "feature/distance-reminder",
+    "PcUnitTests": "52 passed",
+    "Simulation": "1 simulated reminder, no serial access",
+    "Notification": "Native Windows request succeeded with simulated 300 mm; helper exited 0; visual display not independently confirmed",
+    "HardwareTested": false,
+    "Flashed": false,
+    "DefaultThresholdMm": 400,
+    "DefaultHysteresisMm": 80,
+    "DefaultHoldMs": 5000,
+    "DefaultCooldownMs": 60000,
+    "BuildLog": "logs/firmware-20261030-120304.log",
+    "HostTestLog": "logs/host-tests-20261030-115859-314-test.log"
   }
 }
