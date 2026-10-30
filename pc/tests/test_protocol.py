@@ -84,6 +84,16 @@ class ProtocolTests(unittest.TestCase):
                 self.assertIsNone(parse_line(frame(robot_alert=value)))
         self.assertIsNone(parse_line(frame(valid=False, distance_mm=None, robot_alert=True)))
 
+    def test_robot_diagnostics_do_not_change_existing_pc_sample(self):
+        expected = parse_line(frame(distance_mm=345, robot_alert=False))
+        actual = parse_line(frame(distance_mm=345, robot_alert=False,
+                                  filtered_mm=350, near_ms=500, proximity_state="near"))
+        self.assertEqual(actual, expected)
+        self.assertIsNotNone(parse_line(frame(valid=False, distance_mm=None,
+                                             raw_status=255, state="sensor_missing", error=-1,
+                                             robot_alert=False, filtered_mm=-1,
+                                             near_ms=0, proximity_state="waiting")))
+
     def test_missing_fields_bad_json_and_duplicate_keys_are_rejected(self):
         original = json.loads(frame()[len(PREFIX):])
         for name in original:

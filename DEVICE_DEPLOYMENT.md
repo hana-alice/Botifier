@@ -103,3 +103,26 @@ HAL 首次报告 `ota confirm check: partition=ota_0, state=1`，随后请求 `m
 | 4 | 106522 | 107522 | 120982 |
 
 这些是传感器与本机规则的真实时延，不包含肉眼观察或 LCD 渲染延迟；新版红框、文字与图标的实际观感尚待用户反馈。
+
+## 第三次部署：DISTANCE 调试入口
+
+用户希望直接查看距离，以排查感觉触发不灵敏的问题。新增内置 Mooncake 页面 **DISTANCE**，紫色图标，追加在既有 App 后以保持旧 appID；右上角固定 **HOME** 按钮返回。源码入口 `apps/app_distance/app_distance.cpp`，只读展示原始距离、中值、近距状态和计时、当前阈值、样本年龄及错误，不改变采样与规则。
+
+采样任务在短临界区发布完整 `Snapshot`，页面每 100 ms 复制一次；UI 不访问 I²C、不推进判定。
+超过 1500 ms 没有新发布的数据，快照读取会在副本上清除距离和计时，显示 STALE / --。
+原始无效光学读数仍保留用于诊断，并明确标记 INVALID。原有表情告警继续读取既有新鲜度判断。
+
+为让串口日志能和屏幕交叉核对，SC_DISTANCE v1 新增可选 `filtered_mm`、`near_ms`、`proximity_state`，与屏幕来自同一份采样状态；现有 PC 解析器兼容。新增页面、service.h/.cpp、App 注册、主机测试及 CMake 为本次固件范围；电脑端只追加协议兼容测试。
+
+源码提交 `3a64d7c82ed56ae160150a49abd3ee341e3262b5`；固件 3,751,744 字节，SHA256 `19b63305e95315708e83ab29e2ef8369dea49351634f07660f3f1f041deb62e8`。
+构建日志 `logs/firmware-distance-debug-20261030-143830.log`；CTest **4/4**，含新增快照 **8 组**（过期边界、副本不变、无效值、自定义超时和时间回绕），原 17 组规则继续通过；PC **57 项**通过。
+
+上一版另存 `20261030-141710-faster-warning/distance-second-working.bin`。当前前 128 KiB 配置与 OTA 备份、刷写和确认记录在 `.tools/device-backups/20261030-144309-distance-debug/`。
+仍只写 ota_0 和启动扇区 0；新记录 seq9 / NEW，所有保护区域摘要通过。独立读回 seq9 / VALID / CRC 正确，另一 seq2 / VALID 扇区保持原值。部署日志 `logs/device-update-distance-debug.log`。
+
+刷写后日志 `logs/device-distance-debug.log` 固定采集到 **903 个连续有效帧**（seq317–1219），采样间隔中位 **100 ms**、无缺帧，PC 解析拒绝数 0。
+新 `filtered_mm` 与独立三样本中值计算逐帧一致，`proximity_state` 和 `robot_alert` 一致；此窗口原始距离 960–1001 mm，未出现近距边沿，不能当作触发时延测试。
+汇总 `logs/device-distance-debug-summary.json`；USB 重启日志 `logs/device-distance-debug-reboot.log` 仍有有效测距，HAL 确认 `ota_0, state=2`。
+
+刷写前旧版 25 秒窗口有 250 个连续有效帧、277–545 mm，未见采样停顿；首行有前次端口关闭留下的旧半帧拼接，已从统计中排除，不据此推断传感器停顿。
+页面实际可读性、距离跟随和 HOME 触摸返回仍需用户现场确认。尚无足够证据确定“不灵敏”的具体原因，需结合页面的 RAW/FILTERED/HOLD/状态与用户摆放对照。

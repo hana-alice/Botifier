@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T14:23:40.583613+08:00",
+  "RecordedAt": "2026-10-30T14:51:59.095799+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "e24db6d6dafeb28e577344bbb55e896493c634b0"
+    "LocalImplementationCommit": "3a64d7c82ed56ae160150a49abd3ee341e3262b5"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -69,12 +69,12 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "motion_math_test, vl53l1x_driver_test and proximity_policy_test passed 3/3; 11 driver and 17 proximity scenario groups",
-  "FirmwareBuild": "passed and deployed to ota_0; standalone proximity rule, robot warning symbol and optional USB telemetry",
+  "HostTest": "CTest 4/4: motion, 11 sensor driver groups, 17 proximity groups, 8 snapshot groups",
+  "FirmwareBuild": "passed and deployed to ota_0; standalone reminder, optional USB telemetry and built-in DISTANCE diagnostics",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3742576,
-    "SHA256": "f8637727a7990dd1cef68f35bd8a349193a94ea40d8db4dbf23dc880c6dbaeed"
+    "Bytes": 3751744,
+    "SHA256": "19b63305e95315708e83ab29e2ef8369dea49351634f07660f3f1f041deb62e8"
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -83,7 +83,7 @@
   },
   "DistanceReminder": {
     "Branch": "feature/distance-reminder",
-    "PcUnitTests": "56 passed",
+    "PcUnitTests": "57 passed",
     "Simulation": "1 simulated reminder, no serial access",
     "Notification": "Native Windows request succeeded with simulated 300 mm; helper exited 0; visual display not independently confirmed",
     "HardwareTested": true,
@@ -92,16 +92,16 @@
     "DefaultHysteresisMm": 80,
     "DefaultHoldMs": 1000,
     "DefaultCooldownMs": 60000,
-    "BuildLog": "logs/firmware-20261030-141414.log",
-    "HostTestLog": "logs/host-tests-20261030-141212-019-test.log",
+    "BuildLog": "logs/firmware-distance-debug-20261030-143830.log",
+    "HostTestLog": "logs/host-tests-20261030-143819-846-test.log",
     "RobotBehavior": "Standalone median/dwell/hysteresis; 1000 ms robot dwell; red 80 px angry symbol, 8 px border and top TOO CLOSE label. Clears overlay on recovery/invalidity/staleness without restoring old emotions. Existing face required; PC optional.",
     "ParameterScope": "Robot uses ProximityConfig firmware defaults. PC settings only affect the separate optional PC reminder.",
     "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
     "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active.",
-    "HardwareTestScope": "Updated binary deployed and verified; 1203 valid real samples, zero sequence gaps, 4 alert on/off cycles with 1000 ms filtered dwell; updated visual appearance awaits user comparison.",
-    "DeviceBootLog": "logs/device-faster-warning.log",
+    "HardwareTestScope": "Diagnostics build: 903 valid continuous physical frames; PC parser accepts all; median and alert-state diagnostics match independent checks. UI touch/readability acceptance pending.",
+    "DeviceBootLog": "logs/device-distance-debug.log",
     "DeploymentRecord": "DEVICE_DEPLOYMENT.md",
-    "OtaConfirmation": "Independent otadata read: seq7/VALID/CRC correct; original seq2 VALID sector byte-identical. USB hardware reset then valid ranging and HAL reports ota_0 state2.",
+    "OtaConfirmation": "Independent metadata read: seq9/VALID/CRC correct; original seq2 VALID sector byte-identical. USB reboot continues valid ranging and HAL reports ota_0 state2.",
     "ActualSampleWindow": {
       "FirstSeq": 29,
       "LastSeq": 1044,
@@ -119,8 +119,8 @@
       "AlertEdges": 0,
       "Note": "First deployed build stable-distance baseline; retained as historical evidence."
     },
-    "OtaConfirmationRecord": ".tools/device-backups/20261030-141710-faster-warning/ota-confirmation.json",
-    "RebootLog": "logs/device-faster-warning-reboot.log",
+    "OtaConfirmationRecord": ".tools/device-backups/20261030-144309-distance-debug/ota-confirmation.json",
+    "RebootLog": "logs/device-distance-debug-reboot.log",
     "PcLiveTest": "Real COM38/no-notify: safe and live distance; P paused while sampling continued; P resumed waiting to safe; Q exit0 and port released.",
     "PhysicalGestureTest": "First version confirmed effective by user. Updated version: 4 physical near/recovery cycles observed; visual prominence still awaits user feedback.",
     "DefaultHoldScope": "Robot proximity dwell after median warmup",
@@ -197,7 +197,33 @@
           "median_mm": 547,
           "dwell_ms": null
         }
-      ]
+      ],
+      "Note": "Previous faster-warning build: four physical 1000 ms alert cycles; retained as historical evidence."
+    },
+    "DiagnosticsEntry": "Built-in main menu DISTANCE; fixed HOME button returns; no market installation",
+    "DiagnosticsRefreshMs": 100,
+    "DiagnosticsSnapshotTimeoutMs": 1500,
+    "DiagnosticsUIAcceptance": "Awaiting user confirmation: page readable, distance follows target and HOME returns",
+    "ProtocolOptionalDiagnostics": [
+      "filtered_mm",
+      "near_ms",
+      "proximity_state"
+    ],
+    "DiagnosticsSampleWindow": {
+      "frames": 903,
+      "first_seq": 317,
+      "last_seq": 1219,
+      "valid": 903,
+      "raw_min_mm": 960,
+      "raw_max_mm": 1001,
+      "median_interval_ms": 100.0,
+      "sequence_gaps": 0,
+      "pc_parser_rejected": 0,
+      "malformed_initial_or_other_lines": 0,
+      "legacy_frames": 0,
+      "median_mismatches": [],
+      "alert_state_mismatches": [],
+      "edges": []
     }
   },
   "UsbSamplingBaselineBinary": {
@@ -210,5 +236,10 @@
     "Path": ".tools/device-backups/20261030-124710/distance-first-working.bin",
     "Bytes": 3741584,
     "SHA256": "272b23202cc98049d62afe971ba037a67a8bf48422b0f1169b41d1b952bc0505"
+  },
+  "FasterWarningDistanceBinary": {
+    "Path": ".tools/device-backups/20261030-141710-faster-warning/distance-second-working.bin",
+    "Bytes": 3742576,
+    "SHA256": "f8637727a7990dd1cef68f35bd8a349193a94ea40d8db4dbf23dc880c6dbaeed"
   }
 }
