@@ -19,7 +19,8 @@ class ProtocolTests(unittest.TestCase):
         sample = parse_line(frame(seq=27, uptime_ms=9876, distance_mm=345))
         self.assertEqual(dataclasses.asdict(sample), {
             "v": 1, "seq": 27, "uptime_ms": 9876, "valid": True,
-            "distance_mm": 345, "raw_status": 9, "state": "ranging", "error": 0})
+            "distance_mm": 345, "raw_status": 9, "state": "ranging", "error": 0,
+            "robot_alert": None})
         with self.assertRaises(dataclasses.FrozenInstanceError):
             sample.seq = 2
 
@@ -70,6 +71,18 @@ class ProtocolTests(unittest.TestCase):
                 self.assertIsNone(parse_line(frame(**values)))
         for raw_status in (9, 41, 137, 233):
             self.assertIsNotNone(parse_line(frame(raw_status=raw_status)))
+
+    def test_robot_alert_is_optional_for_legacy_frames_and_boolean_for_new_frames(self):
+        self.assertIsNone(parse_line(frame()).robot_alert)
+        self.assertIs(parse_line(frame(robot_alert=True)).robot_alert, True)
+        self.assertIs(parse_line(frame(robot_alert=False)).robot_alert, False)
+        self.assertIs(parse_line(frame(valid=False, distance_mm=None, robot_alert=False)).robot_alert, False)
+
+    def test_robot_alert_rejects_non_booleans_and_invalid_measurement_contradictions(self):
+        for value in (None, 0, 1, "true", [], {}):
+            with self.subTest(robot_alert=value):
+                self.assertIsNone(parse_line(frame(robot_alert=value)))
+        self.assertIsNone(parse_line(frame(valid=False, distance_mm=None, robot_alert=True)))
 
     def test_missing_fields_bad_json_and_duplicate_keys_are_rejected(self):
         original = json.loads(frame()[len(PREFIX):])

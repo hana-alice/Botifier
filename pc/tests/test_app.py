@@ -17,10 +17,12 @@ from pc.distance_reminder.protocol import PREFIX, parse_line
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def frame(seq, uptime_ms=0, valid=True, distance_mm=300):
-    return PREFIX + json.dumps({"v": 1, "seq": seq, "uptime_ms": uptime_ms,
+def frame(seq, uptime_ms=0, valid=True, distance_mm=300, **updates):
+    value = {"v": 1, "seq": seq, "uptime_ms": uptime_ms,
         "valid": valid, "distance_mm": distance_mm, "raw_status": 9,
-        "state": "ranging", "error": 0})
+        "state": "ranging", "error": 0}
+    value.update(updates)
+    return PREFIX + json.dumps(value)
 
 
 class BufferTests(unittest.TestCase):
@@ -214,6 +216,36 @@ class NotificationTests(unittest.TestCase):
 
 
 class SerialBoundaryTests(unittest.TestCase):
+    def test_robot_flag_changes_are_displayed_immediately_without_changing_pc_policy(self):
+        reporter = app.Reporter()
+        processor = app.FrameProcessor(ReminderPolicy(Config()))
+        for seq, now in enumerate((0, 100, 200)):
+            self.assertFalse(processor.feed(parse_line(frame(seq, distance_mm=600, robot_alert=False)), now))
+        self.assertEqual(processor.policy.state, "safe")
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            reporter.status("COM38", processor, 200)
+            self.assertFalse(processor.feed(parse_line(frame(3, distance_mm=600, robot_alert=True)), 300))
+            reporter.status("COM38", processor, 300)
+            self.assertFalse(processor.feed(parse_line(frame(4, distance_mm=600, robot_alert=False)), 400))
+            reporter.status("COM38", processor, 400)
+            self.assertEqual(processor.policy.state, "safe")
+            processor.expire(1901)
+            reporter.status("COM38", processor, 1901)
+        lines = output.getvalue().splitlines()
+        self.assertEqual(len(lines), 4)
+        self.assertIn("robot_alert=off", lines[0])
+        self.assertIn("robot_alert=on", lines[1])
+        self.assertIn("robot_alert=off", lines[2])
+        self.assertIn("robot_alert=unknown", lines[3])
+
+    def test_legacy_frames_display_unknown_robot_state(self):
+        reporter = app.Reporter()
+        processor = app.FrameProcessor(ReminderPolicy(Config()))
+        processor.feed(parse_line(frame(0)), 0)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            reporter.status("COM38", processor, 0)
+        self.assertIn("robot_alert=unknown", output.getvalue())
+
     def test_missing_usb_retries_every_two_seconds_without_repeating_status(self):
         serial = ModuleType("serial")
         serial.SerialException = type("SerialException", (Exception,), {})

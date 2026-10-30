@@ -17,6 +17,7 @@ class Sample:
     raw_status: int
     state: str
     error: int
+    robot_alert: bool | None = None
 
 
 def _unique_object(pairs):
@@ -63,5 +64,10 @@ def parse_line(line: str) -> Sample | None:
         return None
     if value["valid"] and ((value["raw_status"] & 31) != 9 or state != "ranging" or value["error"] != 0):
         return None
+    robot_alert = value.get("robot_alert")
+    if "robot_alert" in value and type(robot_alert) is not bool:
+        return None
+    if not value["valid"] and robot_alert is True:
+        return None
     return Sample(value["v"], value["seq"], value["uptime_ms"], value["valid"],
-                  distance, value["raw_status"], state, value["error"])
+                  distance, value["raw_status"], state, value["error"], robot_alert)

@@ -1,6 +1,7 @@
 # StackChan 距离提醒
 
-在 M5Stack 原厂固件基础上采集 ToF4M 距离，通过 USB 送到 Windows，持续过近时提醒。
+机器人独立采集 ToF4M 距离，持续过近时在原厂脸旁显示“生气”动画符号，移远后解除。
+日常表情提醒不依赖电脑、USB 数据线或网络；电脑端保留读数同步与可选 Windows 通知。
 沿用 StackChan + Unit ToF4M（U172 / VL53L1X），不更换原厂软件路线。
 
 ## 接线与摆放
@@ -10,27 +11,42 @@
 PORT A：黑 GND、红 5V、黄 SDA/GPIO2、白 SCL/GPIO1。
 
 ToF4M 白壳凹槽中的两个光学窗口朝向被测目标，窗口保持无遮挡。
-第一版将模块固定在屏幕附近、保持朝向稳定；若装在会转动的头部，当前距离判断不会识别转头，需另做姿态门控。
+按当前摆放方案，将模块固定在电脑屏幕边框，朝向平时坐的位置，连接线留出机器人转头所需的余量。
+若以后改装在会转动的头部，当前距离判断不会识别转头，需另做姿态门控。
 读数是传感器到目标表面的距离，不直接等于眼睛到屏幕的距离，安装后需调整阈值。
 
 [机器人接口图](https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1205/K151_stack_chan_main_pictures_02.webp) ·
 [ToF4M 正面与引脚](https://docs.m5stack.com/zh_CN/unit/Unit_ToF4M)
 
-## 第一版数据路径
+## 数据与提醒路径
 
 ```mermaid
 flowchart LR
-  ToF[ToF4M] -->|I²C 0 / SDA2 SCL1| FW[独立采样任务]
-  FW -->|USB SC_DISTANCE JSON| PC[电脑距离状态机]
-  PC --> Notify[Windows 提醒]
+  ToF[ToF4M] -->|I²C 0 / SDA2 SCL1| FW[独立采样与本机判断]
+  FW --> Face[原厂生气动画符号]
+  FW -.->|可选 USB SC_DISTANCE JSON| PC[电脑读数与本机告警状态]
+  PC -.-> Notify[可选 Windows 提醒]
 ```
 
 - 采样任务跨菜单与 AI 模式持续运行，独占外部 I²C 控制器 0；内部控制器 1 保持原用途。
-- 固件只发布新测量和传感器状态，未接传感器或读取失败不会阻止原厂主程序启动。
-- 电脑对三个有效新样本取中值。默认低于 **40 cm** 开始累计，持续 **5 秒** 提醒；恢复到 **48 cm** 解除过近状态，持续过近时提醒间隔至少 **60 秒**。
-- 无效测量、断连和采样间隔超过 1.5 秒都会清除滤波与过近累计；恢复后重新采满三个有效样本并累计。
-- 参数在电脑端配置并保存；USB 当前为单向日志，不向机器人发送命令。
-- 首版提供电脑通知和可选电脑提示音；机器人表情/声音联动尚未接入。
+- 固件对三个有效新样本取中值。默认低于 **40 cm** 开始累计，持续 **5 秒** 显示生气符号；恢复到 **48 cm** 解除。持续过近时符号保持显示，不周期播放提示音。
+- 提醒复用原厂 `AngryDecorator`，由现有显示更新线程在 LVGL 锁内管理；原表情、眨眼和对话继续运行，解除时移除符号，不回放旧的表情或眼嘴控制指令。
+- 可在原厂主菜单打开 **DANCE** 测试，不需要连接蓝牙；AVATAR 与 AI 模式显示原厂脸时也接入同一提醒。主菜单、没有脸的界面或脸完全隐藏的来电界面不显示符号。
+- 无效测量、传感器断连和采样间隔超过 1.5 秒都会清除本机滤波、累计和提醒；恢复后重新采满三个有效样本并累计。未接传感器不会阻止原厂主程序启动。
+- `SC_DISTANCE` v1 保留原始距离、有效性、序号、设备时间和错误状态，并追加 `robot_alert` 布尔值。电脑端同时显示原始读数和本机告警状态，旧协议仍兼容；`robot_alert` 表示本机规则满足，实际符号还取决于当前是否显示脸。
+- 电脑端可另行开启 Windows 通知；其规则与参数独立运行，默认提醒间隔至少 **60 秒**。关闭电脑程序不会停止机器人本机提醒。
+
+## USB、Wi-Fi 与参数
+
+机器人只要正常供电、ToF 连着 PORT A，即可在部署此固件后独立提醒。
+USB 仅用于当前的首次开发测试、日志和可选电脑同步；固定在最终位置时可以不连接电脑 USB。
+
+当前机器人阈值、迟滞和持续时间取自固件 `distance_sensor/proximity_policy.h` 的默认配置。
+下面的电脑命令只调整电脑端规则，**不会修改机器人规则**。机器人无线改参、Wi-Fi 距离同步和电脑直接触发的局域网 OTA 入口尚未实现。
+
+原厂源码已有固件 OTA 和 AI 用户工具 `self.upgrade_firmware(url)`，但触屏更新页没有输入任意本地固件 URL 的入口。
+现机旧版本和当前平台能否调用该工具尚未验证，因此不声称首次技术上必须 USB；现阶段先在近处通过 USB 备份、部署和测通，是可控的开发路径。
+OTA 机制见 [ESP-IDF 文档](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/ota.html)。
 
 ## Windows 使用
 
@@ -43,7 +59,10 @@ flowchart LR
 # 串口存在多个设备时指定端口；串口号以当前系统为准
 .\scripts\Start-DistanceReminder.ps1 -Port COM38
 
-# 修改并保存参数；这些是可调示例，不是医学建议
+# 只查看同步信息，使用机器人表情提醒
+.\scripts\Start-DistanceReminder.ps1 -NoNotify
+
+# 只修改并保存电脑端参数；这些是可调示例，不是医学建议
 .\scripts\Start-DistanceReminder.ps1 -ThresholdCm 40 -HysteresisCm 8 -HoldSeconds 5 -CooldownSeconds 60
 
 # 开/关电脑提示音
@@ -54,7 +73,8 @@ flowchart LR
 .\scripts\Start-DistanceReminder.ps1 -Simulate
 ```
 
-控制台显示连接、读数与状态；按 **P** 暂停/继续，按 **Q** 退出。
+控制台显示连接、读数、`robot_alert=on/off/unknown` 与电脑端状态。
+按 **P** 只暂停/继续电脑端判断，按 **Q** 退出电脑程序，均不暂停机器人本机提醒。
 设置保存在本地 `pc/reminder-settings.json`（Git 忽略）；模拟模式不会保存配置或访问串口。
 普通固件日志不会被打印或存入提醒日志。系统勿扰/专注设置可能隐藏通知气泡，控制台仍有 `ALERT`。
 

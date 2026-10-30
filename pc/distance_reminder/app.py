@@ -129,12 +129,14 @@ class Reporter:
     def status(self, connection: str, processor: FrameProcessor, now_ms: int, force: bool = False):
         sample, policy = processor.sample, processor.policy
         sensor = sample.state if sample else "waiting_data"
-        key = (connection, policy.state, sensor)
+        robot_alert = ("unknown" if sample is None or sample.robot_alert is None
+                       else "on" if sample.robot_alert else "off")
+        key = (connection, policy.state, sensor, robot_alert)
         raw = sample.distance_mm if sample and sample.valid else "-"
         filtered = policy.filtered_mm if policy.filtered_mm is not None else "-"
         line = (f"connection={connection} raw_mm={raw} filtered_mm={filtered} "
                 f"near_ms={policy.near_elapsed_ms}/{policy.config.near_duration_ms} "
-                f"state={policy.state} sensor={sensor}")
+                f"state={policy.state} sensor={sensor} robot_alert={robot_alert}")
         if not force:
             if line == self._last_line:
                 return

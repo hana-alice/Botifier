@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T12:04:37.5488292+08:00",
+  "RecordedAt": "2026-10-30T12:25:14.1776838+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "47b08697986d077b2e5ef17c7900b422d49d20d4"
+    "LocalImplementationCommit": "84c6e47ce82469acb3b44b537c64da26a58577b8"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -57,12 +57,12 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "motion_math_test and vl53l1x_driver_test passed 2/2; driver has 11 scenario groups",
-  "FirmwareBuild": "passed; official 1.6.0 base with local distance sampling; not flashed",
+  "HostTest": "motion_math_test, vl53l1x_driver_test and proximity_policy_test passed 3/3; 11 driver and 16 proximity scenario groups",
+  "FirmwareBuild": "passed; official 1.6.0 base with standalone proximity rule, robot warning symbol and optional USB telemetry; not flashed",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3734928,
-    "SHA256": "7e8abe2683a943240296cf8f9f0f9971f5fb0fc0292bb40b39ecae217adc5d42"
+    "Bytes": 3741584,
+    "SHA256": "272b23202cc98049d62afe971ba037a67a8bf48422b0f1169b41d1b952bc0505"
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -71,7 +71,7 @@
   },
   "DistanceReminder": {
     "Branch": "feature/distance-reminder",
-    "PcUnitTests": "52 passed",
+    "PcUnitTests": "56 passed",
     "Simulation": "1 simulated reminder, no serial access",
     "Notification": "Native Windows request succeeded with simulated 300 mm; helper exited 0; visual display not independently confirmed",
     "HardwareTested": false,
@@ -80,7 +80,17 @@
     "DefaultHysteresisMm": 80,
     "DefaultHoldMs": 5000,
     "DefaultCooldownMs": 60000,
-    "BuildLog": "logs/firmware-20261030-120304.log",
-    "HostTestLog": "logs/host-tests-20261030-115859-314-test.log"
+    "BuildLog": "logs/firmware-20261030-122220.log",
+    "HostTestLog": "logs/host-tests-20261030-121851-333-test.log",
+    "RobotBehavior": "Standalone median/dwell/hysteresis; AngryDecorator while close; clears on recovery, invalidity or stale sample. Existing face is required; no computer connection needed.",
+    "ParameterScope": "Robot uses ProximityConfig firmware defaults. PC settings only affect the separate optional PC reminder.",
+    "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
+    "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active."
+  },
+  "UsbSamplingBaselineBinary": {
+    "Bytes": 3734928,
+    "SHA256": "7e8abe2683a943240296cf8f9f0f9971f5fb0fc0292bb40b39ecae217adc5d42",
+    "SourceCommit": "47b08697986d077b2e5ef17c7900b422d49d20d4",
+    "Note": "USB sampling and PC reminder before standalone robot expression; historical artifact metadata, current build path has been replaced."
   }
 }
