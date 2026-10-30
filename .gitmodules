@@ -1,3 +1,4 @@
 [submodule "StackChan"]
 	path = StackChan
-	url = https://github.com/m5stack/StackChan.git
+	url = https://github.com/hana-alice/Botifier.git
+	branch = stackchan-firmware

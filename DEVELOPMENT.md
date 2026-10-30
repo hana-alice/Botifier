@@ -104,7 +104,7 @@ python .\scripts\Capture-DeviceLog.py --port COM38 --seconds 120 --log .\logs\de
 
 ## 当前距离提醒
 
-- 已初始化根 Git 仓库并保留原厂源码子仓库历史；两个开发分支均为 `feature/distance-reminder`，未推送。
+- 已初始化根 Git 仓库并保留原厂源码子仓库历史；两个本地开发分支均为 `feature/distance-reminder`。发布到 `hana-alice/Botifier` 的 `main`（根项目）和 `stackchan-firmware`（固件）；未向 M5Stack 上游推送。完整获取需 `git clone --recurse-submodules`。
 - 固件在 HAL 初始化后启动独立采样任务，不随普通菜单卸载；外部 PORT A 使用 I²C0 / SDA2 / SCL1，
   内部 `board_get_i2c_bus()` 的 I²C1 / GPIO12、11 保持原用途。已检查控制器分配，并在红色 PORT A 实际收到有效 ToF 数据。
 - ToF 驱动采用 ST 官方 VL53L1X 寄存器配置，Long 模式、50 ms 测量预算、100 ms 周期。

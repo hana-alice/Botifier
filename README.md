@@ -129,11 +129,21 @@ ToF 寄存器驱动依据 ST 官方代码改编，来源与许可保留在其目
 本机首次部署的备份与分区核验已完成；现有构建脚本仍只编译，不自动刷写。
 原厂在线更新可能覆盖本地新增功能，升级前需保留本地修改。
 
-## 本地 Git
+## 源码与 Git
 
 根仓库记录电脑端、脚本、文档及固件子仓库指针，`StackChan/` 保留原厂 Git 历史。
-两个仓库的开发分支均为 `feature/distance-reminder`；自有改动只提交到本地，未推送上游。
+两个仓库的本地开发分支均为 `feature/distance-reminder`。发布仓库为 [hana-alice/Botifier](https://github.com/hana-alice/Botifier)：`main` 保存根项目，`stackchan-firmware` 保存带本项目修改的固件历史；没有向 M5Stack 上游推送。
 工具、构建产物、日志和本地设置不提交。迁移本地项目时要同时保留根仓库与固件子仓库的提交。
+
+完整获取源码：
+
+```powershell
+git clone --recurse-submodules https://github.com/hana-alice/Botifier.git
+# 已克隆根仓库时补取固件
+git submodule update --init --recursive
+```
+
+子模块固定到根仓库记录的固件提交；仅克隆根仓库不会展开 `StackChan/`。本机后续发布时，先在固件仓库执行 `git push botifier HEAD:stackchan-firmware`，再在根仓库执行 `git push origin HEAD:main`。
 
 原始交接：[STACKCHAN_HANDOFF.txt](STACKCHAN_HANDOFF.txt) ·
 环境记录：[environment.json](environment.json) ·
