@@ -31,3 +31,10 @@ add_executable(proximity_policy_test proximity_policy_test.cpp)
 target_include_directories(proximity_policy_test PRIVATE ../main)
 target_compile_features(proximity_policy_test PRIVATE cxx_std_17)
 add_test(NAME proximity_policy_test COMMAND $<TARGET_FILE:proximity_policy_test>)
+
+add_executable(distance_snapshot_test distance_snapshot_test.cpp)
+
+target_include_directories(distance_snapshot_test PRIVATE fakes ../main)
+
+target_compile_features(distance_snapshot_test PRIVATE cxx_std_17)
+add_test(NAME distance_snapshot_test COMMAND $<TARGET_FILE:distance_snapshot_test>)

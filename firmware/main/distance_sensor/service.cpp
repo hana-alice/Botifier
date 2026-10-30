@@ -19,12 +19,24 @@ constexpr uint32_t retry_delay_ms = 5000;
 TaskHandle_t sampler_task = nullptr;
 uint32_t sequence = 0;
 ProximityPolicy policy;
+portMUX_TYPE snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
+Snapshot latest_snapshot;
 std::atomic<bool> warning_active{false};
 std::atomic<uint32_t> warning_sample_ms{0};
 
 uint32_t now_ms()
 {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
+}
+
+const char* proximity_name(ProximityState state)
+{
+    switch (state) {
+        case ProximityState::Safe: return "safe";
+        case ProximityState::Near: return "near";
+        case ProximityState::Alert: return "alert";
+        default: return "waiting";
+    }
 }
 
 void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
@@ -36,6 +48,21 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
         policy.invalidate();
     }
     const bool warning = policy.alert_active();
+    Snapshot next;
+    next.valid = reading && reading->valid;
+    next.raw_mm = reading ? reading->millimeters : -1;
+    next.filtered_mm = policy.filtered_mm();
+    next.sequence = sequence++;
+    next.sampled_at_ms = timestamp;
+    next.near_elapsed_ms = policy.near_elapsed_ms();
+    next.proximity_state = policy.state();
+    next.sensor_state = state;
+    next.raw_status = reading ? reading->raw_status : 255;
+    next.error = error;
+    next.stale = false;
+    portENTER_CRITICAL(&snapshot_lock);
+    latest_snapshot = next;
+    portEXIT_CRITICAL(&snapshot_lock);
     warning_sample_ms.store(timestamp, std::memory_order_relaxed);
     warning_active.store(warning, std::memory_order_release);
     char distance[12] = "null";
@@ -45,9 +72,11 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
     // One printf call keeps each telemetry record separate from ordinary logs.
     // The existing secondary USB Serial/JTAG console mirrors stdout to USB.
     std::printf("SC_DISTANCE {\"v\":1,\"seq\":%" PRIu32 ",\"uptime_ms\":%" PRIu32
-                ",\"valid\":%s,\"distance_mm\":%s,\"raw_status\":%u,\"state\":\"%s\",\"error\":%d,\"robot_alert\":%s}\n",
-                sequence++, timestamp, reading && reading->valid ? "true" : "false", distance,
-                reading ? static_cast<unsigned>(reading->raw_status) : 255U, state, error, warning ? "true" : "false");
+                ",\"valid\":%s,\"distance_mm\":%s,\"raw_status\":%u,\"state\":\"%s\",\"error\":%d,\"robot_alert\":%s"
+                ",\"filtered_mm\":%d,\"near_ms\":%" PRIu32 ",\"proximity_state\":\"%s\"}\n",
+                next.sequence, timestamp, next.valid ? "true" : "false", distance,
+                static_cast<unsigned>(next.raw_status), state, error, warning ? "true" : "false",
+                next.filtered_mm, next.near_elapsed_ms, proximity_name(next.proximity_state));
     std::fflush(stdout);
 }
 
@@ -144,6 +173,14 @@ void run(void*)
 }
 
 }  // namespace
+
+Snapshot snapshot()
+{
+    portENTER_CRITICAL(&snapshot_lock);
+    const Snapshot current = latest_snapshot;
+    portEXIT_CRITICAL(&snapshot_lock);
+    return current.at(now_ms());
+}
 
 bool alert_active()
 {
