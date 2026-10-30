@@ -1,0 +1,156 @@
+{
+  "timestamp_utc": "2026-10-30T10:23:43.4022462Z",
+  "renderer": "project managed_components/lvgl__lvgl v9.4.0 desktop software renderer",
+  "resolution": "320x240",
+  "pixel_format": "XRGB8888",
+  "source_hashes": [
+    {
+      "path": "StackChan/firmware/main/apps/app_distance/pet_avatar.h",
+      "sha256": "3a12ece68fb1141d5e1eb80decf7690b22b726e91089789eeb2423e920a02e40"
+    },
+    {
+      "path": "StackChan/firmware/main/apps/app_distance/pet_avatar.cpp",
+      "sha256": "d31af1292748ca61d80babd27cee0221293fb9b338420e18fe66acd7cdddf735"
+    },
+    {
+      "path": "StackChan/firmware/main/apps/app_distance/pet_motion.h",
+      "sha256": "ce42e1c242aef3df91b4965bc973d5b364d67ade271450d107e0a96251af0e22"
+    },
+    {
+      "path": "StackChan/firmware/main/stackchan/avatar/avatar/avatar.h",
+      "sha256": "92c69b9fae6398d0ee1c7b06c7fcb08854e4db3927fa50669e79ac8a04acd6e4"
+    }
+  ],
+  "capture_after_ms": 900,
+  "fake_dependencies": [
+    "deterministic esp_random",
+    "tests/fakes/avatar_ui Vector2i/clamp"
+  ],
+  "lifecycle": {
+    "cycles": 100,
+    "children_before": 0,
+    "children_after": 0,
+    "lvgl_free_bytes_before": 8374392,
+    "lvgl_free_bytes_after": 8374392,
+    "lvgl_used_blocks_before": 94,
+    "lvgl_used_blocks_after": 94,
+    "lvgl_max_used": 97032,
+    "lvgl_heap_test_each_cycle": "PASS"
+  },
+  "dirty_redraw_comparison": {
+    "frames": 420,
+    "pixel_mismatches": 0,
+    "method": "Compare incremental frame with independently invalidated entire-screen redraw using actual LVGL software renderer"
+  },
+  "animation_stats": [
+    {
+      "sequence": "affection",
+      "frames": 71,
+      "delay_ms": 20,
+      "start_ms": 200,
+      "end_ms": 1600,
+      "distinct_frames": 23,
+      "same_as_previous_count": 38,
+      "union_bbox": [
+        38,
+        89,
+        281,
+        159
+      ],
+      "outer_edge_frames": [],
+      "bytes": 138830,
+      "sha256": "f0aaa4b15b1b43365519820b9dcf00423e21071fbe4323af0f99f72679747fc7",
+      "chunk_crc_and_all_frames_decompress": "PASS"
+    },
+    {
+      "sequence": "alert",
+      "frames": 71,
+      "delay_ms": 20,
+      "start_ms": 200,
+      "end_ms": 1600,
+      "distinct_frames": 1,
+      "same_as_previous_count": 70,
+      "union_bbox": [
+        69,
+        91,
+        250,
+        157
+      ],
+      "outer_edge_frames": [],
+      "bytes": 143978,
+      "sha256": "42a84d51516090ed8ad04e4bc037ec1e65c8a3bad333163785334b7390339e34",
+      "chunk_crc_and_all_frames_decompress": "PASS"
+    },
+    {
+      "sequence": "alert-cycle",
+      "frames": 100,
+      "delay_ms": 20,
+      "start_ms": 20,
+      "end_ms": 2000,
+      "distinct_frames": 19,
+      "same_as_previous_count": 80,
+      "union_bbox": [
+        50,
+        67,
+        269,
+        167
+      ],
+      "outer_edge_frames": [],
+      "bytes": 210997,
+      "sha256": "2257cca9417ab29423f2436d9fbf5b2a026528f0dd0c5893db28a016a0e584ed",
+      "chunk_crc_and_all_frames_decompress": "PASS"
+    },
+    {
+      "sequence": "happy",
+      "frames": 71,
+      "delay_ms": 20,
+      "start_ms": 200,
+      "end_ms": 1600,
+      "distinct_frames": 11,
+      "same_as_previous_count": 40,
+      "union_bbox": [
+        50,
+        75,
+        269,
+        167
+      ],
+      "outer_edge_frames": [],
+      "bytes": 186718,
+      "sha256": "8280a6978b207b9f4c5f28a637458f6a3158070eca8fe441ae6dd443651a765a",
+      "chunk_crc_and_all_frames_decompress": "PASS"
+    },
+    {
+      "sequence": "sad",
+      "frames": 71,
+      "delay_ms": 20,
+      "start_ms": 200,
+      "end_ms": 1600,
+      "distinct_frames": 3,
+      "same_as_previous_count": 68,
+      "union_bbox": [
+        60,
+        78,
+        250,
+        157
+      ],
+      "outer_edge_frames": [],
+      "bytes": 161695,
+      "sha256": "ca61cbde085d84d2c82221aacb72d6fe69fbf50233fadb3a7eae3250da1a7f78",
+      "chunk_crc_and_all_frames_decompress": "PASS"
+    }
+  ],
+  "limitations": [
+    "Desktop XRGB8888 differs from actual display RGB565 quantization",
+    "Captures show pet skin only, not full AppDistance controls or warning decorator",
+    "Bounded LVGL allocator measurements do not prove no leak in every allocator or unbounded use",
+    "APNG uses 20ms capture steps; repeated frames preserve production 33ms tick gating and integer pixel quantization"
+  ],
+  "findings": [
+    "No sampled framebuffer edge clipping in 11 static moods and 5 animation sequences",
+    "Previous entity-eye plus smile-arc visual overlap resolved",
+    "Previous separate mouth outline overlap resolved",
+    "Exaggerated affection sway union bbox x38..281 and happy bounce y75..167 stay inside display bounds",
+    "420 incremental frames match forced full redraw exactly"
+  ],
+  "verdict": "Actual-production render/lifecycle/dirty-redraw checks PASS; root owns visual taste score and device integration"
+}

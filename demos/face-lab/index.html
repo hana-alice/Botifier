@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Face Lab · 电子宠物动作设计预览</title>
+<style>
+  :root { --bg:#0c100e; --panel:#141a17; --line:#2b3730; --text:#edf5ef; --muted:#a0b0a6; --mint:#bcefd5; --amber:#ffd092; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+  button,input { font:inherit; }
+  button { color:inherit; cursor:pointer; }
+  button:focus-visible,input:focus-visible { outline:2px solid var(--mint); outline-offset:4px; }
+  .shell { max-width:1160px; margin:auto; padding:30px 28px 24px; }
+  .masthead { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:26px; }
+  h1 { font-size:16px; letter-spacing:.13em; font-weight:650; margin:0; }
+  .edition { color:var(--muted); font:11px/1.5 ui-monospace,monospace; letter-spacing:.08em; }
+  .workspace { display:grid; grid-template-columns:minmax(0,1fr) 304px; gap:30px; align-items:center; }
+  .stage { min-width:0; }
+  .screen { width:100%; aspect-ratio:4/3; background:#000; border:1px solid var(--line); border-radius:22px; overflow:hidden; }
+  canvas { display:block; width:100%; height:100%; }
+  .stage-meta { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:14px; }
+  .expression { font-size:14px; display:flex; gap:9px; align-items:center; }
+  .status-dot { width:6px; height:6px; background:var(--mint); border-radius:50%; flex:none; }
+  .status-dot.alert { background:var(--amber); }
+  .sim { color:var(--muted); font:10px/1.5 ui-monospace,monospace; letter-spacing:.12em; }
+  .stage-note { color:var(--muted); margin:8px 0 0; font-size:12px; }
+  .controls { padding:20px; border:1px solid var(--line); border-radius:16px; background:var(--panel); min-width:0; }
+  .section-label { margin:0 0 12px; font-size:11px; letter-spacing:.1em; color:var(--muted); font-weight:500; }
+  .playback { display:grid; grid-template-columns:1fr 76px; gap:8px; margin-bottom:12px; }
+  .control { min-height:42px; border:1px solid var(--line); border-radius:8px; background:transparent; padding:8px 10px; transition:background 120ms,border-color 120ms; }
+  .control:hover { background:#202c24; border-color:#526d5b; }
+  .control[aria-pressed="true"] { border-color:var(--mint); background:#253b2f; color:#d1fbe3; }
+  .modes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+  .mode { padding:10px 2px; font-size:13px; }
+  .divider { height:1px; background:var(--line); margin:22px 0 18px; }
+  .distance-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:12px; }
+  .distance-head label { font-size:13px; }
+  output { font:22px/1.2 ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+  output span { color:var(--muted); font-size:12px; margin-left:3px; }
+  input[type="range"] { width:100%; height:26px; margin:0; accent-color:var(--mint); cursor:pointer; }
+  .range-note { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:1px; }
+  .presets { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+  .presets button { font-size:12px; }
+  .motion-toggle { display:flex; align-items:center; gap:9px; cursor:pointer; color:var(--muted); font-size:12px; margin-top:20px; }
+  input[type="checkbox"] { accent-color:var(--mint); width:16px; height:16px; margin:0; }
+  .hint { min-height:36px; font-size:12px; color:var(--muted); margin:13px 0 0; }
+  footer { margin-top:30px; padding-top:15px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; display:flex; justify-content:space-between; gap:12px; }
+  @media (max-width:760px) {
+    .shell { max-width:560px; padding:22px 16px; }
+    .masthead { margin-bottom:18px; }
+    .workspace { grid-template-columns:1fr; gap:22px; }
+    .controls { padding:18px; }
+    .screen { border-radius:16px; }
+    footer { flex-direction:column; gap:4px; margin-top:22px; }
+  }
+  @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="masthead"><h1>FACE LAB</h1><span class="edition">320 × 240 / 动作设计预览</span></header>
+  <div class="workspace">
+    <section class="stage" aria-label="电子脸模拟画幅">
+      <div class="screen"><canvas id="face" width="640" height="480" role="img" aria-label="模拟电子脸：平静"></canvas></div>
+      <div class="stage-meta"><div class="expression"><span class="status-dot" id="status-dot"></span><span id="expression-name" aria-live="polite">平静</span></div><span class="sim">SIMULATION · 模拟预览</span></div>
+      <p class="stage-note" id="stage-note">先看脸，再试试让它靠近一点。</p>
+    </section>
+    <aside class="controls" aria-label="预览控制">
+      <h2 class="section-label">动作 / EXPRESSION</h2>
+      <div class="playback"><button class="control" id="auto" aria-pressed="true">自动编排</button><button class="control" id="pause" aria-pressed="false">暂停</button></div>
+      <div class="modes" id="modes">
+        <button class="control mode" data-mode="idle" aria-pressed="false">平静</button>
+        <button class="control mode" data-mode="glance" aria-pressed="false">转向回看</button>
+        <button class="control mode" data-mode="curious" aria-pressed="false">好奇</button>
+        <button class="control mode" data-mode="happy" aria-pressed="false">开心</button>
+        <button class="control mode" data-mode="affection" aria-pressed="false">撒娇</button>
+        <button class="control mode" data-mode="shy" aria-pressed="false">害羞</button>
+        <button class="control mode" data-mode="sad" aria-pressed="false">委屈</button>
+        <button class="control mode" data-mode="sleepy" aria-pressed="false">困倦</button>
+        <button class="control mode" data-mode="surprised" aria-pressed="false">惊讶</button>
+        <button class="control mode" data-mode="wink" aria-pressed="false">眨一只眼</button>
+        <button class="control mode" data-mode="warning" aria-pressed="false">认真提醒</button>
+        <button class="control mode" data-mode="relaxed" aria-pressed="false">放松</button>
+      </div>
+      <div class="divider"></div>
+      <div class="distance-head"><label for="distance">模拟距离</label><output id="distance-output" for="distance">70<span>cm</span></output></div>
+      <input id="distance" type="range" min="10" max="120" step="1" value="70" aria-describedby="distance-note">
+      <div class="range-note" id="distance-note"><span>&lt; 40 cm 提醒</span><span>≥ 48 cm 恢复</span></div>
+      <div class="presets"><button class="control" id="near">靠近 · 30 cm</button><button class="control" id="away">退开 · 60 cm</button></div>
+      <label class="motion-toggle"><input id="reduce-motion" type="checkbox">减少动态</label>
+      <p class="hint" id="hint">转向有停留，眨眼不等周期。点击动作可重新播放。</p>
+    </aside>
+  </div>
+  <footer><span>原创动作设计 · HOME / TUNE 仅为位置占位</span><span>模拟距离，不连接设备；不代表固件同数值实现或已上机。</span><a href="firmware.html" style="color:var(--mint);text-underline-offset:3px">查看固件 LVGL 图集</a></footer>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('face');
+  const ctx = canvas.getContext('2d');
+  const modeNames = { idle:'平静', glance:'转向回看', curious:'好奇', happy:'开心', affection:'撒娇', shy:'害羞', sad:'委屈', sleepy:'困倦', surprised:'惊讶', wink:'眨一只眼', warning:'认真提醒', relaxed:'放松' };
+  const aliases = { surprise:'surprised', alert:'warning', relief:'relaxed' };
+  const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const state = { mode:'auto', distance:70, alert:false, program:'normal', time:0, paused:false, reduced:media.matches };
+  const clamp = (x,lo=0,hi=1) => Math.min(hi,Math.max(lo,x));
+  const smooth = x => { x=clamp(x); return x*x*(3-2*x); };
+  const mix = (a,b,t) => a+(b-a)*t;
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const base = () => ({ eyes:[
+    { x:106,y:116,w:65,h:76,r:27,rotation:-0.015,smile:0,lid:0 },
+    { x:214,y:114,w:62,h:72,r:26,rotation:0.012,smile:0,lid:0 }
+  ], color:[188,239,213], mouth:0, mouthRound:0, attention:0, blush:0, tears:0, heart:0 });
+  let transitionFrom = base();
+  let raf = null;
+  let previousTimestamp = null;
+  let lastLabel = '';
+
+  function blend(a,b,t) {
+    const p=base();
+    p.eyes=p.eyes.map((_,i) => Object.fromEntries(Object.keys(a.eyes[i]).map(key => [key,mix(a.eyes[i][key],b.eyes[i][key],t)])));
+    p.color=a.color.map((v,i)=>mix(v,b.color[i],t));
+    for(const key of ['mouth','mouthRound','attention','blush','tears','heart']) p[key]=mix(a[key],b[key],t);
+    return p;
+  }
+
+  // Each segment has a genuine hold; no per-frame noise or random walk.
+  function track(t,keys) {
+    t=Math.max(0,t);
+    for(let i=1;i<keys.length;i++) if(t<keys[i][0]) {
+      const [ta,a]=keys[i-1], [tb,b]=keys[i];
+      return mix(a,b,smooth((t-ta)/(tb-ta)));
+    }
+    return keys[keys.length-1][1];
+  }
+
+  function blink(t,eye) {
+    const phase=((t-eye*19)%34500+34500)%34500;
+    const starts=[2100,5710,10460,10690,15120,20740,26920,27180,31700];
+    let closed=0;
+    for(const start of starts) {
+      const d=phase-start;
+      if(d>=0 && d<76) closed=Math.max(closed,smooth(d/76));
+      else if(d>=76 && d<202) closed=Math.max(closed,1-smooth((d-76)/126));
+    }
+    return closed*(eye===0?0.97:0.94);
+  }
+
+  function poseFor(mode,t) {
+    const p=base();
+    let gx=0, gy=0;
+    if(mode==='idle') {
+      gx=track(t%9200,[[0,0],[2400,0],[2780,4],[4220,4],[4700,0],[9200,0]]);
+      gy=track(t%9200,[[0,0],[2780,-1.5],[4220,-1.5],[4700,0],[9200,0]]);
+    } else if(mode==='glance') {
+      gx=track(t%6900,[[0,0],[260,-19],[1540,-19],[2040,0],[3200,0],[3600,17],[4840,17],[5400,0],[6900,0]]);
+      gy=track(t%6900,[[0,0],[260,-4],[1540,-4],[2040,0],[3600,2],[4840,2],[5400,0],[6900,0]]);
+      p.eyes[0].w=63; p.eyes[1].w=66;
+    } else if(mode==='curious') {
+      Object.assign(p.eyes[0],{y:103,w:71,h:88,rotation:-0.12,r:29});
+      Object.assign(p.eyes[1],{y:121,w:56,h:61,rotation:0.065,r:23});
+      gx=8; gy=-2;
+    } else if(mode==='happy') {
+      Object.assign(p.eyes[0],{y:113,w:75,h:43,smile:1,rotation:-0.075});
+      Object.assign(p.eyes[1],{y:109,w:71,h:40,smile:1,rotation:0.065});
+      p.mouth=0.95; p.blush=0.55; p.heart=0.5;
+    } else if(mode==='affection') {
+      gx=track(t%4800,[[0,0],[500,16],[1500,16],[2050,-12],[3000,-12],[3700,0],[4800,0]]);
+      Object.assign(p.eyes[0],{y:112,w:70,h:43,smile:0.8,rotation:-0.17});
+      Object.assign(p.eyes[1],{y:120,w:66,h:34,smile:0.95,rotation:0.13});
+      gy=5; p.mouth=0.75; p.blush=1; p.heart=1;
+    } else if(mode==='shy') {
+      Object.assign(p.eyes[0],{x:117,y:128,w:45,h:45,r:20,rotation:0.07});
+      Object.assign(p.eyes[1],{x:203,y:126,w:43,h:40,r:19,rotation:-0.07});
+      gx=5; gy=4; p.mouth=0.3; p.blush=1;
+    } else if(mode==='sad') {
+      Object.assign(p.eyes[0],{y:122,w:69,h:58,r:23,lid:-0.85,rotation:0.08});
+      Object.assign(p.eyes[1],{y:126,w:65,h:52,r:22,lid:0.8,rotation:-0.08});
+      gy=5; p.tears=1; p.mouth=-0.65;
+    } else if(mode==='sleepy') {
+      Object.assign(p.eyes[0],{y:125,w:67,h:27,r:12,rotation:-0.055});
+      Object.assign(p.eyes[1],{y:127,w:63,h:21,r:10,rotation:0.06});
+      gy=3;
+    } else if(mode==='surprised') {
+      Object.assign(p.eyes[0],{x:109,y:111,w:52,h:98,r:26,rotation:-0.025});
+      Object.assign(p.eyes[1],{x:211,y:112,w:49,h:91,r:25,rotation:0.02});
+      p.mouth=1; p.mouthRound=1;
+    } else if(mode==='wink') {
+      const close=track(t%4600,[[0,0],[440,0],[560,0.96],[1020,0.96],[1240,0],[4600,0]]);
+      p.eyes[0].h*=1-close;
+      p.eyes[0].rotation=-0.09;
+      p.eyes[1].h=79; p.eyes[1].y=112;
+      p.mouth=close*0.45;
+    } else if(mode==='warning') {
+      Object.assign(p.eyes[0],{y:119,w:69,h:62,r:17,lid:0.9,rotation:0.055});
+      Object.assign(p.eyes[1],{y:118,w:66,h:59,r:17,lid:-0.85,rotation:-0.045});
+      p.color=[255,208,146]; p.attention=1;
+    } else if(mode==='relaxed') {
+      Object.assign(p.eyes[0],{y:119,w:71,h:54,r:24,rotation:-0.025});
+      Object.assign(p.eyes[1],{y:117,w:68,h:51,r:23,rotation:0.025});
+      p.mouth=0.2;
+    }
+    // A 34 ms follow on the second eye is visible during a turn, not a random jitter.
+    if(mode==='glance') {
+      const lag=track(Math.max(0,t-34)%6900,[[0,0],[260,-19],[1540,-19],[2040,0],[3200,0],[3600,17],[4840,17],[5400,0],[6900,0]]);
+      p.eyes[1].x+=lag*1.04;
+      p.eyes[0].x+=gx*0.96;
+    } else { p.eyes[0].x+=gx; p.eyes[1].x+=gx*0.94; }
+    p.eyes[0].y+=gy; p.eyes[1].y+=gy*0.82;
+    if(!state.reduced && mode!=='warning') {
+      const breath=Math.sin(t/3900*Math.PI*2)*1.6;
+      p.eyes[0].y+=breath; p.eyes[1].y+=breath*0.72;
+      if(mode!=='happy' && mode!=='affection' && mode!=='wink') p.eyes.forEach((eye,i)=>eye.h=Math.max(3,eye.h*(1-blink(t,i))));
+    }
+    return p;
+  }
+
+  const autoClips=[['idle',4200],['glance',6200],['curious',2800],['happy',2500],['affection',4300],['shy',2600],['idle',3200],['sad',2600],['sleepy',2800],['surprised',1900],['wink',1700],['relaxed',2400]];
+  function clipAt(t,clips,loop=true) {
+    const total=clips.reduce((sum,c)=>sum+c[1],0);
+    const wrapped=loop && t>=total;
+    if(loop) t=((t%total)+total)%total;
+    let start=0;
+    for(let i=0;i<clips.length;i++) {
+      const [mode,duration]=clips[i];
+      if(t<start+duration || i===clips.length-1) {
+        const local=Math.max(0,t-start);
+        let p=poseFor(mode,local);
+        if((i>0 || wrapped) && local<360) {
+          const previous=clips[(i+clips.length-1)%clips.length];
+          p=blend(poseFor(previous[0],previous[1]),p,smooth(local/360));
+        }
+        return {pose:p,mode,local};
+      }
+      start+=duration;
+    }
+  }
+
+  function evaluate(t=state.time) {
+    let result;
+    if(state.alert) result={pose:poseFor('warning',t),mode:'warning'};
+    else if(state.program==='recover' && t<5200) {
+      result=clipAt(t,[['relaxed',480],['happy',1220],['relaxed',900],['idle',2600]],false);
+      if(state.reduced) result={pose:poseFor('idle',900),mode:'idle'};
+    } else {
+      const clock=state.program==='recover'?t-5200:t;
+      result=state.mode==='auto' ? clipAt(state.reduced?0:clock,autoClips) : {pose:poseFor(state.mode,state.reduced?850:clock),mode:state.mode};
+    }
+    if(!state.reduced && t<340) {
+      // Independent eye easing avoids a rigid, mirrored cut between expressions.
+      const left=blend(transitionFrom,result.pose,smooth(t/290));
+      const right=blend(transitionFrom,result.pose,smooth((t-34)/306));
+      left.eyes[1]=right.eyes[1];
+      result.pose=left;
+    }
+    return result;
+  }
+
+  function roundedRect(w,h,r) {
+    const x=-w/2,y=-h/2; r=Math.min(r,w/2,h/2);
+    ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+  }
+
+  function drawEye(eye,color) {
+    const h=Math.max(3,eye.h);
+    const smile=clamp(eye.smile);
+    const thickness=Math.min(15,h);
+    const squash=smooth(smile/0.45);
+    const flatHeight=mix(h,thickness,squash);
+    ctx.save(); ctx.translate(eye.x,eye.y); ctx.rotate(eye.rotation);
+    ctx.globalAlpha=1;
+    if(smile<=0.45) {
+      // One opaque silhouette shrinks to a capsule. At the boundary its
+      // geometry equals the zero-curvature, round-capped stroke below.
+      ctx.fillStyle=color; roundedRect(eye.w,flatHeight,eye.r); ctx.fill();
+      if(Math.abs(eye.lid)>0.001) {
+        ctx.save(); roundedRect(eye.w,flatHeight,eye.r); ctx.clip(); ctx.fillStyle='#000';
+        const cut=Math.min(Math.abs(eye.lid)*28*(1-squash),flatHeight*0.85);
+        ctx.beginPath(); ctx.moveTo(-eye.w/2-1,-flatHeight/2-1); ctx.lineTo(eye.w/2+1,-flatHeight/2-1);
+        ctx.lineTo(eye.w/2+1,-flatHeight/2+(eye.lid>0?cut:0)); ctx.lineTo(-eye.w/2-1,-flatHeight/2+(eye.lid<0?cut:0)); ctx.closePath(); ctx.fill(); ctx.restore();
+      }
+    } else {
+      // Bend that same capsule instead of layering an arc over an open eye.
+      const bend=smooth((smile-0.45)/0.55);
+      const endY=6*bend, controlY=-h*0.56*bend;
+      ctx.strokeStyle=color; ctx.lineWidth=thickness; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-eye.w/2+thickness/2,endY);
+      ctx.bezierCurveTo(-eye.w*.23,controlY,eye.w*.23,controlY,eye.w/2-thickness/2,endY); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function render() {
+    const result=evaluate(), p=result.pose;
+    ctx.setTransform(canvas.width/320,0,0,canvas.height/240,0,0);
+    ctx.globalAlpha=1; ctx.fillStyle='#000'; ctx.fillRect(0,0,320,240);
+    const color=`rgb(${p.color.map(Math.round).join(',')})`;
+    p.eyes.forEach(eye=>drawEye(eye,color));
+    if(p.blush>0.005) {
+      ctx.save(); ctx.globalAlpha=p.blush*0.65; ctx.fillStyle='#fa9eb4';
+      for(const x of [71,249]) { ctx.beginPath(); ctx.ellipse(x,159,14,5.5,0,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
+    if(p.tears>0.005) {
+      ctx.save(); ctx.globalAlpha=p.tears; ctx.fillStyle='#93d4f6';
+      for(const [x,y] of [[71,156],[247,163]]) {
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.bezierCurveTo(x-9,y+11,x-7,y+20,x,y+20);
+        ctx.bezierCurveTo(x+7,y+20,x+9,y+11,x,y); ctx.fill();
+      }
+      ctx.restore();
+    }
+    if(p.heart>0.005) {
+      ctx.save(); ctx.globalAlpha=p.heart*0.8; ctx.fillStyle='#fac0cc'; ctx.translate(254,66);
+      ctx.beginPath(); ctx.moveTo(0,7); ctx.bezierCurveTo(-17,-4,-7,-13,0,-6);
+      ctx.bezierCurveTo(7,-13,17,-4,0,7); ctx.fill(); ctx.restore();
+    }
+    if(Math.abs(p.mouth)>0.005) {
+      ctx.save(); ctx.globalAlpha=Math.abs(p.mouth)*0.8; ctx.strokeStyle=color; ctx.lineWidth=3; ctx.lineCap='round'; ctx.beginPath();
+      if(p.mouthRound>0.5) ctx.ellipse(160,180,8,11,0,0,Math.PI*2);
+      else { ctx.moveTo(146,180); ctx.quadraticCurveTo(160,180+p.mouth*15,174,180); }
+      ctx.stroke(); ctx.restore();
+    }
+    if(p.attention>0.005) {
+      ctx.save(); ctx.globalAlpha=p.attention; ctx.fillStyle=color; ctx.textAlign='center'; ctx.font='600 10px system-ui,sans-serif';
+      ctx.fillText('TOO CLOSE',160,32); ctx.restore();
+    }
+    // Native 320x240 UI positions only; these do not send device commands.
+    for(const [x,label] of [[12,'HOME'],[216,'TUNE']]) {
+      ctx.save(); ctx.translate(x+46,210); ctx.fillStyle='#16211b'; roundedRect(92,40,6); ctx.fill();
+      ctx.strokeStyle='#34463b'; ctx.lineWidth=0.7; ctx.stroke(); ctx.fillStyle='#b7cbbf';
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='500 10px system-ui,sans-serif'; ctx.fillText(label,0,0); ctx.restore();
+    }
+    const recovering=state.program==='recover' && state.time<2600;
+    const label=state.alert?'距离提醒 · 认真':recovering?'恢复中 · '+modeNames[result.mode]:modeNames[result.mode];
+    if(label!==lastLabel) {
+      $('expression-name').textContent=label;
+      canvas.setAttribute('aria-label','模拟电子脸：'+label);
+      lastLabel=label;
+    }
+    $('status-dot').classList.toggle('alert',state.alert);
+    return result;
+  }
+
+  function updateControls() {
+    $('auto').setAttribute('aria-pressed',String(state.mode==='auto'));
+    document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode)));
+    $('pause').setAttribute('aria-pressed',String(state.paused));
+    $('pause').textContent=state.paused?'继续':'暂停';
+    $('reduce-motion').checked=state.reduced;
+    $('distance').value=String(state.distance);
+    $('distance-output').innerHTML=state.distance+'<span>cm</span>';
+    $('hint').textContent=state.alert?'提醒优先：退到 48 cm 后，放松、开心，再回到平静。':state.reduced?'减少动态已开启：显示静态姿态，距离提醒仍立即响应。':'转向有停留，眨眼不等周期。点击动作可重新播放。';
+    $('stage-note').textContent=state.alert?'模拟距离过近，已抢占当前动作。':state.program==='recover'?'距离已恢复。先放松，再开心，最后回到平静。':'320 × 240 逻辑画幅 · HOME / TUNE 为位置占位';
+  }
+
+  function frame(timestamp) {
+    raf=null;
+    if(previousTimestamp!==null) state.time+=Math.min(64,timestamp-previousTimestamp);
+    previousTimestamp=timestamp;
+    render();
+    if(!state.paused && !state.reduced && !document.hidden) raf=requestAnimationFrame(frame);
+  }
+  function syncPlayback() {
+    if(raf!==null) cancelAnimationFrame(raf);
+    raf=null; previousTimestamp=null;
+    render(); updateControls();
+    if(!state.paused && !state.reduced && !document.hidden) raf=requestAnimationFrame(frame);
+  }
+
+  function setMode(name) {
+    name=aliases[name] || name;
+    if(name!=='auto' && !Object.hasOwn(modeNames,name)) throw new RangeError('Unknown face mode: '+name);
+    const previous=clone(evaluate().pose);
+    state.mode=name;
+    if(!state.alert) { transitionFrom=previous; state.time=state.paused?850:0; state.program='normal'; }
+    syncPlayback();
+    return getState();
+  }
+  function setDistance(cm) {
+    cm=Number(cm);
+    if(!Number.isFinite(cm)) throw new TypeError('Distance must be a finite number');
+    const previous=clone(evaluate().pose);
+    state.distance=Math.round(clamp(cm,10,120));
+    if(!state.alert && state.distance<40) {
+      transitionFrom=previous; state.alert=true; state.program='alert'; state.time=state.paused?400:0;
+    } else if(state.alert && state.distance>=48) {
+      transitionFrom=previous; state.alert=false; state.program='recover'; state.time=state.paused?400:0;
+      if(state.mode!=='auto') state.mode='idle';
+    }
+    syncPlayback();
+    return getState();
+  }
+  function getState() {
+    const current=evaluate();
+    return {...state,activeMode:current.mode,logicalSize:[320,240],pose:clone(current.pose)};
+  }
+  function sampleAt(ms) {
+    ms=Number(ms);
+    if(!Number.isFinite(ms) || ms<0) throw new RangeError('Time must be a non-negative finite number');
+    state.time=ms; state.paused=true; syncPlayback();
+    return getState();
+  }
+  function reset() {
+    Object.assign(state,{mode:'auto',distance:70,alert:false,program:'normal',time:0,paused:false,reduced:media.matches});
+    transitionFrom=base(); syncPlayback(); return getState();
+  }
+  window.faceLab=Object.freeze({setMode,setDistance,getState,sampleAt,reset,
+    setPaused(value) { state.paused=Boolean(value); syncPlayback(); return getState(); },
+    setReducedMotion(value) { state.reduced=Boolean(value); syncPlayback(); return getState(); }
+  });
+
+  $('auto').addEventListener('click',()=>setMode('auto'));
+  $('pause').addEventListener('click',()=>{state.paused=!state.paused;syncPlayback();});
+  document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.mode)));
+  $('distance').addEventListener('input',event=>setDistance(event.target.value));
+  $('near').addEventListener('click',()=>setDistance(30));
+  $('away').addEventListener('click',()=>setDistance(60));
+  $('reduce-motion').addEventListener('change',event=>{state.reduced=event.target.checked;syncPlayback();});
+  media.addEventListener('change',event=>{state.reduced=event.matches;syncPlayback();});
+  document.addEventListener('visibilitychange',syncPlayback);
+  function resize() {
+    const bounds=canvas.getBoundingClientRect(), scale=Math.min(window.devicePixelRatio||1,2);
+    canvas.width=Math.round(bounds.width*scale); canvas.height=Math.round(bounds.height*scale); render();
+  }
+  new ResizeObserver(resize).observe(canvas);
+  window.addEventListener('pagehide',()=>{if(raf!==null)cancelAnimationFrame(raf);raf=null;});
+  resize(); syncPlayback();
+})();
+</script>
+</body>
+</html>

@@ -154,3 +154,21 @@ seq287 因无效测量清除；seq672 中值483 mm 达到恢复阈值后解除�
 
 固件提交 `2698e9bac05914a22a84185f6b6214d276bf6332`；本次改动文件为 apps/app_distance/app_distance.h/.cpp、distance_sensor/proximity_policy.h 与 service.h/.cpp、stackchan/avatar/avatar/avatar.h，以及 tests/CMakeLists.txt、proximity_policy_test.cpp、distance_snapshot_test.cpp、avatar_lifetime_test.cpp、专用 fakes/avatar_ui/。路径相对 firmware/main，测试路径相对 firmware。
 复用原脸、动画、图标、字体和 NVS，无新增依赖；两屏取代单一只读页，继续复用原告警图层。现场 LIVE/TUNE/HOME 触摸、表情观感、编辑后 SAVE/重启恢复及完整 AI 回归仍未独立验收。
+
+## 第五次部署：电子宠物情绪与眼神动作
+
+按用户选择的电子宠物风格，将 DISTANCE LIVE 的单纯眨眼/呼吸替换为 11 状态的宠物脸：平静、好奇、开心、撒娇、害羞、委屈、困倦、惊讶、单眼眨、严肃提醒和放松。开心有笑眼与 8px 弹跳，撒娇有 12px 侧摆和腮红，委屈有垂眼、小弯嘴和泪滴。普通动作以 280ms 平滑转场穿插眼神停留、回看和不等间隔眨眼。
+
+告警信号变化直接抢占动作并绕过 33ms 动画节流；有效距离恢复时短暂放松，无效/过期数据不庆祝。采样、阈值、TUNE/SAVE、NVS 格式和 SC_DISTANCE 均沿用上一版。仅 DISTANCE LIVE 换脸，其它 App 保留原厂脸和既有全局提醒。删除该页面单独持有的 Blink/Breath modifier，合并为一个动作时间表；图元继续复用 LVGL，无新依赖。
+
+实际 LVGL 桌面渲染揭示初版笑眼与嘴部的双轮廓，已改成先压扁再弯曲的笑眼和一条变形嘴线，并增加委屈/严肃的上睑斜切。最终 11 姿态与动画无采样边界裁切，420 帧正常刷新与强制整屏重绘像素一致；100 次创建/销毁后子对象、LVGL 可用内存和分配块数不变，完整性检查通过。图集与限制见 [Face Lab](demos/face-lab/README.md)；这些是实际生产代码的桌面渲染，不是 LCD 实拍，未含完整控件和警告红框。
+
+主机测试 CTest **6/6**，新增动作 **13 组**覆盖 64 组转场、告警即时优先、无效数据恢复、100,000 帧边界/有限值与时间回绕。日志 `logs/host-tests-20261030-182110-194-test.log`。完整 ESP-IDF 构建通过，最终 **3,762,976 字节**，SHA256 `527756678afd18f61865d1f25d87d24643b04e4375999c7d8c839587b42b50c3`，分区余量约 27%；日志 `logs/firmware-20261030-182654.log`。
+
+更新备份目录 `.tools/device-backups/20261030-182853-pet-face/`；前一版镜像已在 `20261030-164605-distance-live/distance-live-working.bin` 校验留存。部署前核对 COM38、MAC、上一版 app SHA 和 seq11/VALID，只写 ota_0 与 `0xd000` 启动扇区0。设备摘要核验当前 NVS、bootloader、分区表、另一启动扇区、原厂 ota_1 和资源不变；部署日志 `logs/device-update-pet-face.log`。最终镜像归档为本次目录内 `distance-pet-working.bin`。
+
+独立读回记录为 **seq13 / VALID / CRC 正确**，原 seq2/VALID 全扇区不变，见同备份目录 `ota-confirmation.json`。正常重启后 HAL 确认 **ota_0 / state=2**，`logs/device-pet-face-reboot.log` 有 **301/301** 连续有效样本（seq178–478），无序号缺帧、协议拒绝、中值或规则不一致。
+
+首轮 `logs/device-pet-face.log` 的 60 秒窗口有 **602/602** 连续有效样本（seq138–739），原始距离 145–591mm，采样间隔 90–110ms、平均 99.734ms；每个可复算中值和判定均一致，协议拒绝与缺帧为 0。7 次进入 Alert，全部 `near_ms=0 / hold_ms=0`；6 次达到恢复距离后解除，窗口结束时处于另一次提醒。首行旧半帧与启动片段拼接已排除。汇总分别为 `logs/device-pet-face-summary.json` 与 `logs/device-pet-face-reboot-summary.json`。
+
+固件本地提交 `e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d`。改动为 `apps/app_distance/app_distance.cpp`、新增 `pet_avatar.h/.cpp` 与 `pet_motion.h`，以及 `tests/CMakeLists.txt`、`pet_motion_test.cpp`。本次采样证据不包含 LCD 延迟或用户对表情的最终观感；触摸、编辑后 SAVE/重启往返和完整 AI 回归仍未独立验收。

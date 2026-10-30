@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T16:52:34.8576108+08:00",
+  "RecordedAt": "2026-10-30T18:36:21.127037+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "2698e9bac05914a22a84185f6b6214d276bf6332"
+    "LocalImplementationCommit": "e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -69,12 +69,12 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 5/5: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups; lifetime regression also tested red",
-  "FirmwareBuild": "passed and deployed to ota_0; animated DISTANCE LIVE, immediate warning, realtime TUNE and explicit NVS SAVE",
+  "HostTest": "CTest 6/6: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups, 13 pet motion groups including 100000 frames and 64 transition pairs; lifetime regression also tested red",
+  "FirmwareBuild": "passed and deployed to COM38 ota_0; DISTANCE LIVE electronic pet, immediate warning, realtime TUNE and explicit NVS SAVE; only app and OTA metadata sector 0 written; independent readback confirms seq13 VALID",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3755584,
-    "SHA256": "2263d163805563ce04587427b5bcdff970d4c2b17fa2669110c695925bfb4cbe"
+    "Bytes": 3762976,
+    "SHA256": "527756678afd18f61865d1f25d87d24643b04e4375999c7d8c839587b42b50c3"
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -92,16 +92,16 @@
     "DefaultHysteresisMm": 80,
     "DefaultHoldMs": 0,
     "DefaultCooldownMs": 60000,
-    "BuildLog": "logs/firmware-20261030-164246.log",
-    "HostTestLog": "logs/host-tests-20261030-164441-926-test.log",
-    "RobotBehavior": "DISTANCE LIVE shows a blinking/breathing face. Three-sample median below 400mm immediately warns with red symbol/border/TOO CLOSE; clears at 480mm or invalid/stale. No extra dwell by default. Sampling and LCD latency are separate.",
+    "BuildLog": "logs/firmware-20261030-182654.log",
+    "HostTestLog": "logs/host-tests-20261030-182110-194-test.log",
+    "RobotBehavior": "DISTANCE LIVE electronic pet with 11 moods: eight exaggerated emotions plus Idle, Alert and Relief. Seeded irregular blinks, glances, affection sway and happy bounce. Sensor Alert immediately preempts animation; 280ms ordinary transitions and 33ms render gate, bypassed on signal changes. Alert to valid Ready plays one 1800ms Relief; invalid/stale data quietly idles without celebrating. Existing warning symbol/border/TOO CLOSE remains. No servo motion added.",
     "ParameterScope": "On-device TUNE edits threshold/recovery margin/dwell immediately for the next fresh sample. SAVE explicitly persists a validated versioned NVS blob. PC settings still only affect the separate optional PC reminder.",
     "WirelessStatus": "Original source has OTA and self.upgrade_firmware(url); current device/tool availability unverified. Direct PC LAN OTA, wireless robot configuration and Wi-Fi telemetry not implemented.",
-    "DefaultCooldownScope": "PC notification only; robot warning symbol stays visible continuously while Alert is active.",
-    "HardwareTestScope": "902 consecutive physical frames: 892 valid/10 invalid; PC parser accepts all; independent median and rule checks match; two zero-dwell alert edges, invalid clear and far recovery. USB reboot: 301/301 valid frames. Physical TUNE/SAVE/button acceptance pending.",
-    "DeviceBootLog": "logs/device-distance-live.log",
+    "DefaultCooldownScope": "PC notification only; the robot Alert face and warning remain active while sensor Alert is active.",
+    "HardwareTestScope": "Pet-face deployment: 602/602 valid physical frames, seq138..739, no PC-parser rejects or sequence gaps; independent median and rule checks match; seven Alert activations and six recoveries at hold0, final captured frame Alert. USB reboot: 301/301 valid, seq178..478, no gaps/rejects/mismatches; HAL confirms ota_0 state2 and no panic/assert observed. Physical LCD appearance, touch controls and edited SAVE/reboot round trip await user feedback.",
+    "DeviceBootLog": "logs/device-pet-face.log",
     "DeploymentRecord": "DEVICE_DEPLOYMENT.md",
-    "OtaConfirmation": "Independent metadata read: seq11/VALID/CRC correct; original seq2 VALID sector byte-identical. USB reboot continues valid ranging and HAL reports ota_0 state2.",
+    "OtaConfirmation": "Independent metadata readback: sector0 seq13/VALID/state2/CRC correct; sector1 seq2 remains original and byte-identical. Reboot HAL log confirms partition=ota_0,state=2.",
     "ActualSampleWindow": {
       "FirstSeq": 29,
       "LastSeq": 1044,
@@ -119,10 +119,10 @@
       "AlertEdges": 0,
       "Note": "First deployed build stable-distance baseline; retained as historical evidence."
     },
-    "OtaConfirmationRecord": ".tools/device-backups/20261030-164605-distance-live/ota-confirmation.json",
-    "RebootLog": "logs/device-distance-live-reboot.log",
+    "OtaConfirmationRecord": ".tools/device-backups/20261030-182853-pet-face/ota-confirmation.json",
+    "RebootLog": "logs/device-pet-face-reboot.log",
     "PcLiveTest": "Real COM38/no-notify: safe and live distance; P paused while sampling continued; P resumed waiting to safe; Q exit0 and port released.",
-    "PhysicalGestureTest": "First reminder confirmed effective by user. Prior 1s build had four physical cycles; latest immediate build has two physical zero-dwell alert edges. New LIVE visual/touch feedback still pending.",
+    "PhysicalGestureTest": "Earlier reminder effectiveness was confirmed by the user. Current pet-face telemetry records seven zero-dwell Alert activations and six recoveries; LCD expression appearance and touch acceptance are not independently confirmed.",
     "DefaultHoldScope": "Robot extra dwell after median crossing; 0ms default, still sampled and filtered",
     "DefaultPcHoldMs": 5000,
     "UpdatedSampleWindow": {
@@ -200,10 +200,10 @@
       ],
       "Note": "Previous faster-warning build: four physical 1000 ms alert cycles; retained as historical evidence."
     },
-    "DiagnosticsEntry": "Built-in DISTANCE defaults to LIVE animated face; TUNE opens distance readout and three live parameters; HOME returns",
+    "DiagnosticsEntry": "Built-in DISTANCE defaults to LIVE electronic pet (11 moods); TUNE opens raw/filtered distance and the same three live parameters with explicit SAVE; HOME returns.",
     "DiagnosticsRefreshMs": 100,
     "DiagnosticsSnapshotTimeoutMs": 1500,
-    "DiagnosticsUIAcceptance": "User confirmed previous read-only distance diagnostics responsive. New LIVE/TUNE buttons, visuals and edited SAVE/reboot round trip not yet independently confirmed.",
+    "DiagnosticsUIAcceptance": "Previous read-only diagnostics were confirmed responsive by the user. Current pet skin is verified using the actual desktop LVGL renderer; full AppDistance controls/global warning are outside those captures. Physical LCD appearance, LIVE/TUNE/HOME touch and edited SAVE/reboot round trip remain pending user feedback.",
     "ProtocolOptionalDiagnostics": [
       "filtered_mm",
       "near_ms",
@@ -228,7 +228,21 @@
       "alert_state_mismatches": [],
       "edges": []
     },
-    "LiveSampleWindow": {
+    "LivePersistence": "Implemented: explicit SAVE in sc_distance/config, version/size/range validation on load. Edited-value SAVE/reboot acceptance pending.",
+    "PreviousLiveEvidence": {
+      "BuildLog": "logs/firmware-20261030-164246.log",
+      "HostTestLog": "logs/host-tests-20261030-164441-926-test.log",
+      "RobotBehavior": "DISTANCE LIVE shows a blinking/breathing face. Three-sample median below 400mm immediately warns with red symbol/border/TOO CLOSE; clears at 480mm or invalid/stale. No extra dwell by default. Sampling and LCD latency are separate.",
+      "HardwareTestScope": "902 consecutive physical frames: 892 valid/10 invalid; PC parser accepts all; independent median and rule checks match; two zero-dwell alert edges, invalid clear and far recovery. USB reboot: 301/301 valid frames. Physical TUNE/SAVE/button acceptance pending.",
+      "DeviceBootLog": "logs/device-distance-live.log",
+      "OtaConfirmation": "Independent metadata read: seq11/VALID/CRC correct; original seq2 VALID sector byte-identical. USB reboot continues valid ranging and HAL reports ota_0 state2.",
+      "OtaConfirmationRecord": ".tools/device-backups/20261030-164605-distance-live/ota-confirmation.json",
+      "RebootLog": "logs/device-distance-live-reboot.log",
+      "PhysicalGestureTest": "First reminder confirmed effective by user. Prior 1s build had four physical cycles; latest immediate build has two physical zero-dwell alert edges. New LIVE visual/touch feedback still pending.",
+      "DiagnosticsEntry": "Built-in DISTANCE defaults to LIVE animated face; TUNE opens distance readout and three live parameters; HOME returns",
+      "DiagnosticsUIAcceptance": "User confirmed previous read-only distance diagnostics responsive. New LIVE/TUNE buttons, visuals and edited SAVE/reboot round trip not yet independently confirmed."
+    },
+    "PreviousLiveSampleWindow": {
       "frames": 902,
       "valid": 892,
       "first_seq": 149,
@@ -296,7 +310,7 @@
         }
       ]
     },
-    "LiveRebootSampleWindow": {
+    "PreviousLiveRebootSampleWindow": {
       "frames": 301,
       "valid": 301,
       "first_seq": 42,
@@ -320,7 +334,298 @@
       ],
       "alert_edges": []
     },
-    "LivePersistence": "Implemented: explicit SAVE in sc_distance/config, version/size/range validation on load. Edited-value SAVE/reboot acceptance pending."
+    "PetFaceSampleWindow": {
+      "SummaryLog": "logs/device-pet-face-summary.json",
+      "frames": 602,
+      "valid": 602,
+      "first_seq": 138,
+      "last_seq": 739,
+      "pc_parser_rejected": 0,
+      "sequence_gaps": [],
+      "median_interval_ms": 90,
+      "mean_interval_ms": 99.73377703826955,
+      "min_interval_ms": 90,
+      "max_interval_ms": 110,
+      "raw_min_mm": 145,
+      "raw_max_mm": 591,
+      "median_mismatches": [],
+      "rule_mismatches": [],
+      "configurations": [
+        {
+          "seq": 138,
+          "values": [
+            400,
+            80,
+            0
+          ]
+        }
+      ],
+      "alert_edges": [
+        {
+          "seq": 159,
+          "uptime_ms": 17682,
+          "robot_alert": true,
+          "distance_mm": 145,
+          "filtered_mm": 307,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 161,
+          "uptime_ms": 17882,
+          "robot_alert": false,
+          "distance_mm": 542,
+          "filtered_mm": 528,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 253,
+          "uptime_ms": 27072,
+          "robot_alert": true,
+          "distance_mm": 376,
+          "filtered_mm": 376,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 255,
+          "uptime_ms": 27272,
+          "robot_alert": false,
+          "distance_mm": 488,
+          "filtered_mm": 488,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 289,
+          "uptime_ms": 30652,
+          "robot_alert": true,
+          "distance_mm": 147,
+          "filtered_mm": 290,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 292,
+          "uptime_ms": 30962,
+          "robot_alert": false,
+          "distance_mm": 528,
+          "filtered_mm": 522,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 377,
+          "uptime_ms": 39432,
+          "robot_alert": true,
+          "distance_mm": 218,
+          "filtered_mm": 218,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 379,
+          "uptime_ms": 39632,
+          "robot_alert": false,
+          "distance_mm": 556,
+          "filtered_mm": 541,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 504,
+          "uptime_ms": 52102,
+          "robot_alert": true,
+          "distance_mm": 169,
+          "filtered_mm": 192,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 507,
+          "uptime_ms": 52392,
+          "robot_alert": false,
+          "distance_mm": 529,
+          "filtered_mm": 527,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 534,
+          "uptime_ms": 55082,
+          "robot_alert": true,
+          "distance_mm": 384,
+          "filtered_mm": 399,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 591,
+          "uptime_ms": 60772,
+          "robot_alert": false,
+          "distance_mm": 482,
+          "filtered_mm": 480,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        },
+        {
+          "seq": 605,
+          "uptime_ms": 62172,
+          "robot_alert": true,
+          "distance_mm": 395,
+          "filtered_mm": 395,
+          "near_ms": 0,
+          "hold_ms": 0,
+          "threshold_mm": 400
+        }
+      ]
+    },
+    "PetFaceRebootSampleWindow": {
+      "SummaryLog": "logs/device-pet-face-reboot-summary.json",
+      "frames": 301,
+      "valid": 301,
+      "first_seq": 178,
+      "last_seq": 478,
+      "pc_parser_rejected": 0,
+      "sequence_gaps": [],
+      "median_interval_ms": 90.0,
+      "mean_interval_ms": 99.73333333333333,
+      "min_interval_ms": 90,
+      "max_interval_ms": 110,
+      "raw_min_mm": 486,
+      "raw_max_mm": 551,
+      "median_mismatches": [],
+      "rule_mismatches": [],
+      "configurations": [
+        {
+          "seq": 178,
+          "values": [
+            400,
+            80,
+            0
+          ]
+        }
+      ],
+      "alert_edges": []
+    },
+    "PetFaceDeployment": {
+      "Record": ".tools/device-backups/20261030-182853-pet-face/deployment.json",
+      "AppAddress": 131072,
+      "AppBytes": 3762976,
+      "MetadataSector0Address": 53248,
+      "MetadataSector0Bytes": 4096,
+      "ConfirmedSequence": 13,
+      "ConfirmedState": "VALID",
+      "OriginalMetadataSector1Sequence": 2,
+      "OriginalMetadataSector1Preserved": true,
+      "Note": "Only ota_0 app and OTA metadata sector 0 were written; original factory slot and protected regions were preserved."
+    },
+    "PetFaceModel": {
+      "Moods": [
+        "Idle",
+        "Curious",
+        "Happy",
+        "Affection",
+        "Shy",
+        "Sad",
+        "Sleepy",
+        "Surprise",
+        "Wink",
+        "Alert",
+        "Relief"
+      ],
+      "AutomaticEmotions": 8,
+      "OrdinaryTransitionMs": 280,
+      "RenderGateMs": 33,
+      "SignalChangesBypassGate": true,
+      "AlertPreemptsImmediately": true,
+      "ReliefMs": 1800,
+      "AffectionSwayPx": 12,
+      "HappyBouncePx": 8,
+      "ServoMotionAdded": false,
+      "MotionTestGroups": 13,
+      "LongSimulationFrames": 100000,
+      "TransitionPairs": 64
+    },
+    "PetFaceRenderValidation": {
+      "Manifest": "demos/face-lab/firmware/manifest.json",
+      "Preview": "demos/face-lab/firmware.html",
+      "timestamp_utc": "2026-10-30T10:23:43.4022462Z",
+      "renderer": "project managed_components/lvgl__lvgl v9.4.0 desktop software renderer",
+      "resolution": "320x240",
+      "pixel_format": "XRGB8888",
+      "source_hashes": [
+        {
+          "path": "StackChan/firmware/main/apps/app_distance/pet_avatar.h",
+          "sha256": "3a12ece68fb1141d5e1eb80decf7690b22b726e91089789eeb2423e920a02e40"
+        },
+        {
+          "path": "StackChan/firmware/main/apps/app_distance/pet_avatar.cpp",
+          "sha256": "d31af1292748ca61d80babd27cee0221293fb9b338420e18fe66acd7cdddf735"
+        },
+        {
+          "path": "StackChan/firmware/main/apps/app_distance/pet_motion.h",
+          "sha256": "ce42e1c242aef3df91b4965bc973d5b364d67ade271450d107e0a96251af0e22"
+        },
+        {
+          "path": "StackChan/firmware/main/stackchan/avatar/avatar/avatar.h",
+          "sha256": "92c69b9fae6398d0ee1c7b06c7fcb08854e4db3927fa50669e79ac8a04acd6e4"
+        }
+      ],
+      "lifecycle": {
+        "cycles": 100,
+        "children_before": 0,
+        "children_after": 0,
+        "lvgl_free_bytes_before": 8374392,
+        "lvgl_free_bytes_after": 8374392,
+        "lvgl_used_blocks_before": 94,
+        "lvgl_used_blocks_after": 94,
+        "lvgl_max_used": 97032,
+        "lvgl_heap_test_each_cycle": "PASS"
+      },
+      "dirty_redraw_comparison": {
+        "frames": 420,
+        "pixel_mismatches": 0,
+        "method": "Compare incremental frame with independently invalidated entire-screen redraw using actual LVGL software renderer"
+      },
+      "limitations": [
+        "Desktop XRGB8888 differs from actual display RGB565 quantization",
+        "Captures show pet skin only, not full AppDistance controls or warning decorator",
+        "Bounded LVGL allocator measurements do not prove no leak in every allocator or unbounded use",
+        "APNG uses 20ms capture steps; repeated frames preserve production 33ms tick gating and integer pixel quantization"
+      ],
+      "BrowserVerification": {
+        "Evidence": "Root agent browser verification in this session",
+        "ViewportWidths": [
+          1440,
+          375
+        ],
+        "HorizontalOverflow": false,
+        "LoadedImages": 4,
+        "ImageDimensions": [
+          320,
+          240
+        ],
+        "ReducedMotionDefault": "static",
+        "ExplicitPlayAndPauseVerified": true,
+        "Scope": "Browser preview only; does not confirm the physical LCD or touch controls."
+      },
+      "LocalProbeManifest": ".tools/pet-renderer/manifest.json",
+      "Result": "Bounded desktop render, lifecycle and dirty/full redraw checks passed; physical LCD appearance remains pending."
+    }
   },
   "UsbSamplingBaselineBinary": {
     "Bytes": 3734928,
@@ -337,5 +642,13 @@
     "Path": ".tools/device-backups/20261030-141710-faster-warning/distance-second-working.bin",
     "Bytes": 3742576,
     "SHA256": "f8637727a7990dd1cef68f35bd8a349193a94ea40d8db4dbf23dc880c6dbaeed"
+  },
+  "PreviousLiveFirmwareBinary": {
+    "Path": ".tools/device-backups/20261030-164605-distance-live/distance-live-working.bin",
+    "Bytes": 3755584,
+    "SHA256": "2263d163805563ce04587427b5bcdff970d4c2b17fa2669110c695925bfb4cbe",
+    "SourceCommit": "2698e9bac05914a22a84185f6b6214d276bf6332",
+    "BuildLog": "logs/firmware-20261030-164246.log",
+    "Note": "Previous blinking/breathing DISTANCE LIVE build retained as a verified historical artifact."
   }
 }

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Face Lab · 固件 LVGL 渲染图集</title>
+<style>
+  :root { --bg:#0c100e; --panel:#141a17; --line:#2b3730; --text:#edf5ef; --muted:#a0b0a6; --mint:#bcefd5; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+  .shell { max-width:720px; padding:28px; margin:auto; }
+  a { color:var(--mint); text-underline-offset:4px; }
+  a:focus-visible,button:focus-visible { outline:2px solid var(--mint); outline-offset:5px; }
+  .back { font-size:13px; }
+  header { margin:25px 0 22px; }
+  .eyebrow { font:10px/1.5 ui-monospace,monospace; letter-spacing:.12em; color:var(--muted); margin:0 0 8px; }
+  h1 { font-size:25px; font-weight:550; letter-spacing:-.02em; line-height:1.3; margin:0 0 12px; }
+  .scope { color:var(--muted); margin:0; font-size:13px; }
+  .playback { display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:8px; }
+  button { color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 17px; min-height:42px; font:inherit; cursor:pointer; }
+  button:hover { background:#202c24; border-color:#526d5b; }
+  #playback-state { color:var(--muted); font-size:12px; }
+  .motion-note { margin:0 0 22px; font-size:11px; color:var(--muted); }
+  .gallery { display:grid; grid-template-columns:repeat(2,320px); gap:24px; justify-content:center; }
+  figure { margin:0; min-width:0; }
+  .frame { width:320px; max-width:100%; aspect-ratio:4/3; background:#000; overflow:hidden; outline:1px solid var(--line); border-radius:12px; }
+  img { display:block; width:320px; max-width:100%; height:auto; }
+  figcaption { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-top:11px; }
+  h2 { margin:0; font-size:14px; font-weight:550; }
+  .frame-meta { font:10px/1.5 ui-monospace,monospace; color:var(--muted); }
+  .links { display:flex; gap:20px; flex-wrap:wrap; margin-top:28px; padding-top:17px; border-top:1px solid var(--line); font-size:12px; }
+  .independent { color:var(--muted); font-size:11px; margin:15px 0 0; }
+  @media (max-width:719px) {
+    .shell { padding:22px 16px; }
+    .gallery { grid-template-columns:minmax(0,320px); }
+    h1 { font-size:23px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <nav><a class="back" href="index.html">← 返回动作设计预览</a></nav>
+  <header>
+    <p class="eyebrow">FACE LAB / FIRMWARE RENDER</p>
+    <h1>固件 LVGL 渲染图集</h1>
+    <p class="scope">实际固件 LVGL 渲染片段，非 LCD 实拍；仅脸部，不含 HOME/TUNE 和全局警告红框。</p>
+  </header>
+  <div class="playback">
+    <button id="playback" type="button" aria-pressed="true">播放动画</button>
+    <span id="playback-state" role="status" aria-live="polite">静态姿态 · 320 × 240 原始尺寸</span>
+  </div>
+  <p class="motion-note">暂停时显示对应静态姿态，播放时切回动画片段。默认遵循系统“减少动态”设置。</p>
+  <section class="gallery" aria-label="四段固件表情渲染">
+    <figure>
+      <div class="frame"><img id="happy-frame" src="firmware/happy.png" data-static="firmware/happy.png" data-animation="firmware/happy-animation.png" width="320" height="240" alt="开心：大幅笑眼与笑口"></div>
+      <figcaption><h2>开心</h2><span class="frame-meta">HAPPY / 320 × 240</span></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><img id="affection-frame" src="firmware/affection.png" data-static="firmware/affection.png" data-animation="firmware/affection-animation.png" width="320" height="240" alt="撒娇：侧蹭笑眼与腮红"></div>
+      <figcaption><h2>撒娇</h2><span class="frame-meta">AFFECTION / 320 × 240</span></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><img id="sad-frame" src="firmware/sad.png" data-static="firmware/sad.png" data-animation="firmware/sad-animation.png" width="320" height="240" alt="委屈：下垂眼与小泪滴"></div>
+      <figcaption><h2>委屈</h2><span class="frame-meta">SAD / 320 × 240</span></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><img id="alert-frame" src="firmware/alert.png" data-static="firmware/alert.png" data-animation="firmware/alert-cycle-animation.png" width="320" height="240" alt="提醒周期：认真提醒的姿态变化"></div>
+      <figcaption><h2>提醒周期</h2><span class="frame-meta">ALERT CYCLE / 320 × 240</span></figcaption>
+    </figure>
+  </section>
+  <div class="links"><a href="firmware/contact.png">全部静态姿态图</a><a href="firmware/manifest.json">渲染记录（JSON）</a></div>
+  <p class="independent">Canvas 动作设计与此图集来自两份独立实现，不保证像素一致。图集以 320 × 240 显示，不放大原始图像。</p>
+  <noscript><p class="independent">当前显示静态姿态。</p></noscript>
+</main>
+<script>
+(() => {
+  'use strict';
+  const preference=window.matchMedia('(prefers-reduced-motion: reduce)');
+  const button=document.getElementById('playback');
+  const status=document.getElementById('playback-state');
+  const frames=Array.from(document.querySelectorAll('img[data-animation]'));
+  let playing=!preference.matches;
+
+  function render() {
+    const active=playing && !document.hidden;
+    frames.forEach(frame => {
+      const source=active?frame.dataset.animation:frame.dataset.static;
+      if(frame.getAttribute('src')!==source) frame.setAttribute('src',source);
+    });
+    button.textContent=playing?'暂停动画':'播放动画';
+    button.setAttribute('aria-pressed',String(!playing));
+    status.textContent=(active?'动画播放中':'静态姿态')+' · 320 × 240 原始尺寸';
+  }
+  button.addEventListener('click',()=>{playing=!playing;render();});
+  preference.addEventListener('change',event=>{playing=!event.matches;render();});
+  document.addEventListener('visibilitychange',render);
+  render();
+})();
+</script>
+</body>
+</html>

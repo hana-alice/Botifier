@@ -2,6 +2,7 @@
 /.omx/
 /build/
 /logs/
+/.playwright-mcp/
 __pycache__/
 *.py[cod]
 .env
