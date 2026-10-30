@@ -1,0 +1,66 @@
+{
+  "RecordedAt": "2026-10-30T10:41:01.0040883+08:00",
+  "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
+  "Source": {
+    "Url": "https://github.com/m5stack/StackChan.git",
+    "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
+    "FirmwareVersion": "1.6.0"
+  },
+  "ESP_IDF": {
+    "Tag": "v5.5.4",
+    "Commit": "735507283d5b2f9fb363a1901172dbd9e847945d",
+    "ToolsPath": "F:\\stackchan\\.tools\\espressif",
+    "Python": "3.12.10"
+  },
+  "Device": {
+    "Port": "COM38",
+    "FirmwareVersionFromBootLog": "1.5.1",
+    "IDFFromBootLog": "v5.5.4",
+    "ToF4MVerified": false
+  },
+  "Dependencies": [
+    {
+      "Url": "https://github.com/Forairaaaaa/mooncake.git",
+      "Path": "components/mooncake",
+      "Ref": "v2.3.3",
+      "Commit": "572a7e488641f1c3f22e85d65c27f095ecf27d12"
+    },
+    {
+      "Url": "https://github.com/Forairaaaaa/mooncake_log.git",
+      "Path": "components/mooncake_log",
+      "Ref": "v1.5.0",
+      "Commit": "554d55cd8c6e551b911b99cad274a46929f05bae"
+    },
+    {
+      "Url": "https://github.com/Forairaaaaa/smooth_ui_toolkit.git",
+      "Path": "components/smooth_ui_toolkit",
+      "Ref": "v2.12.0",
+      "Commit": "2a18ff5d3fd6b402339d0f4f3c2834f574e3cb05"
+    },
+    {
+      "Url": "https://github.com/78/xiaozhi-esp32.git",
+      "Path": "xiaozhi-esp32",
+      "Ref": "v2.2.4",
+      "Commit": "e77dedb1309153bb63fed285772962c920c97dd4"
+    },
+    {
+      "Url": "https://github.com/bblanchon/ArduinoJson.git",
+      "Path": "components/ArduinoJson",
+      "Ref": "v7.4.2",
+      "Commit": "733bc4ee82630c88c0a619a883cd3a206efae977"
+    },
+    {
+      "Url": "https://github.com/espressif/esp-now.git",
+      "Path": "components/esp-now",
+      "Ref": "c33383de97f3ed2fc52117f5ef04f71990432e5d",
+      "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
+    }
+  ],
+  "HostTest": "motion_math_test passed 1/1",
+  "FirmwareBuild": "passed; official firmware 1.6.0, no distance feature added, not flashed",
+  "FirmwareBinary": {
+    "Path": "StackChan/firmware/build/stack-chan.bin",
+    "Bytes": 3730352,
+    "SHA256": "324b15a2dbeba9e20e4cb979fdbbcb64e2499f9539d26593c412b08ebe532f63"
+  }
+}

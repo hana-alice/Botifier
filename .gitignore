@@ -1,0 +1,9 @@
+/.tools/
+/.omx/
+/build/
+/logs/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
