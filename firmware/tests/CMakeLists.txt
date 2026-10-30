@@ -38,3 +38,11 @@ target_include_directories(distance_snapshot_test PRIVATE fakes ../main)
 
 target_compile_features(distance_snapshot_test PRIVATE cxx_std_17)
 add_test(NAME distance_snapshot_test COMMAND $<TARGET_FILE:distance_snapshot_test>)
+
+# Exercise real avatar ownership; only the element math dependency is replaced.
+add_executable(avatar_lifetime_test avatar_lifetime_test.cpp)
+
+target_include_directories(avatar_lifetime_test PRIVATE fakes/avatar_ui ../main)
+
+target_compile_features(avatar_lifetime_test PRIVATE cxx_std_17)
+add_test(NAME avatar_lifetime_test COMMAND $<TARGET_FILE:avatar_lifetime_test>)

@@ -16,6 +16,9 @@ namespace stackchan::avatar {
  */
 class Avatar {
 public:
+    // App face switches own derived skins through unique_ptr<Avatar>.
+    virtual ~Avatar() = default;
+
     /**
      * @brief Update avatar, trigger all elements, decorators and modifiers to update
      *

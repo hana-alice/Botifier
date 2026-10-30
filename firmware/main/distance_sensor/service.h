@@ -40,6 +40,13 @@ struct Snapshot {
 // One coherent sample copied under a short critical section; never polls I2C.
 Snapshot snapshot();
 
+// Requested settings are applied by the sampler before its next publication.
+// snapshot().config always describes the settings used for that exact sample.
+ProximityConfig config();
+esp_err_t set_config(const ProximityConfig& configuration);
+// Explicit persistence only: editing parameters never writes flash by itself.
+esp_err_t save_config();
+
 // Starts a process-lifetime sampler, independent of Mooncake/AI screen changes.
 // A missing sensor is reported over telemetry and never prevents normal startup.
 esp_err_t start();

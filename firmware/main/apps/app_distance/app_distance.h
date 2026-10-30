@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <memory>
 
-// Read-only diagnostics for the process-lifetime distance sampler.
+// A live distance-warning face and explicit, persistent proximity tuning.
 class AppDistance : public mooncake::AppAbility {
 public:
     AppDistance();

@@ -6,6 +6,7 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <nvs.h>
 #include <cinttypes>
 #include <cstdio>
 #include <atomic>
@@ -21,12 +22,48 @@ uint32_t sequence = 0;
 ProximityPolicy policy;
 portMUX_TYPE snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
 Snapshot latest_snapshot;
+ProximityConfig requested_config;
 std::atomic<bool> warning_active{false};
 std::atomic<uint32_t> warning_sample_ms{0};
 
 uint32_t now_ms()
 {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
+}
+
+struct StoredConfig {
+    uint32_t version;
+    uint32_t threshold_mm;
+    uint32_t hysteresis_mm;
+    uint32_t near_duration_ms;
+};
+
+void load_config()
+{
+    nvs_handle_t handle;
+    esp_err_t result = nvs_open("sc_distance", NVS_READONLY, &handle);
+    if (result == ESP_ERR_NVS_NOT_FOUND) return;
+    if (result == ESP_OK) {
+        StoredConfig stored{};
+        size_t size = sizeof(stored);
+        result = nvs_get_blob(handle, "config", &stored, &size);
+        nvs_close(handle);
+        if (result == ESP_ERR_NVS_NOT_FOUND) return;
+        if (result == ESP_OK) {
+            if (size != sizeof(stored) || stored.version != 1 || stored.threshold_mm > 4000 ||
+                stored.hysteresis_mm > 4000) {
+                result = ESP_ERR_INVALID_ARG;
+            } else {
+                ProximityConfig loaded{static_cast<uint16_t>(stored.threshold_mm),
+                                       static_cast<uint16_t>(stored.hysteresis_mm),
+                                       stored.near_duration_ms, sample_timeout_ms};
+                result = set_config(loaded);
+            }
+        }
+    }
+    if (result != ESP_OK) {
+        std::printf("distance settings not loaded: %s; using defaults\n", esp_err_to_name(result));
+    }
 }
 
 const char* proximity_name(ProximityState state)
@@ -42,6 +79,9 @@ const char* proximity_name(ProximityState state)
 void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
 {
     const uint32_t timestamp = now_ms();
+    // Only this task touches the policy. UI changes are copied under the same
+    // short lock as snapshots; I2C, LVGL and NVS never run inside that lock.
+    policy.configure(config());
     if (reading) {
         policy.feed(reading->valid, reading->millimeters, timestamp);
     } else {
@@ -60,6 +100,7 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
     next.raw_status = reading ? reading->raw_status : 255;
     next.error = error;
     next.stale = false;
+    next.config = policy.config();
     portENTER_CRITICAL(&snapshot_lock);
     latest_snapshot = next;
     portEXIT_CRITICAL(&snapshot_lock);
@@ -73,10 +114,13 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
     // The existing secondary USB Serial/JTAG console mirrors stdout to USB.
     std::printf("SC_DISTANCE {\"v\":1,\"seq\":%" PRIu32 ",\"uptime_ms\":%" PRIu32
                 ",\"valid\":%s,\"distance_mm\":%s,\"raw_status\":%u,\"state\":\"%s\",\"error\":%d,\"robot_alert\":%s"
-                ",\"filtered_mm\":%d,\"near_ms\":%" PRIu32 ",\"proximity_state\":\"%s\"}\n",
+                ",\"filtered_mm\":%d,\"near_ms\":%" PRIu32 ",\"proximity_state\":\"%s\""
+                ",\"threshold_mm\":%u,\"hysteresis_mm\":%u,\"hold_ms\":%" PRIu32 "}\n",
                 next.sequence, timestamp, next.valid ? "true" : "false", distance,
                 static_cast<unsigned>(next.raw_status), state, error, warning ? "true" : "false",
-                next.filtered_mm, next.near_elapsed_ms, proximity_name(next.proximity_state));
+                next.filtered_mm, next.near_elapsed_ms, proximity_name(next.proximity_state),
+                static_cast<unsigned>(next.config.threshold_mm), static_cast<unsigned>(next.config.hysteresis_mm),
+                next.config.near_duration_ms);
     std::fflush(stdout);
 }
 
@@ -182,6 +226,39 @@ Snapshot snapshot()
     return current.at(now_ms());
 }
 
+ProximityConfig config()
+{
+    portENTER_CRITICAL(&snapshot_lock);
+    const ProximityConfig current = requested_config;
+    portEXIT_CRITICAL(&snapshot_lock);
+    return current;
+}
+
+esp_err_t set_config(const ProximityConfig& configuration)
+{
+    if (!valid_config(configuration) || configuration.sample_timeout_ms != sample_timeout_ms) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    portENTER_CRITICAL(&snapshot_lock);
+    requested_config = configuration;
+    portEXIT_CRITICAL(&snapshot_lock);
+    return ESP_OK;
+}
+
+esp_err_t save_config()
+{
+    const ProximityConfig current = config();
+    const StoredConfig stored{1, current.threshold_mm, current.hysteresis_mm, current.near_duration_ms};
+    nvs_handle_t handle;
+    esp_err_t result = nvs_open("sc_distance", NVS_READWRITE, &handle);
+    if (result != ESP_OK) return result;
+    // A single versioned value prevents partially saved parameter sets.
+    result = nvs_set_blob(handle, "config", &stored, sizeof(stored));
+    if (result == ESP_OK) result = nvs_commit(handle);
+    nvs_close(handle);
+    return result;
+}
+
 bool alert_active()
 {
     if (!warning_active.load(std::memory_order_acquire)) return false;
@@ -192,6 +269,7 @@ bool alert_active()
 esp_err_t start()
 {
     if (sampler_task != nullptr) return ESP_ERR_INVALID_STATE;
+    load_config();
     const BaseType_t result = xTaskCreate(run, "distance_sensor", 4096, nullptr, 2, &sampler_task);
     return result == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }

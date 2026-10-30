@@ -10,9 +10,17 @@ namespace distance_sensor {
 struct ProximityConfig {
     std::uint16_t threshold_mm = 400;
     std::uint16_t hysteresis_mm = 80;
-    std::uint32_t near_duration_ms = 1000;
+    std::uint32_t near_duration_ms = 0;
     std::uint32_t sample_timeout_ms = 1500;
 };
+
+inline bool valid_config(const ProximityConfig& config) noexcept
+{
+    return config.threshold_mm >= 40 && config.threshold_mm <= 4000 &&
+           config.hysteresis_mm <= 4000u - config.threshold_mm &&
+           config.near_duration_ms <= 60000 && config.sample_timeout_ms > 0 &&
+           config.sample_timeout_ms <= 60000;
+}
 
 enum class ProximityState { Waiting, Safe, Near, Alert };
 
@@ -21,6 +29,22 @@ enum class ProximityState { Waiting, Safe, Near, Alert };
 class ProximityPolicy {
 public:
     explicit ProximityPolicy(ProximityConfig config = {}) noexcept : config_(config) {}
+
+    bool configure(ProximityConfig config) noexcept
+    {
+        if (!valid_config(config)) return false;
+        if (config.threshold_mm == config_.threshold_mm && config.hysteresis_mm == config_.hysteresis_mm &&
+            config.near_duration_ms == config_.near_duration_ms &&
+            config.sample_timeout_ms == config_.sample_timeout_ms) return true;
+        config_ = config;
+        // Re-evaluate on the next fresh sample using the existing median window.
+        // A new setting never inherits the previous latch or accumulated dwell.
+        state_ = ProximityState::Waiting;
+        near_elapsed_ms_ = 0;
+        return true;
+    }
+
+    const ProximityConfig& config() const noexcept { return config_; }
 
     void feed(bool valid, std::uint16_t distance_mm, std::uint32_t now_ms) noexcept
     {

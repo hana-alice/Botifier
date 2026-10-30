@@ -149,6 +149,27 @@ void custom_timeout_uses_its_own_exact_boundary()
     check(expired.age_ms == 201, "custom timeout did not use the snapshot configuration");
 }
 
+void nondefault_configuration_survives_fresh_and_expired_copies()
+{
+    auto original = alert_sample();
+    original.config = distance_sensor::ProximityConfig{600, 120, 500, 200};
+    original.near_elapsed_ms = 500;
+    const auto fresh = original.at(10200);
+    check(fresh.valid && !fresh.stale && fresh.proximity_state == ProximityState::Alert,
+          "nondefault configuration changed a fresh alert snapshot");
+    check(fresh.config.threshold_mm == 600 && fresh.config.hysteresis_mm == 120 &&
+          fresh.config.near_duration_ms == 500 && fresh.config.sample_timeout_ms == 200,
+          "fresh copy reverted a runtime configuration to defaults");
+    check(fresh.near_elapsed_ms == 500, "fresh runtime hold metadata was changed");
+    const auto expired = original.at(10201);
+    check_cleared(expired);
+    check(expired.config.threshold_mm == 600 && expired.config.hysteresis_mm == 120 &&
+          expired.config.near_duration_ms == 500 && expired.config.sample_timeout_ms == 200,
+          "expiry must retain runtime configuration for diagnosis");
+    check(original.valid && original.near_elapsed_ms == 500 && original.config.threshold_mm == 600,
+          "aging a configured snapshot modified the original publication");
+}
+
 void uint32_rollover_preserves_age_and_timeout_boundary()
 {
     auto sample = alert_sample();
@@ -187,6 +208,7 @@ int main()
         {"aging_only_changes_the_returned_copy", aging_only_changes_the_returned_copy},
         {"fresh_invalid_optical_frames_keep_diagnostics_without_alerting", fresh_invalid_optical_frames_keep_diagnostics_without_alerting},
         {"custom_timeout_uses_its_own_exact_boundary", custom_timeout_uses_its_own_exact_boundary},
+        {"nondefault_configuration_survives_fresh_and_expired_copies", nondefault_configuration_survives_fresh_and_expired_copies},
         {"uint32_rollover_preserves_age_and_timeout_boundary", uint32_rollover_preserves_age_and_timeout_boundary},
         {"existing_stale_flag_cannot_be_revalidated_by_a_small_age", existing_stale_flag_cannot_be_revalidated_by_a_small_age},
     };

@@ -6,6 +6,7 @@
 #include <smooth_lvgl.hpp>
 #include <stackchan/stackchan.h>
 #include <algorithm>
+#include <array>
 #include <cstdio>
 
 using namespace smooth_ui_toolkit::lvgl_cpp;
@@ -15,10 +16,28 @@ namespace {
 constexpr std::uint32_t kBackground = 0x16131C;
 constexpr std::uint32_t kForeground = 0xF7F2FF;
 constexpr std::uint32_t kMuted = 0xB8B1C3;
+constexpr std::uint32_t kButton = 0x513775;
 constexpr std::uint32_t kSafe = 0x74E4B5;
 constexpr std::uint32_t kNear = 0xFFD37A;
 constexpr std::uint32_t kAlert = 0xFF7979;
 constexpr std::uint32_t kRefreshMs = 100;
+
+std::unique_ptr<Container> make_page(bool transparent = false)
+{
+    auto page = std::make_unique<Container>(lv_screen_active());
+    page->setSize(320, 240);
+    page->align(LV_ALIGN_CENTER, 0, 0);
+    page->setPaddingAll(0);
+    page->setBorderWidth(0);
+    page->setRadius(0);
+    page->setBgColor(lv_color_hex(kBackground));
+    page->setBgOpa(transparent ? LV_OPA_TRANSP : LV_OPA_COVER);
+    page->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
+    if (transparent) {
+        page->removeFlag(LV_OBJ_FLAG_CLICKABLE);
+    }
+    return page;
+}
 
 std::unique_ptr<Label> make_label(Container& parent, int x, int y, int width,
                                  const lv_font_t* font, std::uint32_t color = kForeground)
@@ -32,142 +51,309 @@ std::unique_ptr<Label> make_label(Container& parent, int x, int y, int width,
     return label;
 }
 
+std::unique_ptr<Button> make_button(Container& parent, int x, int y, int width, const char* text)
+{
+    auto button = std::make_unique<Button>(parent);
+    button->setPos(x, y);
+    button->setSize(width, 40);
+    button->setRadius(6);
+    button->setBgColor(lv_color_hex(kButton));
+    button->setBorderWidth(0);
+    button->label().setTextFont(&lv_font_montserrat_16);
+    button->label().setTextColor(lv_color_hex(kForeground));
+    button->label().setText(text);
+    return button;
+}
+
+void set_enabled(Button& button, bool enabled)
+{
+    if (enabled) {
+        button.removeState(LV_STATE_DISABLED);
+    } else {
+        button.addState(LV_STATE_DISABLED);
+    }
+}
+
 void format_cm(char* text, std::size_t size, int millimeters)
 {
     if (millimeters < 0) {
         std::snprintf(text, size, "--");
-        return;
+    } else {
+        std::snprintf(text, size, "%d.%d", millimeters / 10, millimeters % 10);
     }
-    std::snprintf(text, size, "%d.%d", millimeters / 10, millimeters % 10);
+}
+
+bool same_config(const distance_sensor::ProximityConfig& a, const distance_sensor::ProximityConfig& b)
+{
+    return a.threshold_mm == b.threshold_mm && a.hysteresis_mm == b.hysteresis_mm &&
+           a.near_duration_ms == b.near_duration_ms && a.sample_timeout_ms == b.sample_timeout_ms;
+}
+
+const char* state_text(distance_sensor::ProximityState state)
+{
+    switch (state) {
+        case distance_sensor::ProximityState::Safe: return "SAFE";
+        case distance_sensor::ProximityState::Near: return "NEAR";
+        case distance_sensor::ProximityState::Alert: return "ALERT";
+        default: return "WAITING";
+    }
+}
+
+std::uint32_t state_color(distance_sensor::ProximityState state)
+{
+    switch (state) {
+        case distance_sensor::ProximityState::Safe: return kSafe;
+        case distance_sensor::ProximityState::Near: return kNear;
+        case distance_sensor::ProximityState::Alert: return kAlert;
+        default: return kMuted;
+    }
 }
 
 }  // namespace
 
 struct AppDistance::View {
-    // The parent is declared first so wrappers release their children first.
-    std::unique_ptr<Container> page;
-    std::unique_ptr<Button> home;
+    enum class Mode { Live, Tune };
+
+    struct Row {
+        std::unique_ptr<Label> label;
+        std::unique_ptr<Label> value;
+        std::unique_ptr<Button> minus;
+        std::unique_ptr<Button> plus;
+    };
+
+    // Parents precede their child wrappers so destruction releases children first.
+    std::unique_ptr<Container> live_controls;
+    std::unique_ptr<Container> tune_page;
+    std::unique_ptr<Button> live_home;
+    std::unique_ptr<Button> tune_button;
+    std::unique_ptr<Label> live_distance;
+    std::unique_ptr<Label> live_state;
+    std::unique_ptr<Button> tune_home;
+    std::unique_ptr<Button> live_button;
     std::unique_ptr<Label> title;
-    std::unique_ptr<Label> filtered_caption;
-    std::unique_ptr<Label> filtered;
-    std::unique_ptr<Label> unit;
-    std::unique_ptr<Label> state;
-    std::unique_ptr<Label> raw;
-    std::unique_ptr<Label> quality;
-    std::unique_ptr<Label> hold;
-    std::unique_ptr<Label> limits;
-    std::unique_ptr<Label> sample;
-    std::unique_ptr<Label> sensor;
-    std::unique_ptr<Label> status;
+    std::unique_ptr<Label> telemetry;
+    std::array<Row, 3> rows;
+    std::unique_ptr<Button> save_button;
+    std::unique_ptr<Label> save_status;
+    std::unique_ptr<Label> apply_status;
+
+    Mode mode = Mode::Tune;
+    Mode requested_mode = Mode::Live;
+    stackchan::avatar::Avatar* live_avatar = nullptr;
+    stackchan::Modifier* blink_modifier = nullptr;
+    stackchan::Modifier* breath_modifier = nullptr;
+    int blink_id = -1;
+    int breath_id = -1;
+    bool save_requested = false;
+    std::uint32_t edit_revision = 0;
 
     explicit View(AppDistance& app)
     {
-        page = std::make_unique<Container>(lv_screen_active());
-        page->setSize(320, 240);
-        page->align(LV_ALIGN_CENTER, 0, 0);
-        page->setPaddingAll(0);
-        page->setBorderWidth(0);
-        page->setRadius(0);
-        page->setBgColor(lv_color_hex(kBackground));
-        page->setBgOpa(LV_OPA_COVER);
-        page->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
+        live_controls = make_page(true);
+        live_home = make_button(*live_controls, 12, 190, 92, "HOME");
+        live_home->onClick().connect([&app]() { app.close(); });
+        tune_button = make_button(*live_controls, 216, 190, 92, "TUNE");
+        tune_button->onClick().connect([this]() { requested_mode = Mode::Tune; });
+        live_distance = make_label(*live_controls, 108, 193, 104, &lv_font_montserrat_16);
+        live_state = make_label(*live_controls, 108, 214, 104, &lv_font_montserrat_14);
+        live_distance->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        live_state->setTextAlign(LV_TEXT_ALIGN_CENTER);
 
-        title = make_label(*page, 12, 13, 200, &lv_font_montserrat_20);
-        title->setText("DISTANCE");
+        tune_page = make_page();
+        tune_home = make_button(*tune_page, 8, 4, 80, "HOME");
+        tune_home->onClick().connect([&app]() { app.close(); });
+        live_button = make_button(*tune_page, 232, 4, 80, "LIVE");
+        live_button->onClick().connect([this]() { requested_mode = Mode::Live; });
+        title = make_label(*tune_page, 96, 14, 128, &lv_font_montserrat_20);
+        title->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        title->setText("TUNE");
+        telemetry = make_label(*tune_page, 8, 47, 304, &lv_font_montserrat_14);
+        telemetry->setTextAlign(LV_TEXT_ALIGN_CENTER);
 
-        home = std::make_unique<Button>(*page);
-        home->setPos(226, 4);
-        home->setSize(84, 40);
-        home->setRadius(6);
-        home->setBgColor(lv_color_hex(0x513775));
-        home->setBorderWidth(0);
-        home->label().setTextFont(&lv_font_montserrat_16);
-        home->label().setTextColor(lv_color_hex(kForeground));
-        home->label().setText("HOME");
-        home->onClick().connect([&app]() { app.close(); });
+        const char* names[] = {"TRIP cm", "CLEAR +cm", "WAIT sec"};
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            const int y = 70 + static_cast<int>(i) * 42;
+            auto& row = rows[i];
+            row.label = make_label(*tune_page, 12, y + 12, 96, &lv_font_montserrat_14, kMuted);
+            row.label->setText(names[i]);
+            row.minus = make_button(*tune_page, 112, y, 44, "-");
+            row.value = make_label(*tune_page, 160, y + 7, 96, &MontserratSemiBold26);
+            row.value->setTextAlign(LV_TEXT_ALIGN_CENTER);
+            row.plus = make_button(*tune_page, 264, y, 44, "+");
+            // LVGL already holds its lock while dispatching these callbacks.
+            row.minus->onClick().connect([this, i]() { adjust(i, -1); });
+            row.plus->onClick().connect([this, i]() { adjust(i, 1); });
+        }
 
-        filtered_caption = make_label(*page, 12, 47, 150, &lv_font_montserrat_14, kMuted);
-        filtered_caption->setText("FILTERED");
-        filtered = make_label(*page, 12, 67, 100, &MontserratSemiBold26);
-        filtered->setTransformPivot(0, 0);
-        // Reuse the existing font: LVGL transform units use 256 for 1x.
-        lv_obj_set_style_transform_scale_x(filtered->get(), 384, LV_PART_MAIN);
-        lv_obj_set_style_transform_scale_y(filtered->get(), 384, LV_PART_MAIN);
-        unit = make_label(*page, 170, 82, 40, &lv_font_montserrat_20, kMuted);
-        unit->setText("cm");
-        state = make_label(*page, 211, 70, 99, &lv_font_montserrat_20);
-        state->setTextAlign(LV_TEXT_ALIGN_RIGHT);
-
-        raw = make_label(*page, 12, 114, 190, &lv_font_montserrat_16);
-        quality = make_label(*page, 210, 115, 100, &lv_font_montserrat_14);
-        quality->setTextAlign(LV_TEXT_ALIGN_RIGHT);
-        hold = make_label(*page, 12, 138, 298, &lv_font_montserrat_16);
-        limits = make_label(*page, 12, 163, 298, &lv_font_montserrat_14, kMuted);
-        sample = make_label(*page, 12, 183, 298, &lv_font_montserrat_14, kMuted);
-        sensor = make_label(*page, 12, 202, 298, &lv_font_montserrat_14, kMuted);
-        status = make_label(*page, 12, 221, 298, &lv_font_montserrat_14, kMuted);
+        save_button = make_button(*tune_page, 8, 196, 80, "SAVE");
+        save_status = make_label(*tune_page, 98, 198, 214, &lv_font_montserrat_14, kMuted);
+        save_status->setText("SAVE to keep");
+        apply_status = make_label(*tune_page, 98, 219, 214, &lv_font_montserrat_14, kMuted);
+        save_button->onClick().connect([this]() {
+            save_requested = true;
+            set_enabled(*save_button, false);
+            set_save_status("SAVING...", kNear);
+        });
+        apply_mode();
     }
 
-    void update(const distance_sensor::Snapshot& snapshot)
+    ~View()
     {
-        char text[128];
-        char raw_cm[24];
-        char trigger_cm[24];
-        char clear_cm[24];
-        const bool usable = snapshot.valid && !snapshot.stale;
-        format_cm(text, sizeof(text), usable ? snapshot.filtered_mm : -1);
-        filtered->setText(text);
-        filtered->setTextColor(lv_color_hex(usable && snapshot.filtered_mm >= 0 ? kForeground : kMuted));
+        stop_live();
+    }
 
-        const char* state_text = "WAITING";
-        std::uint32_t state_color = kMuted;
-        switch (snapshot.proximity_state) {
-            case distance_sensor::ProximityState::Waiting:
-                break;
-            case distance_sensor::ProximityState::Safe:
-                state_text = "SAFE";
-                state_color = kSafe;
-                break;
-            case distance_sensor::ProximityState::Near:
-                state_text = "NEAR";
-                state_color = kNear;
-                break;
-            case distance_sensor::ProximityState::Alert:
-                state_text = "ALERT";
-                state_color = kAlert;
-                break;
+    void stop_live()
+    {
+        auto& stackchan = GetStackChan();
+        // Permanent modifiers do not self-expire. Check identity as well as ID
+        // so a cleared/reused pool slot cannot remove another app's modifier.
+        if (blink_id >= 0 && stackchan.getModifier(blink_id) == blink_modifier) {
+            stackchan.removeModifier(blink_id);
         }
-        state->setText(state_text);
-        state->setTextColor(lv_color_hex(state_color));
+        if (breath_id >= 0 && stackchan.getModifier(breath_id) == breath_modifier) {
+            stackchan.removeModifier(breath_id);
+        }
+        blink_id = breath_id = -1;
+        blink_modifier = breath_modifier = nullptr;
+        if (live_avatar && stackchan.hasAvatar() && &stackchan.avatar() == live_avatar) {
+            stackchan.resetAvatar();
+        }
+        live_avatar = nullptr;
+    }
 
-        // Keep an invalid optical reading visible for diagnosis; snapshot()
-        // itself clears old raw values when the sampler becomes stale.
-        format_cm(raw_cm, sizeof(raw_cm), snapshot.raw_mm);
-        std::snprintf(text, sizeof(text), "RAW %s cm", raw_cm);
-        raw->setText(text);
-        quality->setText(snapshot.stale ? "STALE" : snapshot.valid ? "VALID" : "INVALID");
-        quality->setTextColor(lv_color_hex(usable ? kSafe : kNear));
+    void apply_mode()
+    {
+        if (mode == requested_mode) {
+            return;
+        }
+        stop_live();
+        mode = requested_mode;
+        if (mode == Mode::Live) {
+            auto avatar = std::make_unique<stackchan::avatar::DefaultAvatar>();
+            avatar->init(lv_screen_active());
+            live_avatar = avatar.get();
+            GetStackChan().attachAvatar(std::move(avatar));
+            auto blink = std::make_unique<stackchan::BlinkModifier>(0, 3200, 160);
+            blink_modifier = blink.get();
+            blink_id = GetStackChan().addModifier(std::move(blink));
+            // Breath shifts face features only: no servo/motion modifier.
+            auto breath = std::make_unique<stackchan::BreathModifier>(0, 6, 3600, 100);
+            breath_modifier = breath.get();
+            breath_id = GetStackChan().addModifier(std::move(breath));
+            tune_page->addFlag(LV_OBJ_FLAG_HIDDEN);
+            live_controls->removeFlag(LV_OBJ_FLAG_HIDDEN);
+            raise_controls();
+        } else {
+            live_controls->addFlag(LV_OBJ_FLAG_HIDDEN);
+            tune_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_foreground(tune_page->get());
+        }
+    }
 
-        const auto elapsed = std::min(snapshot.near_elapsed_ms, snapshot.config.near_duration_ms);
-        std::snprintf(text, sizeof(text), "HOLD %lu / %lu ms", static_cast<unsigned long>(elapsed),
-                      static_cast<unsigned long>(snapshot.config.near_duration_ms));
-        hold->setText(text);
-        hold->setTextColor(lv_color_hex(state_color));
+    void raise_controls()
+    {
+        // A newly created global warning is a later screen child. Keep the
+        // two bottom controls above it without changing the warning itself.
+        if (mode == Mode::Live && lv_obj_get_child(lv_screen_active(), -1) != live_controls->get()) {
+            lv_obj_move_foreground(live_controls->get());
+        }
+    }
 
-        format_cm(trigger_cm, sizeof(trigger_cm), snapshot.config.threshold_mm);
-        format_cm(clear_cm, sizeof(clear_cm),
-                  static_cast<int>(snapshot.config.threshold_mm) + snapshot.config.hysteresis_mm);
-        std::snprintf(text, sizeof(text), "TRIP <%s cm | CLEAR >=%s cm", trigger_cm, clear_cm);
-        limits->setText(text);
-        std::snprintf(text, sizeof(text), "AGE %lu ms  SEQ %lu", static_cast<unsigned long>(snapshot.age_ms),
-                      static_cast<unsigned long>(snapshot.sequence));
-        sample->setText(text);
-        std::snprintf(text, sizeof(text), "SENSOR: %s", snapshot.sensor_state ? snapshot.sensor_state : "unknown");
-        sensor->setText(text);
-        std::snprintf(text, sizeof(text), "STATUS %d  ERR 0x%X", snapshot.raw_status,
-                      static_cast<unsigned int>(snapshot.error));
-        status->setText(text);
-        status->setTextColor(lv_color_hex(snapshot.error == ESP_OK ? kMuted : kAlert));
+    void set_save_status(const char* text, std::uint32_t color)
+    {
+        save_status->setText(text);
+        save_status->setTextColor(lv_color_hex(color));
+    }
+
+    void show_config(const distance_sensor::ProximityConfig& configuration)
+    {
+        char text[24];
+        format_cm(text, sizeof(text), configuration.threshold_mm);
+        rows[0].value->setText(text);
+        format_cm(text, sizeof(text), configuration.hysteresis_mm);
+        rows[1].value->setText(text);
+        std::snprintf(text, sizeof(text), "%lu.%lu", static_cast<unsigned long>(configuration.near_duration_ms / 1000),
+                      static_cast<unsigned long>((configuration.near_duration_ms % 1000) / 100));
+        rows[2].value->setText(text);
+        set_enabled(*rows[0].minus, configuration.threshold_mm > 40);
+        set_enabled(*rows[0].plus, configuration.threshold_mm < 4000);
+        set_enabled(*rows[1].minus, configuration.hysteresis_mm > 0);
+        set_enabled(*rows[1].plus, configuration.hysteresis_mm < 4000 - configuration.threshold_mm);
+        set_enabled(*rows[2].minus, configuration.near_duration_ms > 0);
+        set_enabled(*rows[2].plus, configuration.near_duration_ms < 10000);
+    }
+
+    void adjust(std::size_t row, int direction)
+    {
+        const auto previous = distance_sensor::config();
+        auto next = previous;
+        if (row == 0) {
+            next.threshold_mm = static_cast<std::uint16_t>(
+                std::clamp(static_cast<int>(next.threshold_mm) + direction * 10, 40, 4000));
+            next.hysteresis_mm = static_cast<std::uint16_t>(std::min<int>(next.hysteresis_mm, 4000 - next.threshold_mm));
+        } else if (row == 1) {
+            next.hysteresis_mm = static_cast<std::uint16_t>(
+                std::clamp(static_cast<int>(next.hysteresis_mm) + direction * 10, 0, 4000 - next.threshold_mm));
+        } else {
+            next.near_duration_ms = static_cast<std::uint32_t>(
+                std::clamp(static_cast<int>(next.near_duration_ms) + direction * 100, 0, 10000));
+        }
+        if (same_config(previous, next)) {
+            return;
+        }
+        const auto error = distance_sensor::set_config(next);
+        if (error == ESP_OK) {
+            ++edit_revision;
+            show_config(next);
+            set_save_status("UNSAVED", kNear);
+            apply_status->setText("APPLYING NEXT SAMPLE");
+        } else {
+            char text[40];
+            std::snprintf(text, sizeof(text), "SET ERR 0x%X", static_cast<unsigned int>(error));
+            set_save_status(text, kAlert);
+        }
+    }
+
+    void update(const distance_sensor::Snapshot& snapshot, const distance_sensor::ProximityConfig& requested)
+    {
+        char text[96];
+        char centimeters[24];
+        char raw_centimeters[24];
+        const bool usable = snapshot.valid && !snapshot.stale;
+        const char* quality = snapshot.stale ? "STALE" : snapshot.valid ? "VALID" : "INVALID";
+        const auto color = state_color(snapshot.proximity_state);
+        format_cm(centimeters, sizeof(centimeters), usable ? snapshot.filtered_mm : -1);
+        std::snprintf(text, sizeof(text), "%s cm", centimeters);
+        live_distance->setText(text);
+        live_state->setText(usable ? state_text(snapshot.proximity_state) : quality);
+        live_state->setTextColor(lv_color_hex(usable ? color : kNear));
+        format_cm(raw_centimeters, sizeof(raw_centimeters), snapshot.stale ? -1 : snapshot.raw_mm);
+        std::snprintf(text, sizeof(text), "F%s R%scm %s %s", centimeters, raw_centimeters,
+                      state_text(snapshot.proximity_state), quality);
+        telemetry->setText(text);
+        telemetry->setTextColor(lv_color_hex(color));
+        show_config(requested);
+        if (!same_config(snapshot.config, requested)) {
+            apply_status->setText("APPLYING NEXT SAMPLE");
+        } else {
+            format_cm(centimeters, sizeof(centimeters),
+                      static_cast<int>(requested.threshold_mm) + requested.hysteresis_mm);
+            std::snprintf(text, sizeof(text), "CLEAR >=%s cm", centimeters);
+            apply_status->setText(text);
+        }
+    }
+
+    void finish_save(esp_err_t error, std::uint32_t saved_revision)
+    {
+        set_enabled(*save_button, true);
+        if (error == ESP_OK) {
+            const bool newer_edits = saved_revision != edit_revision;
+            set_save_status(newer_edits ? "SAVED; NEWER EDITS" : "SAVED", newer_edits ? kNear : kSafe);
+        } else {
+            char text[40];
+            std::snprintf(text, sizeof(text), "SAVE ERR 0x%X", static_cast<unsigned int>(error));
+            set_save_status(text, kAlert);
+        }
     }
 };
 
@@ -187,12 +373,11 @@ AppDistance::~AppDistance()
 
 void AppDistance::onOpen()
 {
-    // Copy the sampler state before taking the UI lock; no I2C access here.
     const auto current = distance_sensor::snapshot();
     LvglLockGuard lock;
-    GetStackChan().resetAvatar();
+    _view.reset();
     _view = std::make_unique<View>(*this);
-    _view->update(current);
+    _view->update(current, distance_sensor::config());
     _last_refresh_ms = GetHAL().millis();
 }
 
@@ -205,12 +390,33 @@ void AppDistance::onRunning()
         _last_refresh_ms = now;
         current = distance_sensor::snapshot();
     }
-    LvglLockGuard lock;
-    // Preserve the normal app update cadence for motion, neon and modifiers;
-    // only refreshing the diagnostic labels is limited to 10 Hz.
-    GetStackChan().update();
-    if (refresh && _view) {
-        _view->update(current);
+
+    bool save = false;
+    std::uint32_t saved_revision = 0;
+    {
+        LvglLockGuard lock;
+        if (!_view) {
+            return;
+        }
+        _view->apply_mode();
+        GetStackChan().update();
+        _view->raise_controls();
+        if (refresh) {
+            _view->update(current, distance_sensor::config());
+        }
+        save = _view->save_requested;
+        _view->save_requested = false;
+        saved_revision = _view->edit_revision;
+    }
+
+    if (save) {
+        // NVS work runs on the app task, outside both the event callback and
+        // the LVGL lock. Parameter button edits never write flash implicitly.
+        const auto error = distance_sensor::save_config();
+        LvglLockGuard lock;
+        if (_view) {
+            _view->finish_save(error, saved_revision);
+        }
     }
 }
 
