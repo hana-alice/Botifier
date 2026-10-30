@@ -10,7 +10,7 @@ namespace distance_sensor {
 struct ProximityConfig {
     std::uint16_t threshold_mm = 400;
     std::uint16_t hysteresis_mm = 80;
-    std::uint32_t near_duration_ms = 5000;
+    std::uint32_t near_duration_ms = 1000;
     std::uint32_t sample_timeout_ms = 1500;
 };
 

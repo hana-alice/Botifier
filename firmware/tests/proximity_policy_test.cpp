@@ -13,6 +13,10 @@ using distance_sensor::ProximityState;
 
 namespace {
 
+// Keep the existing five-second timing regressions explicit while the shipping
+// default is tuned for the user's faster physical reminder.
+constexpr ProximityConfig five_second_config{400, 80, 5000, 1500};
+
 void check(bool condition, const char* message)
 {
     if (!condition) {
@@ -36,9 +40,29 @@ void reach_alert(ProximityPolicy& policy)
     check(policy.alert_active(), "stable proximity did not reach alert");
 }
 
-void three_samples_start_dwell()
+void default_configuration_alerts_after_one_second()
 {
     ProximityPolicy policy;
+    policy.feed(true, 300, 0);
+    policy.feed(true, 300, 100);
+    policy.feed(true, 300, 200);
+    for (std::uint32_t now = 300; now <= 1100; now += 100) {
+        policy.feed(true, 300, now);
+        check(!policy.alert_active(), "default must retain one second of filtered dwell");
+    }
+    policy.feed(true, 300, 1199);
+    check(!policy.alert_active(), "default alert fired one millisecond early");
+    policy.feed(true, 300, 1200);
+    check(policy.alert_active(), "default must alert after one second, not five");
+    policy.feed(true, 600, 1300);
+    check(policy.alert_active(), "one recovery spike must not bypass median");
+    policy.feed(true, 600, 1400);
+    check(policy.state() == ProximityState::Safe, "far median must clear the faster alert");
+}
+
+void three_samples_start_dwell()
+{
+    ProximityPolicy policy(five_second_config);
     check_waiting(policy);
     policy.feed(true, 300, 0);
     policy.feed(true, 300, 100);
@@ -51,7 +75,7 @@ void three_samples_start_dwell()
 
 void stable_distance_remains_safe()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     for (std::uint32_t now = 0; now <= 12000; now += 1000) {
         policy.feed(true, 600, now);
         check(!policy.alert_active(), "stable far measurements must not alert");
@@ -63,7 +87,7 @@ void stable_distance_remains_safe()
 
 void dwell_boundary_and_latched_alert()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     for (std::uint32_t now = 0; now <= 6000; now += 1000) {
         policy.feed(true, 300, now);
         check(!policy.alert_active(), "alert fired before five seconds of filtered proximity");
@@ -82,7 +106,7 @@ void dwell_boundary_and_latched_alert()
 void threshold_equality_and_initial_dead_band_are_safe()
 {
     for (const auto distance : std::array<std::uint16_t, 5>{400, 430, 479, 480, 4000}) {
-        ProximityPolicy policy;
+        ProximityPolicy policy(five_second_config);
         for (std::uint32_t now = 0; now <= 8000; now += 1000) {
             policy.feed(true, distance, now);
         }
@@ -93,7 +117,7 @@ void threshold_equality_and_initial_dead_band_are_safe()
 
 void hysteresis_restores_and_requires_full_new_dwell()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     reach_alert(policy);
     policy.feed(true, 479, 8000);
     policy.feed(true, 479, 9000);
@@ -120,7 +144,7 @@ void hysteresis_restores_and_requires_full_new_dwell()
 
 void isolated_close_spike_is_rejected()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     policy.feed(true, 600, 0);
     policy.feed(true, 600, 100);
     policy.feed(true, 600, 200);
@@ -134,7 +158,7 @@ void isolated_close_spike_is_rejected()
 
 void isolated_far_spike_does_not_break_dwell()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     policy.feed(true, 300, 0);
     policy.feed(true, 300, 1000);
     policy.feed(true, 300, 2000);
@@ -149,7 +173,7 @@ void isolated_far_spike_does_not_break_dwell()
 
 void invalid_measurement_clears_alert_and_dwell()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     reach_alert(policy);
     policy.feed(false, 0, 8000);
     check_waiting(policy);
@@ -169,12 +193,12 @@ void invalid_measurement_clears_alert_and_dwell()
 void zero_and_out_of_range_values_are_invalid_even_if_marked_valid()
 {
     for (const auto distance : std::array<std::uint16_t, 4>{0, 39, 4001, 65535}) {
-        ProximityPolicy policy;
+        ProximityPolicy policy(five_second_config);
         reach_alert(policy);
         policy.feed(true, distance, 8000);
         check_waiting(policy);
     }
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     policy.feed(true, 40, 0);
     policy.feed(true, 40, 100);
     policy.feed(true, 40, 200);
@@ -183,7 +207,7 @@ void zero_and_out_of_range_values_are_invalid_even_if_marked_valid()
 
 void fresh_sample_after_timeout_starts_a_new_window()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     policy.feed(true, 300, 0);
     policy.feed(true, 300, 500);
     policy.feed(true, 300, 1000);
@@ -198,7 +222,7 @@ void fresh_sample_after_timeout_starts_a_new_window()
 
 void expire_boundary_and_no_measurement_are_safe()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     policy.expire(std::numeric_limits<std::uint32_t>::max());
     check_waiting(policy);
     reach_alert(policy);
@@ -214,7 +238,7 @@ void expire_boundary_and_no_measurement_are_safe()
 
 void expire_does_not_advance_dwell_without_fresh_samples()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     for (std::uint32_t now = 0; now <= 6000; now += 1000) {
         policy.feed(true, 300, now);
     }
@@ -227,7 +251,7 @@ void expire_does_not_advance_dwell_without_fresh_samples()
 
 void uptime_rollover_preserves_continuous_proximity()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     const auto start = std::numeric_limits<std::uint32_t>::max() - 3000u;
     for (std::uint32_t offset = 0; offset <= 6000; offset += 1000) {
         policy.feed(true, 300, start + offset);
@@ -242,7 +266,7 @@ void uptime_rollover_preserves_continuous_proximity()
 
 void uptime_rollover_preserves_timeout_boundary()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     const auto start = std::numeric_limits<std::uint32_t>::max() - 500u;
     policy.feed(true, 300, start);
     policy.feed(true, 300, start + 100u);
@@ -255,7 +279,7 @@ void uptime_rollover_preserves_timeout_boundary()
 
 void explicit_invalidation_requires_new_samples()
 {
-    ProximityPolicy policy;
+    ProximityPolicy policy(five_second_config);
     reach_alert(policy);
     policy.invalidate();
     check_waiting(policy);
@@ -291,6 +315,7 @@ int main()
         const char* name;
         void (*run)();
     } tests[] = {
+        {"default_configuration_alerts_after_one_second", default_configuration_alerts_after_one_second},
         {"three_samples_start_dwell", three_samples_start_dwell},
         {"stable_distance_remains_safe", stable_distance_remains_safe},
         {"dwell_boundary_and_latched_alert", dwell_boundary_and_latched_alert},

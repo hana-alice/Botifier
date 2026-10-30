@@ -70,6 +70,7 @@ public:
     void setPosition(int x, int y);
     void setRotation(int rotation) override;
     void setColor(lv_color_t color);
+    void setScale(uint16_t scale);
 
 private:
     std::unique_ptr<uitk::lvgl_cpp::Image> _angry;

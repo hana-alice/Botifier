@@ -92,3 +92,11 @@ void AngryDecorator::setColor(lv_color_t color)
         _angry->setImageRecolor(color);
     }
 }
+
+void AngryDecorator::setScale(uint16_t scale)
+{
+    if (_angry) {
+        _angry->setPivot(_angry->getWidth() / 2, _angry->getHeight() / 2);
+        _angry->setScale(scale);
+    }
+}
