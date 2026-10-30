@@ -1,5 +1,6 @@
 #include "service.h"
 #include "vl53l1x.h"
+#include "proximity_policy.h"
 
 #include <driver/i2c_master.h>
 #include <esp_timer.h>
@@ -7,6 +8,7 @@
 #include <freertos/task.h>
 #include <cinttypes>
 #include <cstdio>
+#include <atomic>
 
 namespace distance_sensor {
 namespace {
@@ -16,6 +18,9 @@ constexpr uint32_t sample_timeout_ms = 1500;
 constexpr uint32_t retry_delay_ms = 5000;
 TaskHandle_t sampler_task = nullptr;
 uint32_t sequence = 0;
+ProximityPolicy policy;
+std::atomic<bool> warning_active{false};
+std::atomic<uint32_t> warning_sample_ms{0};
 
 uint32_t now_ms()
 {
@@ -24,6 +29,15 @@ uint32_t now_ms()
 
 void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
 {
+    const uint32_t timestamp = now_ms();
+    if (reading) {
+        policy.feed(reading->valid, reading->millimeters, timestamp);
+    } else {
+        policy.invalidate();
+    }
+    const bool warning = policy.alert_active();
+    warning_sample_ms.store(timestamp, std::memory_order_relaxed);
+    warning_active.store(warning, std::memory_order_release);
     char distance[12] = "null";
     if (reading) {
         std::snprintf(distance, sizeof(distance), "%u", static_cast<unsigned>(reading->millimeters));
@@ -31,9 +45,9 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
     // One printf call keeps each telemetry record separate from ordinary logs.
     // The existing secondary USB Serial/JTAG console mirrors stdout to USB.
     std::printf("SC_DISTANCE {\"v\":1,\"seq\":%" PRIu32 ",\"uptime_ms\":%" PRIu32
-                ",\"valid\":%s,\"distance_mm\":%s,\"raw_status\":%u,\"state\":\"%s\",\"error\":%d}\n",
-                sequence++, now_ms(), reading && reading->valid ? "true" : "false", distance,
-                reading ? static_cast<unsigned>(reading->raw_status) : 255U, state, error);
+                ",\"valid\":%s,\"distance_mm\":%s,\"raw_status\":%u,\"state\":\"%s\",\"error\":%d,\"robot_alert\":%s}\n",
+                sequence++, timestamp, reading && reading->valid ? "true" : "false", distance,
+                reading ? static_cast<unsigned>(reading->raw_status) : 255U, state, error, warning ? "true" : "false");
     std::fflush(stdout);
 }
 
@@ -130,6 +144,13 @@ void run(void*)
 }
 
 }  // namespace
+
+bool alert_active()
+{
+    if (!warning_active.load(std::memory_order_acquire)) return false;
+    const uint32_t sampled_at = warning_sample_ms.load(std::memory_order_relaxed);
+    return now_ms() - sampled_at <= sample_timeout_ms;
+}
 
 esp_err_t start()
 {

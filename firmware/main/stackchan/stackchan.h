@@ -44,6 +44,7 @@ public:
      */
     void attachAvatar(std::unique_ptr<avatar::Avatar> avatar)
     {
+        _distance_warning.reset();
         _avatar = std::move(avatar);
     }
 
@@ -53,6 +54,7 @@ public:
      */
     void resetAvatar()
     {
+        _distance_warning.reset();
         _avatar.reset();
     }
 
@@ -133,7 +135,10 @@ public:
         _modifier_pool.cleanup();
 
         if (_avatar) {
+            updateDistanceWarning();
             _avatar->update();
+        } else {
+            _distance_warning.reset();
         }
 
         if (_motion) {
@@ -179,7 +184,11 @@ public:
     }
 
 private:
+    // Called only by update(), whose existing callers hold the LVGL lock.
+    void updateDistanceWarning();
+
     std::unique_ptr<avatar::Avatar> _avatar;
+    std::unique_ptr<avatar::Decorator> _distance_warning;
     std::unique_ptr<motion::Motion> _motion;
     addon::LeftNeonLight _left_neon_light;
     addon::RightNeonLight _right_neon_light;

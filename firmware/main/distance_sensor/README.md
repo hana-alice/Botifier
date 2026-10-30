@@ -112,14 +112,16 @@ Verification performed on 2026-10-30:
 - The driver translation unit passed the existing Xtensa ESP32-S3 GCC 14.2.0
   toolchain with the firmware's generated `compile_commands.json` flags plus
   `-fsyntax-only -Werror`.
-- The complete ESP-IDF firmware, including the independent sampler, built
-  successfully. Its binary is 3,734,928 bytes; SHA256 and build log are recorded
-  in the workspace's `environment.json`.
+- The complete ESP-IDF firmware, including the independent sampler and standalone
+  proximity expression, built successfully. Current binary size, SHA256 and build
+  log are recorded in the workspace's `environment.json`.
 - The actual driver compiled under MSVC Release against test-only I2C/time fakes.
   All 11 scenario groups passed: identification, bounded waits, configuration,
   transaction failure injection, polarity/status/range boundaries, freshness,
-  read/acknowledge failures and stop behavior. Together with the existing motion
-  test, CTest passed 2/2. Run the workspace's `scripts/Test-Host.ps1` to reproduce.
+  read/acknowledge failures and stop behavior. The additional pure C++ proximity
+  policy passed 16 scenario groups, including median warmup, dwell, hysteresis,
+  invalid samples, timeouts and uptime rollover. Together with the existing
+  motion test, CTest passed 3/3. Run `scripts/Test-Host.ps1` to reproduce.
 
 The sensor had not been connected at the last user confirmation; electrical operation, actual measurement cadence,
 calibration completion, optical range/status behavior and repeated-frame handling
