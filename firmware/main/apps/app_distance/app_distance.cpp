@@ -1,6 +1,6 @@
 #include "app_distance.h"
 #include "pet_avatar.h"
-#include "snap_service.h"
+#include "nfc_service.h"
 #include "intro_player.h"
 
 #include <assets/assets.h>
@@ -116,7 +116,7 @@ std::uint32_t state_color(distance_sensor::ProximityState state)
 }  // namespace
 
 struct AppDistance::View {
-    enum class Mode { Live, Tune, Snap };
+    enum class Mode { Live, Tune, Nfc };
 
     struct Row {
         std::unique_ptr<Label> label;
@@ -137,7 +137,7 @@ struct AppDistance::View {
     std::unique_ptr<Button> tune_button;
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
-    std::unique_ptr<Label> live_snap_status;
+    std::unique_ptr<Label> live_nfc_status;
     std::unique_ptr<Button> tune_home;
     std::unique_ptr<Button> live_button;
     std::unique_ptr<Button> mode_button;
@@ -146,8 +146,9 @@ struct AppDistance::View {
     std::unique_ptr<Button> save_button;
     std::unique_ptr<Label> save_status;
     std::unique_ptr<Label> apply_status;
-    std::unique_ptr<Label> snap_levels;
-    std::unique_ptr<Label> snap_result;
+    std::unique_ptr<Label> nfc_hint;
+    std::unique_ptr<Label> nfc_counts;
+    std::unique_ptr<Label> nfc_uid;
 
     Mode mode = Mode::Tune;
     Mode requested_mode = Mode::Live;
@@ -167,18 +168,18 @@ struct AppDistance::View {
         live_state = make_label(*live_controls, 108, 214, 104, &lv_font_montserrat_14);
         live_distance->setTextAlign(LV_TEXT_ALIGN_CENTER);
         live_state->setTextAlign(LV_TEXT_ALIGN_CENTER);
-        live_snap_status = make_label(*live_controls, 8, 8, 304, &lv_font_montserrat_14, kMuted);
-        live_snap_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
-        live_snap_status->setText("SNAP WARMING");
+        live_nfc_status = make_label(*live_controls, 8, 8, 304, &lv_font_montserrat_14, kMuted);
+        live_nfc_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        live_nfc_status->setText("NFC STARTING");
 
         tune_page = make_page();
         tune_home = make_button(*tune_page, 8, 4, 80, "HOME");
         tune_home->onClick().connect([&app]() { app.close(); });
         live_button = make_button(*tune_page, 232, 4, 80, "LIVE");
         live_button->onClick().connect([this]() { requested_mode = Mode::Live; });
-        mode_button = make_button(*tune_page, 96, 4, 128, "SNAP");
+        mode_button = make_button(*tune_page, 96, 4, 128, "NFC");
         mode_button->onClick().connect([this]() {
-            requested_mode = mode == Mode::Snap ? Mode::Tune : Mode::Snap;
+            requested_mode = mode == Mode::Nfc ? Mode::Tune : Mode::Nfc;
         });
         telemetry = make_label(*tune_page, 8, 47, 304, &lv_font_montserrat_14);
         telemetry->setTextAlign(LV_TEXT_ALIGN_CENTER);
@@ -202,10 +203,14 @@ struct AppDistance::View {
         save_status = make_label(*tune_page, 98, 198, 214, &lv_font_montserrat_14, kMuted);
         save_status->setText("SAVE to keep");
         apply_status = make_label(*tune_page, 98, 219, 214, &lv_font_montserrat_14, kMuted);
-        snap_levels = make_label(*tune_page, 8, 198, 304, &lv_font_montserrat_14, kMuted);
-        snap_result = make_label(*tune_page, 8, 219, 304, &lv_font_montserrat_14, kMuted);
-        snap_levels->addFlag(LV_OBJ_FLAG_HIDDEN);
-        snap_result->addFlag(LV_OBJ_FLAG_HIDDEN);
+        nfc_hint = make_label(*tune_page, 8, 118, 304, &lv_font_montserrat_14, kMuted);
+        nfc_hint->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        nfc_hint->setText("Tap NFC card to play\nMove away to re-arm");
+        nfc_counts = make_label(*tune_page, 8, 198, 304, &lv_font_montserrat_14, kMuted);
+        nfc_uid = make_label(*tune_page, 8, 219, 304, &lv_font_montserrat_14, kMuted);
+        nfc_hint->addFlag(LV_OBJ_FLAG_HIDDEN);
+        nfc_counts->addFlag(LV_OBJ_FLAG_HIDDEN);
+        nfc_uid->addFlag(LV_OBJ_FLAG_HIDDEN);
         save_button->onClick().connect([this]() {
             save_requested = true;
             set_enabled(*save_button, false);
@@ -251,6 +256,8 @@ struct AppDistance::View {
         }
         stop_live();
         mode = requested_mode;
+        if (mode == Mode::Nfc) nfc_hint->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        else nfc_hint->addFlag(LV_OBJ_FLAG_HIDDEN);
         if (mode == Mode::Live) {
             auto avatar = std::make_unique<DistancePetAvatar>();
             avatar->init(lv_screen_active());
@@ -263,18 +270,23 @@ struct AppDistance::View {
             live_controls->addFlag(LV_OBJ_FLAG_HIDDEN);
             tune_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(tune_page->get());
-            const bool snap = mode == Mode::Snap;
-            mode_button->label().setText(snap ? "DISTANCE" : "SNAP");
-            const char* names[] = {snap ? "SENS 1..5" : "TRIP cm",
-                                   snap ? "CAM assist" : "CLEAR +cm",
-                                   snap ? "LISTEN" : "WAIT sec"};
+            const bool nfc = mode == Mode::Nfc;
+            mode_button->label().setText(nfc ? "DISTANCE" : "NFC");
+            const char* names[] = {nfc ? "READER" : "TRIP cm", "CLEAR +cm", "WAIT sec"};
             for (std::size_t i = 0; i < rows.size(); ++i) rows[i].label->setText(names[i]);
+            for (std::size_t i = 1; i < rows.size(); ++i) {
+                for (auto* object : {rows[i].label->get(), rows[i].value->get(),
+                                     rows[i].minus->get(), rows[i].plus->get()}) {
+                    if (nfc) lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
+                    else lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
+                }
+            }
             for (auto* object : {save_button->get(), save_status->get(), apply_status->get()}) {
-                if (snap) lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
+                if (nfc) lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
                 else lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
             }
-            for (auto* object : {snap_levels->get(), snap_result->get()}) {
-                if (snap) lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
+            for (auto* object : {nfc_counts->get(), nfc_uid->get()}) {
+                if (nfc) lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
                 else lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
             }
         }
@@ -288,8 +300,8 @@ struct AppDistance::View {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
-        if (signal == distance_pet::Signal::Alert) live_snap_status->addFlag(LV_OBJ_FLAG_HIDDEN);
-        else live_snap_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        if (signal == distance_pet::Signal::Alert) live_nfc_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+        else live_nfc_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
         live_avatar->tick(now, signal);
     }
 
@@ -332,55 +344,36 @@ struct AppDistance::View {
         save_status->setTextColor(lv_color_hex(color));
     }
 
-    void show_listening(std::uint32_t now, const distance_sensor::Snapshot& distance,
-                        const snap_sense::Snapshot& heard)
+    void show_reader_status(const distance_sensor::Snapshot& distance,
+                            const nfc_sense::Snapshot& scanned)
     {
         // Leave the global TOO CLOSE title unobstructed.
         if (distance.valid && !distance.stale &&
             distance.proximity_state == distance_sensor::ProximityState::Alert) {
-            live_snap_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+            live_nfc_status->addFlag(LV_OBJ_FLAG_HIDDEN);
             return;
         }
-        live_snap_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
-        const char* text = "SNAP READY";
+        live_nfc_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        const char* text = "NFC TAP CARD";
         auto color = kSafe;
-        if (!heard.active || !heard.config.listening) {
-            text = "SNAP OFF";
+        if (!scanned.active || !scanned.config.enabled) {
+            text = "NFC OFF";
             color = kMuted;
-        } else if (heard.status == snap_sense::Status::AudioError) {
-            text = "SNAP MIC ERROR";
+        } else if (scanned.status == nfc_sense::Status::Error) {
+            text = "NFC READER ERROR";
             color = kAlert;
-        } else if (heard.status != snap_sense::Status::Listening || !heard.audio_open) {
-            text = "SNAP WARMING";
+        } else if (scanned.status == nfc_sense::Status::Starting) {
+            text = "NFC STARTING";
             color = kNear;
         } else if (!distance.valid || distance.stale || distance.filtered_mm < 0) {
-            text = "SNAP NEEDS DISTANCE";
+            text = "NFC NEEDS DISTANCE";
             color = kNear;
-        } else if (heard.config.camera_required && !heard.visual.available) {
-            text = heard.camera_error == ESP_OK ? "SNAP CAMERA WAIT" : "SNAP CAMERA ERROR";
+        } else if (scanned.waiting_for_removal) {
+            text = "NFC MOVE CARD AWAY";
             color = kNear;
-        } else if (heard.config.camera_required && !heard.visual.motion) {
-            text = heard.hand.phase == snap_sense::HandPhase::NeedClear ? "SNAP MOVE HAND OUT" :
-                   heard.hand.phase == snap_sense::HandPhase::Stabilizing ? "SNAP HOLD HAND" : "SNAP SHOW HAND";
-            color = kNear;
-        } else if (heard.audio.reason == snap_sense::AudioReason::Playback) {
-            text = "SNAP SPEAKER ACTIVE";
-            color = kNear;
-        } else if (heard.has_audio_event && now - heard.last_audio_event_ms <= 1000u) {
-            const auto reason = heard.last_audio_event.reason;
-            if (reason == snap_sense::AudioReason::Tonal || reason == snap_sense::AudioReason::LongSound ||
-                reason == snap_sense::AudioReason::Clipped) {
-                text = "SNAP SOUND FILTERED";
-                color = kNear;
-            } else if (reason == snap_sense::AudioReason::Candidate &&
-                       heard.last_decision != snap_sense::Decision::Accepted) {
-                text = heard.last_decision == snap_sense::Decision::NoVisual ?
-                           "SNAP HAND NOT READY" : "SNAP SOUND BLOCKED";
-                color = kNear;
-            }
         }
-        live_snap_status->setText(text);
-        live_snap_status->setTextColor(lv_color_hex(color));
+        live_nfc_status->setText(text);
+        live_nfc_status->setTextColor(lv_color_hex(color));
     }
 
     void show_config(const distance_sensor::ProximityConfig& configuration)
@@ -403,14 +396,12 @@ struct AppDistance::View {
 
     void adjust(std::size_t row, int direction)
     {
-        if (mode == Mode::Snap) {
-            auto next = snap_sense::config();
-            if (row == 0) next.sensitivity = static_cast<unsigned>(
-                std::clamp(static_cast<int>(next.sensitivity) + direction, 1, 5));
-            else if (row == 1) next.camera_required = direction > 0;
-            else next.listening = direction > 0;
-            snap_sense::set_config(next);
-            show_snap(snap_sense::snapshot());
+        if (mode == Mode::Nfc) {
+            if (row != 0) return;
+            auto next = nfc_sense::config();
+            next.enabled = direction > 0;
+            nfc_sense::set_config(next);
+            show_nfc(nfc_sense::snapshot());
             return;
         }
         const auto previous = distance_sensor::config();
@@ -442,38 +433,34 @@ struct AppDistance::View {
         }
     }
 
-    void show_snap(const snap_sense::Snapshot& heard)
+    void show_nfc(const nfc_sense::Snapshot& scanned)
     {
         char text[96];
-        const auto& config = heard.config;
-        std::snprintf(text, sizeof(text), "MIC %s  CAM %s", snap_sense::status_text(heard.status),
-                      snap_sense::camera_status_text(heard.camera_status));
+        const auto& config = scanned.config;
+        std::snprintf(text, sizeof(text), "READER %s", nfc_sense::status_text(scanned.status));
         telemetry->setText(text);
-        telemetry->setTextColor(lv_color_hex(heard.status == snap_sense::Status::AudioError ? kAlert : kForeground));
-        std::snprintf(text, sizeof(text), "%u", config.sensitivity);
-        rows[0].value->setText(text);
-        rows[1].value->setText(config.camera_required ? "ON" : "OFF");
-        rows[2].value->setText(config.listening ? "ON" : "OFF");
-        set_enabled(*rows[0].minus, config.sensitivity > 1);
-        set_enabled(*rows[0].plus, config.sensitivity < 5);
-        set_enabled(*rows[1].minus, config.camera_required);
-        set_enabled(*rows[1].plus, !config.camera_required);
-        set_enabled(*rows[2].minus, config.listening);
-        set_enabled(*rows[2].plus, !config.listening);
-        std::snprintf(text, sizeof(text), "P%lu N%lu H%u%% %s %lums",
-                      static_cast<unsigned long>(heard.audio.peak), static_cast<unsigned long>(heard.audio.noise),
-                      static_cast<unsigned>(heard.hand_box.score * 100),
-                      snap_sense::hand_phase_text(heard.hand.phase), static_cast<unsigned long>(heard.hand_inference_ms));
-        snap_levels->setText(text);
-        std::snprintf(text, sizeof(text), "OK%lu%s NO%lu%s %s",
-                      static_cast<unsigned long>(std::min<std::uint32_t>(heard.accepted, 9999)), heard.accepted > 9999 ? "+" : "",
-                      static_cast<unsigned long>(std::min<std::uint32_t>(heard.rejected, 9999)), heard.rejected > 9999 ? "+" : "",
-                      snap_sense::decision_text(heard.last_decision));
-        snap_result->setText(text);
+        telemetry->setTextColor(lv_color_hex(scanned.status == nfc_sense::Status::Error ? kAlert : kForeground));
+        rows[0].value->setText(config.enabled ? "ON" : "OFF");
+        set_enabled(*rows[0].minus, config.enabled);
+        set_enabled(*rows[0].plus, !config.enabled);
+        std::snprintf(text, sizeof(text), "READS%lu%s TRIG%lu%s",
+                      static_cast<unsigned long>(std::min<std::uint32_t>(scanned.reads, 9999)), scanned.reads > 9999 ? "+" : "",
+                      static_cast<unsigned long>(std::min<std::uint32_t>(scanned.accepted, 9999)), scanned.accepted > 9999 ? "+" : "");
+        nfc_counts->setText(text);
+        std::snprintf(text, sizeof(text), "UID --");
+        const auto uid_length = std::min(scanned.card.uid_length, scanned.card.uid.size());
+        if (uid_length > 0) {
+            std::snprintf(text, sizeof(text), "UID ");
+            for (std::size_t i = 0; i < uid_length; ++i) {
+                std::snprintf(text + 4 + i * 2, sizeof(text) - 4 - i * 2, "%02X",
+                              static_cast<unsigned>(scanned.card.uid[i]));
+            }
+        }
+        nfc_uid->setText(text);
     }
 
     void update(const distance_sensor::Snapshot& snapshot, const distance_sensor::ProximityConfig& requested,
-                const snap_sense::Snapshot& heard)
+                const nfc_sense::Snapshot& scanned)
     {
         char text[96];
         char centimeters[24];
@@ -486,8 +473,8 @@ struct AppDistance::View {
         live_distance->setText(text);
         live_state->setText(usable ? state_text(snapshot.proximity_state) : quality);
         live_state->setTextColor(lv_color_hex(usable ? color : kNear));
-        if (mode == Mode::Snap) {
-            show_snap(heard);
+        if (mode == Mode::Nfc) {
+            show_nfc(scanned);
             return;
         }
         format_cm(raw_centimeters, sizeof(raw_centimeters), snapshot.stale ? -1 : snapshot.raw_mm);
@@ -536,17 +523,17 @@ AppDistance::~AppDistance()
 
 void AppDistance::onOpen()
 {
-    snap_sense::start(); // An unavailable microphone must not prevent ranging or UI.
+    nfc_sense::start(); // An unavailable reader must not prevent ranging or UI.
     const auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
-    const auto heard = snap_sense::snapshot();
-    _last_snap_event = heard.accepted;
+    const auto scanned = nfc_sense::snapshot();
+    _last_nfc_event = scanned.accepted;
     _intro_completed_count = playback.completed_count;
     LvglLockGuard lock;
     _view.reset();
     _view = std::make_unique<View>(*this);
-    _view->update(current, distance_sensor::config(), heard);
-    _view->show_listening(GetHAL().millis(), current, heard);
+    _view->update(current, distance_sensor::config(), scanned);
+    _view->show_reader_status(current, scanned);
     _last_refresh_ms = GetHAL().millis();
 }
 
@@ -554,7 +541,7 @@ void AppDistance::onRunning()
 {
     auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
-    auto heard = snap_sense::snapshot();
+    auto scanned = nfc_sense::snapshot();
     // Keep the original distance warning ahead of the optional short clip.
     const bool alert = current.valid && !current.stale &&
                        current.proximity_state == distance_sensor::ProximityState::Alert;
@@ -562,16 +549,16 @@ void AppDistance::onRunning()
     if (interrupted) {
         intro_player::stop(); // Never hold LVGL while waiting for the worker.
         playback = intro_player::snapshot();
-        heard = snap_sense::snapshot();
+        scanned = nfc_sense::snapshot();
     }
     const auto now = GetHAL().millis();
     if (playback.completed_count != _intro_completed_count) {
         _intro_completed_count = playback.completed_count;
-        _last_snap_event = playback.sensing_baseline;
+        _last_nfc_event = playback.sensing_baseline;
     }
-    const bool new_event = heard.accepted != _last_snap_event;
-    _last_snap_event = heard.accepted; // Busy events are consumed, never queued.
-    if (!interrupted && !playback.busy && new_event && now - heard.last_accepted_ms <= 500 &&
+    const bool new_event = scanned.accepted != _last_nfc_event;
+    _last_nfc_event = scanned.accepted; // Busy events are consumed, never queued.
+    if (!interrupted && !playback.busy && new_event && now - scanned.last_accepted_ms <= 500 &&
         current.valid && !current.stale && current.filtered_mm >= 0 && !alert) {
         if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
     }
@@ -594,8 +581,8 @@ void AppDistance::onRunning()
         _view->show_intro(playback);
         _view->raise_controls();
         if (refresh || previous_mode != _view->mode) {
-            _view->update(current, distance_sensor::config(), heard);
-            _view->show_listening(now, current, heard);
+            _view->update(current, distance_sensor::config(), scanned);
+            _view->show_reader_status(current, scanned);
         }
         save = _view->save_requested;
         _view->save_requested = false;
@@ -615,8 +602,8 @@ void AppDistance::onRunning()
 
 void AppDistance::onClose()
 {
-    // Input handoff can wait for I2S. Never hold the display lock while stopping.
-    snap_sense::stop();
+    // Never hold the display lock while waiting for input or playback workers.
+    nfc_sense::stop();
     intro_player::stop();
     if (!_view) {
         return;

@@ -20,17 +20,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sdkconfig.defaults.local")
 endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+
+# Component Manager canonicalizes override names to lowercase, while the pinned
+# M5 CMake files require CamelCase short names. Register their exact managed
+# targets before IDF 5.5 expands requirements; leave upstream sources unchanged.
+foreach(sc_m5_component M5UnitUnified M5HAL M5Utility)
+    string(TOLOWER "${sc_m5_component}" sc_m5_canonical)
+    idf_build_set_property(__COMPONENT_NAMES_RESOLVED "${sc_m5_component}" APPEND)
+    idf_build_set_property(__COMPONENT_TARGETS_RESOLVED "___idf_m5stack__${sc_m5_canonical}" APPEND)
+endforeach()
+
 project(stack-chan)
-
-# Apply after all components: ESP-DL appends -O3 in its own CMakeLists.
-# SHELL keeps this final -Os distinct from IDF's earlier size option.
-idf_component_get_property(espdl_lib espressif__esp-dl COMPONENT_LIB)
-target_compile_options(${espdl_lib} PRIVATE "SHELL:-Os")
-
-# Keep the scalar/dispatch convolution hot paths at the vendor's speed setting
-# while the remaining ESP-DL code stays small enough for the existing OTA slot.
-idf_component_get_property(espdl_dir espressif__esp-dl COMPONENT_DIR)
-set_property(SOURCE
-    "${espdl_dir}/dl/base/dl_base_conv2d.cpp"
-    "${espdl_dir}/dl/base/dl_base_depthwise_conv2d.cpp"
-    DIRECTORY "${espdl_dir}" APPEND PROPERTY COMPILE_OPTIONS -O3)

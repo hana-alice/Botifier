@@ -1,6 +1,6 @@
 #include "intro_player.h"
 #include "intro_clip.h"
-#include "snap_service.h"
+#include "nfc_service.h"
 
 #include <hal/hal.h>
 #include <hal/utils/jpeg_to_image/jpeg_decoder.h>
@@ -87,9 +87,9 @@ bool publish_frame(const intro_clip::Clip& clip, std::uint32_t index, std::uint3
 
 esp_err_t play(std::uint32_t request, bool& sensing_paused)
 {
-    // Every accepted request establishes the same closed-microphone boundary,
-    // including invalid media and cancellation before the worker first runs.
-    snap_sense::pause_for_playback();
+    // Consume presentations during every accepted playback, including invalid
+    // media or cancellation before the worker first runs.
+    nfc_sense::pause_for_playback();
     sensing_paused = true;
     if (cancelled(request)) return ESP_OK;
     const auto begin_address = reinterpret_cast<std::uintptr_t>(kuro_intro_start);
@@ -163,9 +163,9 @@ void worker(void*)
             latest.state = State::Stopping;
         }
         // Capture the old accepted-event boundary before restarting sensing.
-        // resume checks the current app/listen state and never revives a closed app.
-        const auto baseline = snap_sense::snapshot().accepted;
-        if (sensing_paused) snap_sense::resume_after_playback();
+        // Resume never revives a closed app or queues a tap made during playback.
+        const auto baseline = nfc_sense::snapshot().accepted;
+        if (sensing_paused) nfc_sense::resume_after_playback();
         const bool was_cancelled = cancelled(request);
         {
             std::lock_guard<std::mutex> lock(state_mutex);

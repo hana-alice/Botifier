@@ -21,8 +21,8 @@ struct Snapshot {
     std::uint32_t position_ms = 0;
     std::uint32_t duration_ms = 0;
     // Every accepted start completes once, including cancellation/error paths.
-    // Captured before sensing resumes, allowing the app to discard old snaps
-    // without dropping a genuinely new accepted event after the handoff.
+    // Captured before sensing resumes, allowing the app to discard old taps
+    // without dropping a new card presentation after the handoff.
     std::uint32_t completed_count = 0;
     std::uint32_t sensing_baseline = 0;
 };
@@ -30,8 +30,7 @@ struct Snapshot {
 // ESP_OK means accepted; a busy player rejects the request without queuing it.
 // start() contains no codec, camera, decoder, or LVGL operations.
 esp_err_t start();
-// Call outside LVGL locks. Requests cancellation and waits for sensing handoff.
-// Vendor microphone cleanup has no hard time bound.
+// Call outside LVGL locks. Requests cancellation and waits for the worker.
 void stop();
 Snapshot snapshot();
 

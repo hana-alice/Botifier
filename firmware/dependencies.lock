@@ -64,7 +64,7 @@ dependencies:
       require: private
       version: '>=5.5.2'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 0.2.1
   78/xiaozhi-fonts:
@@ -158,40 +158,9 @@ dependencies:
       require: private
       version: '>=5.0'
     source:
-      registry_url: https://components.espressif.com
-      type: service
-    version: 0.3.1
-  espressif/esp-dl:
-    component_hash: 3988acc4c6114459c9134b65d9088195c14d43a80193fe2ca2785c1fe0390f36
-    dependencies:
-    - name: espressif/dl_fft
-      registry_url: https://components.espressif.com
-      require: private
-      version: '>=0.3.1'
-    - name: espressif/esp-dsp
-      registry_url: https://components.espressif.com
-      require: private
-      version: ==1.7.0
-    - name: espressif/esp_new_jpeg
-      registry_url: https://components.espressif.com
-      require: private
-      version: ^0.6.1
-    - name: idf
-      require: private
-      version: '*'
-    source:
       registry_url: https://components.espressif.com/
       type: service
-    targets:
-    - esp32
-    - esp32c2
-    - esp32c3
-    - esp32c5
-    - esp32c6
-    - esp32p4
-    - esp32s2
-    - esp32s3
-    version: 3.3.0
+    version: 0.3.1
   espressif/esp-dsp:
     component_hash: 42dce32d46ac93dc11f60d368e29a830e9661c7345d794b8a45c343479cae636
     dependencies:
@@ -341,7 +310,7 @@ dependencies:
       require: private
       version: '>=5.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.3.1
   espressif/esp_lcd_axs15231b:
@@ -621,7 +590,7 @@ dependencies:
       require: private
       version: '>=5.3'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 0.0.8
   espressif/esp_video:
@@ -674,17 +643,6 @@ dependencies:
     - esp32c6
     - esp32c61
     version: 1.3.1
-  espressif/hand_detect:
-    component_hash: 82b537405e093703864bd3ec7af31c3bfbc3d76cff4cf0d9e618ab7889af482c
-    dependencies:
-    - name: espressif/esp-dl
-      registry_url: https://components.espressif.com
-      require: private
-      version: ~3.3.0
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 0.2.0
   espressif/i2c_bus:
     component_hash: 804ec068d163570fd367b279a310ca383484630d2310c586b50def0bcf21de13
     dependencies:
@@ -696,7 +654,7 @@ dependencies:
       require: private
       version: '>=4.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.5.1
   espressif/iot_eth:
@@ -724,7 +682,7 @@ dependencies:
       require: private
       version: '*'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32s2
@@ -829,6 +787,84 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 9.4.0
+  m5stack/M5Unit-NFC:
+    component_hash: 6160f2a40c1da4385803787458f3c2c93b49448c28d179d3f92cb95165a92770
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    - git: https://github.com/m5stack/M5UnitUnified.git
+      name: m5stack/M5UnitUnified
+      version: main
+    source:
+      git: https://github.com/m5stack/M5Unit-NFC.git
+      path: .
+      type: git
+    targets:
+    - esp32
+    - esp32s3
+    - esp32c3
+    - esp32c6
+    - esp32h2
+    - esp32p4
+    version: 471a6e02e8052264d39b3ac97005ce4de9d1cb91
+  m5stack/m5hal:
+    component_hash: 2716c8d9f99a892fe089ac00be07ef3300ba0982f9fb1af63b028c84f1f6e3a2
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    - git: https://github.com/m5stack/M5Utility.git
+      name: m5stack/M5Utility
+      version: main
+    source:
+      git: https://github.com/m5stack/M5HAL.git
+      path: .
+      type: git
+    targets:
+    - esp32
+    - esp32s3
+    - esp32s2
+    - esp32c3
+    - esp32c6
+    - esp32p4
+    - esp32h2
+    - esp32c5
+    - esp32c61
+    version: e3a84320f21bb48062f8101301020e946182a71d
+  m5stack/m5unitunified:
+    component_hash: d58115ba8212fbfe46098e8eb93cf5ea092cf37c38e06d920eb500a62e327f3e
+    dependencies:
+    - name: idf
+      version: '>=5.1'
+    - git: https://github.com/m5stack/M5HAL.git
+      name: m5stack/M5HAL
+      version: main
+    - git: https://github.com/m5stack/M5Utility.git
+      name: m5stack/M5Utility
+      version: main
+    source:
+      git: https://github.com/m5stack/M5UnitUnified.git
+      path: .
+      type: git
+    targets:
+    - esp32
+    - esp32s3
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    - esp32c61
+    - esp32p4
+    - esp32h2
+    version: 68a8fa74959a3c18ffae5ce7f73ac61ecf651d4c
+  m5stack/m5utility:
+    component_hash: 7669f576bd0e70e6ef5cf778241cfb2e7d4e5799a61b41d7d6b463bd55ab235f
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      git: https://github.com/m5stack/M5Utility.git
+      path: .
+      type: git
+    version: 336195d0f9466332552b337b94cab72f83c8d2ca
   tny-robotics/sh1106-esp-idf:
     component_hash: 7be190d7c58cd635adf8b74b3a841f8245f2f82f36d135a64d8e53cfab39124d
     dependencies: []
@@ -908,13 +944,14 @@ direct_dependencies:
 - 78/esp-wifi-connect
 - 78/esp_lcd_nv3023
 - 78/uart-eth-modem
+- 78/uart-uhci
 - 78/xiaozhi-fonts
 - espressif/adc_battery_estimation
 - espressif/adc_mic
 - espressif/bmi270_sensor
 - espressif/button
 - espressif/cmake_utilities
-- espressif/esp-dl
+- espressif/dl_fft
 - espressif/esp-sr
 - espressif/esp32-camera
 - espressif/esp_audio_codec
@@ -923,6 +960,7 @@ direct_dependencies:
 - espressif/esp_image_effects
 - espressif/esp_io_expander_tca9554
 - espressif/esp_io_expander_tca95xx_16bit
+- espressif/esp_jpeg
 - espressif/esp_lcd_axs15231b
 - espressif/esp_lcd_co5300
 - espressif/esp_lcd_gc9a01
@@ -940,20 +978,26 @@ direct_dependencies:
 - espressif/esp_lvgl_port
 - espressif/esp_mmap_assets
 - espressif/esp_new_jpeg
+- espressif/esp_sccb_intf
 - espressif/esp_video
-- espressif/hand_detect
+- espressif/i2c_bus
+- espressif/iot_usbh_cdc
 - espressif/iot_usbh_rndis
 - espressif/knob
 - espressif/led_strip
 - espressif2022/image_player
 - idf
 - lvgl/lvgl
+- m5stack/M5HAL
+- m5stack/M5Unit-NFC
+- m5stack/M5UnitUnified
+- m5stack/M5Utility
 - tny-robotics/sh1106-esp-idf
 - txp666/otto-emoji-gif-component
 - waveshare/custom_io_expander_ch32v003
 - waveshare/esp_lcd_sh8601
 - waveshare/esp_lcd_touch_cst9217
 - wvirgil123/sscma_client
-manifest_hash: cf0bcd4d64a9acfd71fb36336fb62b3d010c1db402bb07c31fa4744afce07a19
+manifest_hash: a1bc7656aca6c31ed60070c968f74e5287655e6b1c276fafa0f93ea4908c0431
 target: esp32s3
 version: 2.0.0

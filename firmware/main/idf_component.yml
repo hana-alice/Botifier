@@ -30,7 +30,7 @@ dependencies:
     - if: target not in [esp32]
   78/xiaozhi-fonts: ~1.6.0
   espressif/led_strip: ~3.0.2
-  espressif/esp_codec_dev: ~1.5.4
+  espressif/esp_codec_dev: ==1.5.4
   espressif/esp-sr: ~2.3.0
   espressif/button: ~4.1.5
   espressif/knob: ^1.0.0
@@ -65,8 +65,25 @@ dependencies:
     - if: target in [esp32s3]
   espressif/adc_battery_estimation: ^0.2.0
   espressif/esp_new_jpeg: ^0.6.1
-  espressif/hand_detect: ==0.2.0
-  espressif/esp-dl: ==3.3.0
+  # Preserve the existing lock versions when new git components trigger solving.
+  78/uart-uhci: ==0.2.1
+  espressif/dl_fft: ==0.3.1
+  espressif/esp_jpeg: ==1.3.1
+  espressif/esp_sccb_intf: ==0.0.8
+  espressif/i2c_bus: ==1.5.1
+  espressif/iot_usbh_cdc: ==3.0.0
+  m5stack/M5Unit-NFC:
+    git: https://github.com/m5stack/M5Unit-NFC.git
+    version: 471a6e02e8052264d39b3ac97005ce4de9d1cb91
+  m5stack/M5UnitUnified:
+    git: https://github.com/m5stack/M5UnitUnified.git
+    version: 68a8fa74959a3c18ffae5ce7f73ac61ecf651d4c
+  m5stack/M5HAL:
+    git: https://github.com/m5stack/M5HAL.git
+    version: e3a84320f21bb48062f8101301020e946182a71d
+  m5stack/M5Utility:
+    git: https://github.com/m5stack/M5Utility.git
+    version: 336195d0f9466332552b337b94cab72f83c8d2ca
 
   # SenseCAP Watcher Board
   wvirgil123/sscma_client:
@@ -127,3 +144,22 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.5.2'
+
+# Upstream manifests track main. Pin every transitive edge to the same audited
+# commits as the direct dependencies so a clean checkout resolves identically.
+overrides:
+  - m5stack/M5UnitUnified:
+      with:
+        m5stack/M5UnitUnified:
+          git: https://github.com/m5stack/M5UnitUnified.git
+          version: 68a8fa74959a3c18ffae5ce7f73ac61ecf651d4c
+  - m5stack/M5HAL:
+      with:
+        m5stack/M5HAL:
+          git: https://github.com/m5stack/M5HAL.git
+          version: e3a84320f21bb48062f8101301020e946182a71d
+  - m5stack/M5Utility:
+      with:
+        m5stack/M5Utility:
+          git: https://github.com/m5stack/M5Utility.git
+          version: 336195d0f9466332552b337b94cab72f83c8d2ca
