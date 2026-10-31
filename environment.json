@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-31T13:38:01.6822542+08:00",
+  "RecordedAt": "2026-10-31T15:58:09.387609+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "8b11962020be3c249afaefe360922b90849e0a20"
+    "LocalImplementationCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -17,7 +17,7 @@
     "Port": "COM38",
     "ConnectionStatus": "COM38 re-enumerated 2026-10-31; USB VID303A/PID1001 and MAC7c:4f:ad:af:61:f0 verified before updating",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 17,
+    "CurrentOtaSequence": 23,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,14 +73,14 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 7/7: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups, 15 pet motion groups and 12 snap detector/fusion groups. Snap inputs are synthetic PCM/grids; real acoustic accuracy is unmeasured. Log: logs/host-tests-snap-final.log",
-  "FirmwareBuild": "ESP-IDF5.5.4 build passed and corrected snap image deployed on2026-10-31. Initial image crashed at DISTANCE entry due to unsupported PRIi64 with nano printf; replaced the bounded visual age with int/%d. Independent metadata readback confirms seq17 VALID and original sector1 unchanged. Reboot/distance telemetry pass; corrected DISTANCE entry, microphone/camera activation and recognition await user interaction.",
+  "HostTest": "CTest 10/10 passed; hand gate 17 synthetic groups and RGB conversion 5 groups, with prior snap/parser/pet suites retained. Log: logs/host-tests-20261031-145605-806-test.log. Synthetic eligibility does not establish physical hand/snap accuracy.",
+  "FirmwareBuild": "Final ESP-IDF 5.5.4 build is 5032096 bytes, within the unchanged 5177344-byte app slot; archive/hash, protected deployment stages and independent OTA 23 VALID readback verified. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3776464,
-    "SHA256": "6e75aae593da35c926d331d5984212852d29117eeaf38ecd7a0b95c59667fbb0",
-    "SourceCommit": "8b11962020be3c249afaefe360922b90849e0a20",
-    "BuildLog": "logs/firmware-20261031-133112.log",
+    "Bytes": 5032096,
+    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
+    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
+    "BuildLog": "logs/hand-model-build-size2.log",
     "Flashed": true
   },
   "LastDeployedPetFirmwareBinary": {
@@ -106,7 +106,7 @@
     "Note": "App and sector0 only; original firmware slot, current configuration, bootloader, partitions, resources and original sector1 preserved. Activation/recognition not observed in the corrected capture."
   },
   "SnapPrototype": {
-    "Status": "corrected firmware deployed seq17 VALID; reboot/distance verified, corrected DISTANCE entry and perception activation await user interaction",
+    "Status": "Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
     "InitialDeploymentFailure": {
       "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
       "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
@@ -142,13 +142,13 @@
       "Persistence": "RAM only; reset on reboot"
     },
     "Controls": "DISTANCE -> TUNE -> SNAP; SENS 1..5, CAM assist and LISTEN. DISTANCE returns to distance tuning; LIVE shows the pet.",
-    "Reaction": "Surprise at acceptance; Happy after 700ms; return to normal after 2400ms. Distance Alert or unavailable/unready ToF preempts or suppresses the interaction.",
+    "Reaction": "A fresh accepted snap starts the 3.4-second silent KURO GAMES black logo intro. Listening pauses during playback; busy events are consumed without restart or queue. ToF Alert and HOME cancel playback.",
     "Audio": "24kHz, 240-frame/10ms blocks, channel0 microphone and channel1 speaker reference. Transient heuristic with adaptive noise and playback/clipping/tonal/long-sound vetoes; no trained classifier or acoustic echo cancellation.",
-    "Visual": "32x24 local luma motion, not hand/finger pose recognition; frame age <=500ms and candidate-relative motion -600..+350ms; discard first queued frame and use next as baseline.",
+    "Visual": "RGB888 hand bounding-box detection with score/upper-central geometry and bounded presentation permission; camera evidence must be fresh within 500 ms. This detects hand boxes, not finger-snap pose.",
     "Cooldown": "1000ms in a continuous session; changing config or restarting resets detector warmup, visual baseline and fusion state.",
     "Telemetry": "SC_SNAP v1 at most 5Hz; current sound levels, retained last transient duration/shape, decision and counters. No raw audio/images retained or uploaded by this service. SC_DISTANCE unchanged.",
-    "HostTests": "CTest 7/7 including 12 detector/fusion groups and 15 pet groups; logs/host-tests-snap-final.log",
-    "PcTests": "57 passed plus one no-hardware simulated reminder; logs/pc-tests-snap-final.log",
+    "HostTests": "CTest 10/10 passed; hand gate 17 synthetic groups and RGB conversion 5 groups, with prior snap/parser/pet suites retained. Log: logs/host-tests-20261031-145605-806-test.log. Synthetic eligibility does not establish physical hand/snap accuracy.",
+    "PcTests": "57 passed plus one no-hardware simulated reminder; logs/pc-tests-kuro-intro.log",
     "DesktopView": {
       "Manifest": ".tools/snap-ui-probe/manifest.json",
       "ContactSheet": ".tools/snap-ui-probe/frames/contact.png",
@@ -160,7 +160,10 @@
       "MaxCounterFooterPx": 269,
       "FooterWidthPx": 304,
       "TimingRegression": "Final source accepts an event timestamped 103ms during snapshot after entry at100ms and does not replay it. Isolated old-order control consumes it without reacting and fails as expected with exit42; logs/snap-render-old-order.log.",
-      "Limitations": "Actual LVGL9.4.0, View, wrappers, font and motion model; hardware services are substitutes; global warning decorator omitted; desktop XRGB8888 is not a physical LCD/touch test."
+      "Limitations": "Actual LVGL9.4.0, View, wrappers, font and motion model; hardware services are substitutes; global warning decorator omitted; desktop XRGB8888 is not a physical LCD/touch test.",
+      "Historical": true,
+      "SupersededBy": "KuroIntro.DesktopView",
+      "HistoricalScope": "Prior snap-only View; retained as historical evidence."
     },
     "RemainingHardwareChecks": [
       "Real snap, clap, keyboard and background music samples; sensitivity and false positive calibration",
@@ -748,5 +751,1019 @@
     "SourceCommit": "2698e9bac05914a22a84185f6b6214d276bf6332",
     "BuildLog": "logs/firmware-20261030-164246.log",
     "Note": "Previous blinking/breathing DISTANCE LIVE build retained as a verified historical artifact."
+  },
+  "LastDeployedKuroIntroFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
+    "Bytes": 5032096,
+    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
+    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
+    "BuildLog": "logs/hand-model-build-size2.log",
+    "Flashed": true,
+    "OtaSequence": 23,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-154932-hand-detection/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-154932-hand-detection/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-detection.log",
+    "Note": "App and OTA sector 0 only; protected regions and original sector 1 preserved. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence."
+  },
+  "KuroIntro": {
+    "Status": "Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
+    "AssetPath": "StackChan/firmware/main/apps/app_distance/media/kuro_intro.bin",
+    "SourceRecord": "StackChan/firmware/main/apps/app_distance/media/source.json",
+    "Source": {
+      "format": "KINTRO1",
+      "rights_holder": "KURO GAMES",
+      "attribution": "Official KURO GAMES mark from the PGR Aeon Reforged promotional video",
+      "source_page": "https://pgr.kurogame.net/",
+      "source_index": "https://media-cdn-zspms.kurogame.net/pnswebsite/website2.0/json/G167/MainMenu.json",
+      "original_video_url": "https://media-cdn-zspms.kurogame.net/pnswebsite/website2.0/video/1730044800000/arlj6ajjy1im8k9ptd-1730086806991.mp4",
+      "original_video_sha256": null,
+      "original_video_sha256_note": "Full 298692483-byte PV was not downloaded; the input is its first 6 seconds, copied without re-encoding by ffmpeg.",
+      "input_file": "aeon-first6.mp4",
+      "input_bytes": 3099842,
+      "input_sha256": "fbe0caa0c72f6158601361392e22f47cffb74434d3e8cbe8245a95b8078a3264",
+      "input_acquisition": "ffmpeg -i ORIGINAL_VIDEO_URL -t 6 -c copy aeon-first6.mp4",
+      "trim_start_seconds": 0,
+      "duration_ms": 3400,
+      "crop": "Central 30% of source width and 40% of source height; 576x432 for the native 1920x1080 source",
+      "filter": "crop=iw*0.3:ih*0.4:(iw-ow)/2:(ih-oh)/2,scale=320:240:flags=lanczos,fps=12",
+      "width": 320,
+      "height": 240,
+      "fps": 12,
+      "frames": 41,
+      "frame_codec": "8-bit baseline JPEG, yuvj420p, ffmpeg -q:v 3",
+      "ffmpeg_version": "ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+      "silent": true,
+      "audio": "No audio stored or synthesized. The original logo interval is silent.",
+      "silence_evidence": "ffmpeg silencedetect=noise=-45dB:d=0.08 on the first 6 seconds: silence_start=0, silence_end=3.897167. The logo occupies 0..3.4 seconds.",
+      "transformations": "Trim, center crop, scale and JPEG transcode only; the logo is not redrawn.",
+      "pack_bytes": 176092,
+      "pack_sha256": "ebb2f97d8e294b1571f711d9b9477269eac9a97e495808915563accf1bc873f3",
+      "usage": "Third-party mark and video remain property of KURO GAMES; this record does not grant a redistribution license."
+    },
+    "DurationMs": 3400,
+    "FramesPerSecond": 12,
+    "Frames": 41,
+    "AssetBytes": 176092,
+    "AssetSHA256": "ebb2f97d8e294b1571f711d9b9477269eac9a97e495808915563accf1bc873f3",
+    "Silent": true,
+    "NewDependencies": false,
+    "CodecChanges": false,
+    "DesktopView": {
+      "Manifest": ".tools/intro-ui-probe/baseline-intro/manifest.json",
+      "ContactSheet": ".tools/intro-ui-probe/baseline-intro/frames/contact.png",
+      "Screenshots": 12,
+      "BehaviorChecks": 36,
+      "GeometryChecks": 304,
+      "Clipped": 0,
+      "ImageStorageFrees": 6,
+      "ImageStorageFreedWhileBorrowed": 0,
+      "Evidence": {
+        "Manifest": ".tools/intro-ui-probe/baseline-intro/manifest.json",
+        "Screenshots": 12,
+        "BehaviorChecks": 36,
+        "GeometryChecks": 304,
+        "Clipped": 0,
+        "ImageStorageFrees": 6,
+        "ImageStorageFreedWhileBorrowed": 0,
+        "Historical": true,
+        "OtaSequence": 19
+      },
+      "Scope": "Desktop LVGL View and ownership validation with substitute services; global warning decorator omitted. These desktop checks do not measure physical LCD frame timing/color, touch, production worker stability or recognition accuracy. The separate PhysicalObservation records one real-device cycle.",
+      "Historical": true,
+      "OtaSequence": 19,
+      "HistoricalScope": "Prior intro View, before the response correction.",
+      "SupersededBy": "KuroIntro.CurrentDesktopView"
+    },
+    "PhysicalObservation": {
+      "UserReport": "播一次，结束后恢复；播放中响指无影响",
+      "Log": "logs/device-kuro-intro.log",
+      "Request": 1,
+      "LogTicks": {
+        "AcceptedRequest": 49958,
+        "Playing": 49998,
+        "Finished": 53408
+      },
+      "LoggedFrames": 41,
+      "LoggedTargetFps": 12,
+      "LoggedClipDurationMs": 3400,
+      "Error": 0,
+      "Cancelled": 0,
+      "ListeningResumed": true,
+      "CameraReadyAfterPlayback": true,
+      "RepeatedSnapDuringPlayback": "User confirmed ignored",
+      "AccuracyPending": true,
+      "Scope": "One physical cycle confirmed by the user and supported by request/play/finish log records followed by listening and camera-ready status. I(log ticks) are firmware log timestamps; their difference does not precisely measure LCD playback duration or achieved frame rate. This does not establish recognition/false-positive rates, long-running stability or physical touch behavior.",
+      "Historical": true,
+      "OtaSequence": 19,
+      "HistoricalScope": "Sequence 19 evidence retained; this observation does not verify the corrected sequence 21 build or its sensitivity."
+    },
+    "HardwareCapture": {
+      "Path": "logs/device-kuro-intro-audit.json",
+      "Data": {
+        "complete_scan": true,
+        "lines": 2155,
+        "bytes_scanned": 657254,
+        "ordinary_lines_ignored": 140,
+        "oversize_lines_ignored": 0,
+        "embedded_telemetry_prefix_ignored": 1,
+        "snap": {
+          "frames": 512,
+          "malformed": 0,
+          "statuses": {
+            "off": 1,
+            "warming": 12,
+            "listening": 499
+          },
+          "camera_statuses": {
+            "off": 1,
+            "warming": 8,
+            "ready": 503
+          },
+          "audio_reasons": {
+            "quiet": 493,
+            "warming": 12,
+            "playback": 6,
+            "long_sound": 1
+          },
+          "event_reason_observations": {
+            "tonal": 95,
+            "long_sound": 37
+          },
+          "last_decisions": {
+            "none": 68,
+            "accepted": 444
+          },
+          "errors": {},
+          "configurations": [
+            {
+              "frame": 1,
+              "listening": true,
+              "camera_required": true,
+              "sensitivity": 3
+            }
+          ],
+          "configuration_changes": 0,
+          "last_configuration": {
+            "listening": true,
+            "camera_required": true,
+            "sensitivity": 3
+          },
+          "first": {
+            "uptime_ms": 35679,
+            "status": "off",
+            "active": false,
+            "audio_open": false,
+            "camera_status": "off",
+            "camera_samples": 0,
+            "candidates": 0,
+            "accepted": 0,
+            "rejected": 0,
+            "last_decision": "none",
+            "error": 0
+          },
+          "last": {
+            "uptime_ms": 155889,
+            "status": "listening",
+            "active": true,
+            "audio_open": true,
+            "camera_status": "ready",
+            "camera_samples": 778,
+            "candidates": 5,
+            "accepted": 5,
+            "rejected": 0,
+            "last_decision": "accepted",
+            "error": 0
+          },
+          "last_transient": {
+            "event_reason": "long_sound",
+            "event_duration_ms": 80,
+            "event_edge_ratio": 0.9958,
+            "event_crest": 12.159,
+            "event_age_ms": 2580
+          },
+          "counter_deltas": {
+            "candidates": 5,
+            "accepted": 5,
+            "rejected": 0,
+            "camera_samples": 778
+          },
+          "counter_wraps": {},
+          "counter_regressions": {},
+          "accounting_inconsistencies": 0,
+          "accounting_details": [],
+          "last_pending_balance": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "max_visual_age_ms": 179,
+          "max_motion_cells": 434,
+          "max_peak": 1628,
+          "max_rms": 775
+        },
+        "distance": {
+          "frames": 1503,
+          "malformed": 0,
+          "valid": 1501,
+          "states": {
+            "ranging": 1503
+          },
+          "errors": {},
+          "first_seq": 41,
+          "last_seq": 1543,
+          "sequence_gaps": 0,
+          "sequence_duplicates": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "median_mismatches": 0,
+          "policy_mismatches": 0,
+          "raw_min_mm": 53,
+          "raw_max_mm": 836
+        },
+        "events": {
+          "esp_error_log": 5
+        },
+        "distance_start_markers": 1,
+        "boot_markers": 0,
+        "limits": {
+          "max_bytes": 67108864,
+          "max_lines": 200000,
+          "max_line_bytes": 8192
+        },
+        "limitations": [
+          "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+          "Playback reason is the firmware reference-channel heuristic; reference RMS is not exported.",
+          "Telemetry polls snapshots: event reason observations are not unique event counts.",
+          "Counter deltas exclude the first observed baseline and do not bridge reboot boundaries.",
+          "Camera sample growth demonstrates frame processing, not recognition of fingers."
+        ],
+        "snap_observation": "telemetry_observed",
+        "activation_note": "Without SC_SNAP or a DISTANCE sensing-start marker, menu/startup capture or an unopened DISTANCE app remains possible; absence alone does not prove sensing failure.",
+        "both_telemetry_streams_observed": true,
+        "camera_sample_growth_observed": true,
+        "audit_result": "attention_required"
+      },
+      "Scope": "Parsed capture evidence only; attaching this audit does not establish physical snap acceptance or successful playback.",
+      "Historical": true,
+      "OtaSequence": 19,
+      "HistoricalScope": "Sequence 19 evidence retained; this observation does not verify the corrected sequence 21 build or its sensitivity."
+    },
+    "CurrentDesktopView": {
+      "Manifest": ".tools/intro-ui-probe/hand-manifest.json",
+      "ManifestSHA256": "a2f6c689f3626ef435731033a4c3a5b586d0b3d75e49d31f6f395978ca774000",
+      "BehaviorChecks": 86,
+      "GeometryChecks": 1367,
+      "Clipped": 0,
+      "ImageStorageFrees": 6,
+      "ImageStorageFreedWhileBorrowed": 0,
+      "ContactSheet": ".tools/intro-ui-probe/hand-frames/hand-contact.png",
+      "Limits": [
+        "No hardware camera, model inference, microphone, ToF, JPEG decoder, FreeRTOS player worker or serial executed",
+        "HandGate pure state machine and production UI are actual source; hand detector classifications/in-zone inputs are synthetic and do not establish recognition accuracy",
+        "Snapshot adapter maps actual pure HandGate freshness/armed/in-zone states to visual flags, and simulates service resets on camera toggles",
+        "Original non-hand lifecycle fixtures supply explicitly synthetic complete Armed snapshots; they test trusted Accepted UI handoff, not classifier/gate integration",
+        "Global red warning decorator remains outside host StackChan adapter; actual pet Alert and top-label hidden state are tested",
+        "Desktop XRGB8888 differs from panel RGB565; natural text widths and object bounds include non-HIDDEN controls obscured by intro overlay",
+        "Metrics fixture uses valid confidence100% and500ms inference field, not arbitrary nonfinite scores or UINT32_MAX inference duration"
+      ],
+      "Scope": "Actual production desktop View and HandGate with synthetic detector/service inputs; no physical acceptance inferred."
+    },
+    "PreviousDesktopViewSeq21": {
+      "Manifest": ".tools/intro-ui-probe/responsive-manifest.json",
+      "ManifestSHA256": "7f064396e2d1150eaa52330585d726577c31131c40d27c4ba1e57597039075da",
+      "ProductionViewSHA256": "3e78936ef8366e16b8e1f2400bbe0c0b650bdedb03f8f7b3e4805f7246760b5a",
+      "ContactSheet": ".tools/intro-ui-probe/responsive-frames/contact.png",
+      "BehaviorChecks": 57,
+      "GeometryChecks": 761,
+      "Clipped": 0,
+      "ImageStorageFrees": 6,
+      "ImageStorageFreedWhileBorrowed": 0,
+      "Limits": [
+        "Synthetic microphone/camera/ToF/player states; no hardware or serial access",
+        "Actual image ownership class with host malloc/free; hardware JPEG/FreeRTOS worker not exercised",
+        "Global red warning decorator not in small host StackChan substitute; Alert status hiding is asserted on actual label and actual face",
+        "Desktop XRGB8888 quantization differs from panel RGB565",
+        "Geometry includes non-HIDDEN objects obscured by full-screen intro; overlay pixels independently checked",
+        "No audio classifier accuracy conclusion from this UI test"
+      ],
+      "Scope": "Desktop production View with synthetic services: READY/WARMING, SOUND FILTERED, camera/motion and other status labels, plus retained intro/lifecycle checks. No physical recognition-rate, LCD frame-rate, touch or long-running stability conclusion.",
+      "Historical": true,
+      "OtaSequence": 21
+    }
+  },
+  "PreviousKuroIntroFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-141300-kuro-intro/kuro-intro-deployed.bin",
+    "Bytes": 3958176,
+    "SHA256": "2db3b2c8e43727f6c92ed2c935adcd0b0ed3686d346bc5da892eb913056ebd8f",
+    "SourceCommit": "4ebe86a1fabf0d12e69cbd02109486449afc7c36",
+    "BuildLog": "logs/firmware-kuro-intro.log",
+    "Flashed": true,
+    "OtaSequence": 19,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-141300-kuro-intro/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-141300-kuro-intro/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-kuro-intro.log",
+    "Note": "App and OTA sector 0 only; original sector 1, factory firmware, settings and protected regions preserved. OTA 19 VALID is independently recorded. The user confirmed one physical playback cycle: the intro plays once, listening resumes afterward, and snaps during playback have no effect. Serial logs record one successful uncancelled cycle and subsequent listening/camera-ready state. Recognition accuracy, actual LCD frame timing, long-running stability and touch remain unmeasured."
+  },
+  "SnapResponsivenessFix": {
+    "Status": "Snap-response correction deployed as OTA 21 VALID, but physical sensitivity and keyboard false-positive acceptance failed: the user reported only 1–2 of 3 snaps triggering, READY remaining on missed attempts, and repeated triggers from typing. Acceptance is needs work. Synthetic regression passes do not override these real-device failures. Prior sequence 19 playback confirmation is historical; statistically measured recognition accuracy and false-positive rate remain unavailable.",
+    "SourceCommit": "217f37ab4cfeb3493c28bd9671578f16f14505d0",
+    "OtaSequence": 21,
+    "Acceptance": "needs work",
+    "BeforeUserReport": "5 次响指只有 0–1 次触发",
+    "BeforeAudit": {
+      "Path": "logs/device-kuro-intro-responsiveness-audit.json",
+      "SHA256": "de8661416ded9545d4d9ec5f334c9af6dd44b991a99b5bca0f06a98f7434c2d9",
+      "Data": {
+        "complete_scan": true,
+        "lines": 2719,
+        "bytes_scanned": 929298,
+        "ordinary_lines_ignored": 38,
+        "oversize_lines_ignored": 0,
+        "embedded_telemetry_prefix_ignored": 0,
+        "snap": {
+          "frames": 876,
+          "malformed": 0,
+          "statuses": {
+            "listening": 873,
+            "paused": 1,
+            "warming": 2
+          },
+          "camera_statuses": {
+            "ready": 874,
+            "off": 1,
+            "warming": 1
+          },
+          "audio_reasons": {
+            "quiet": 868,
+            "tonal": 3,
+            "warming": 2,
+            "playback": 1,
+            "long_sound": 2
+          },
+          "event_reason_observations": {
+            "tonal": 787,
+            "long_sound": 44
+          },
+          "last_decisions": {
+            "accepted": 876
+          },
+          "errors": {},
+          "configurations": [
+            {
+              "frame": 1,
+              "listening": true,
+              "camera_required": true,
+              "sensitivity": 3
+            }
+          ],
+          "configuration_changes": 0,
+          "last_configuration": {
+            "listening": true,
+            "camera_required": true,
+            "sensitivity": 3
+          },
+          "first": {
+            "uptime_ms": 254139,
+            "status": "listening",
+            "active": true,
+            "audio_open": true,
+            "camera_status": "ready",
+            "camera_samples": 1536,
+            "candidates": 5,
+            "accepted": 5,
+            "rejected": 0,
+            "last_decision": "accepted",
+            "error": 0
+          },
+          "last": {
+            "uptime_ms": 433989,
+            "status": "listening",
+            "active": true,
+            "audio_open": true,
+            "camera_status": "ready",
+            "camera_samples": 2861,
+            "candidates": 6,
+            "accepted": 6,
+            "rejected": 0,
+            "last_decision": "accepted",
+            "error": 0
+          },
+          "last_transient": {
+            "event_reason": "tonal",
+            "event_duration_ms": 20,
+            "event_edge_ratio": 0.6048,
+            "event_crest": 4.905,
+            "event_age_ms": 700
+          },
+          "counter_deltas": {
+            "candidates": 1,
+            "accepted": 1,
+            "rejected": 0,
+            "camera_samples": 1325
+          },
+          "counter_wraps": {},
+          "counter_regressions": {},
+          "accounting_inconsistencies": 0,
+          "accounting_details": [],
+          "last_pending_balance": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "max_visual_age_ms": 183,
+          "max_motion_cells": 444,
+          "max_peak": 6646,
+          "max_rms": 1774
+        },
+        "distance": {
+          "frames": 1805,
+          "malformed": 0,
+          "valid": 1805,
+          "states": {
+            "ranging": 1805
+          },
+          "errors": {},
+          "first_seq": 2528,
+          "last_seq": 4332,
+          "sequence_gaps": 0,
+          "sequence_duplicates": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "median_mismatches": 0,
+          "policy_mismatches": 0,
+          "raw_min_mm": 237,
+          "raw_max_mm": 799
+        },
+        "events": {
+          "esp_error_log": 1
+        },
+        "distance_start_markers": 0,
+        "boot_markers": 0,
+        "limits": {
+          "max_bytes": 67108864,
+          "max_lines": 200000,
+          "max_line_bytes": 8192
+        },
+        "limitations": [
+          "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+          "Playback reason is the firmware reference-channel heuristic; reference RMS is not exported.",
+          "Telemetry polls snapshots: event reason observations are not unique event counts.",
+          "Counter deltas exclude the first observed baseline and do not bridge reboot boundaries.",
+          "Camera sample growth demonstrates frame processing, not recognition of fingers."
+        ],
+        "snap_observation": "telemetry_observed",
+        "activation_note": "Without SC_SNAP or a DISTANCE sensing-start marker, menu/startup capture or an unopened DISTANCE app remains possible; absence alone does not prove sensing failure.",
+        "both_telemetry_streams_observed": true,
+        "camera_sample_growth_observed": true,
+        "audit_result": "attention_required"
+      },
+      "Historical": true,
+      "OtaSequence": 19
+    },
+    "CauseEvidence": "Retained 10–30 ms transients with edge ratio below the prior 0.8 broadband gate were filtered. Telemetry retains the last transient; poll observations are not a count of unique attempted snaps.",
+    "ShapeRule": {
+      "AddedAlternative": "duration_ms <= 30 and edge_ratio >= 0.45 and crest >= 3",
+      "Preserved": "Existing broadband branch, amplitude gates, protective vetoes and camera assist"
+    },
+    "SyntheticRegression": {
+      "HostSuitesPassed": 8,
+      "DetectorFusionGroups": 14,
+      "OldRuleRejectedFixtures": 8,
+      "NewRuleAcceptedSameFixtures": 8,
+      "NegativeFixturesStillRejected": 4,
+      "Log": "logs/host-tests-20261031-142121-166-test.log",
+      "Scope": "Synthetic fixtures only; not a measured real-user success or false-positive rate."
+    },
+    "LiveStatus": "READY/WARMING/SOUND FILTERED/MOTION and related readiness feedback",
+    "UserRetest": {
+      "OtaSequence": 21,
+      "UserReport": "实际复测仅 1–2/3，未触发时一直 READY",
+      "KeyboardFalsePositiveReport": "敲键盘都一直触发",
+      "Acceptance": "needs work",
+      "OriginalCaptureLog": "logs/device-snap-sens5.log",
+      "KeyboardCaptureAlias": "logs/device-keyboard-false-positive.log",
+      "ActualSettings": {
+        "Sensitivity": 3,
+        "CameraRequired": true
+      },
+      "FilenameScope": "sens5 is a preparatory experiment filename only. The actual capture used SENS 3 and CAM true; SENS 5 was not tested.",
+      "Scope": "User feedback establishes failed acceptance for missed snaps and keyboard triggers, not a statistically measured accuracy or false-positive rate. Synthetic test success remains separate.",
+      "StoppedAfterFailure": "Read-only esptool read_mac and reset returned the robot to the menu to stop repeated playback; no app was flashed and no configuration was changed by that operation."
+    },
+    "KeyboardFalsePositiveReport": "敲键盘都一直触发",
+    "KnownVendorLog": {
+      "Message": "i2s_channel_disable: the channel has not been enabled yet",
+      "SourceClosure": "Checked close has already disabled RX. Vendor set_fmt called by esp_codec_dev_open redundantly disables RX and ignores that return value, then reconfigures/enables RX; checked open verifies RX enabled and subsequent input resumes.",
+      "Evidence": "DEVICE_DEPLOYMENT.md (sequence 19 SDK log investigation)",
+      "Scope": "Explanation is limited to the identified repeated-disable log. Original audit attention_required and error-log counts are preserved; this does not assert zero errors or dismiss other errors."
+    },
+    "AccuracyPending": true,
+    "Limits": [
+      "Sequence 21 real-user sensitivity and keyboard false-positive acceptance failed; further work is required.",
+      "Synthetic fixtures do not establish recognition or false-positive rates.",
+      "The sens5-named capture used SENS 3 / CAM true; SENS 5 has not been tested.",
+      "Camera assistance is motion filtering, not hand/finger pose recognition.",
+      "Physical LCD frame rate, touch behavior and long-running stability are unmeasured."
+    ],
+    "HardwareCapture": {
+      "Path": "logs/device-keyboard-false-positive-audit.json",
+      "Data": {
+        "complete_scan": true,
+        "lines": 2745,
+        "bytes_scanned": 851825,
+        "ordinary_lines_ignored": 223,
+        "oversize_lines_ignored": 0,
+        "embedded_telemetry_prefix_ignored": 0,
+        "snap": {
+          "frames": 715,
+          "malformed": 0,
+          "statuses": {
+            "listening": 692,
+            "paused": 3,
+            "warming": 20
+          },
+          "camera_statuses": {
+            "ready": 697,
+            "off": 3,
+            "warming": 15
+          },
+          "audio_reasons": {
+            "quiet": 685,
+            "warming": 20,
+            "playback": 10
+          },
+          "event_reason_observations": {
+            "tonal": 175,
+            "long_sound": 8
+          },
+          "last_decisions": {
+            "accepted": 715
+          },
+          "errors": {},
+          "configurations": [
+            {
+              "frame": 1,
+              "listening": true,
+              "camera_required": true,
+              "sensitivity": 3
+            }
+          ],
+          "configuration_changes": 0,
+          "last_configuration": {
+            "listening": true,
+            "camera_required": true,
+            "sensitivity": 3
+          },
+          "first": {
+            "uptime_ms": 218230,
+            "status": "listening",
+            "active": true,
+            "audio_open": true,
+            "camera_status": "ready",
+            "camera_samples": 926,
+            "candidates": 15,
+            "accepted": 15,
+            "rejected": 0,
+            "last_decision": "accepted",
+            "error": 0
+          },
+          "last": {
+            "uptime_ms": 395929,
+            "status": "listening",
+            "active": true,
+            "audio_open": true,
+            "camera_status": "ready",
+            "camera_samples": 1997,
+            "candidates": 25,
+            "accepted": 25,
+            "rejected": 0,
+            "last_decision": "accepted",
+            "error": 0
+          },
+          "last_transient": {
+            "event_reason": "tonal",
+            "event_duration_ms": 40,
+            "event_edge_ratio": 0.1353,
+            "event_crest": 2.875,
+            "event_age_ms": 7410
+          },
+          "counter_deltas": {
+            "candidates": 10,
+            "accepted": 10,
+            "rejected": 0,
+            "camera_samples": 1071
+          },
+          "counter_wraps": {},
+          "counter_regressions": {},
+          "accounting_inconsistencies": 0,
+          "accounting_details": [],
+          "last_pending_balance": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "max_visual_age_ms": 205,
+          "max_motion_cells": 370,
+          "max_peak": 32711,
+          "max_rms": 2983
+        },
+        "distance": {
+          "frames": 1806,
+          "malformed": 1,
+          "valid": 1806,
+          "states": {
+            "ranging": 1806
+          },
+          "errors": {},
+          "first_seq": 2167,
+          "last_seq": 3972,
+          "sequence_gaps": 0,
+          "sequence_duplicates": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "median_mismatches": 0,
+          "policy_mismatches": 0,
+          "raw_min_mm": 230,
+          "raw_max_mm": 571
+        },
+        "events": {
+          "esp_error_log": 10
+        },
+        "distance_start_markers": 0,
+        "boot_markers": 0,
+        "limits": {
+          "max_bytes": 67108864,
+          "max_lines": 200000,
+          "max_line_bytes": 8192
+        },
+        "limitations": [
+          "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+          "Playback reason is the firmware reference-channel heuristic; reference RMS is not exported.",
+          "Telemetry polls snapshots: event reason observations are not unique event counts.",
+          "Counter deltas exclude the first observed baseline and do not bridge reboot boundaries.",
+          "Camera sample growth demonstrates frame processing, not recognition of fingers."
+        ],
+        "snap_observation": "telemetry_observed",
+        "activation_note": "Without SC_SNAP or a DISTANCE sensing-start marker, menu/startup capture or an unopened DISTANCE app remains possible; absence alone does not prove sensing failure.",
+        "both_telemetry_streams_observed": true,
+        "camera_sample_growth_observed": true,
+        "audit_result": "attention_required"
+      },
+      "Scope": "Unmodified parsed capture evidence. Audit attention/errors remain as recorded; no recognition rate or user acceptance is inferred."
+    },
+    "Historical": true,
+    "HistoricalScope": "Sequence 21 real sensitivity/keyboard acceptance failed; data retained unchanged."
+  },
+  "PreviousSnapResponseFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-142411-snap-response/snap-response-deployed.bin",
+    "Bytes": 3958976,
+    "SHA256": "e22df798f9002fab7fcbf8277fbaf8c750a2e69d3a59408a55944a84bd0a29ac",
+    "SourceCommit": "217f37ab4cfeb3493c28bd9671578f16f14505d0",
+    "BuildLog": "logs/firmware-kuro-snap-response.log",
+    "Flashed": true,
+    "OtaSequence": 21,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-142411-snap-response/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-142411-snap-response/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-snap-response.log",
+    "Note": "App and OTA sector 0 only; original sector 1, factory firmware, settings and protected regions preserved. Snap-response correction deployed as OTA 21 VALID, but physical sensitivity and keyboard false-positive acceptance failed: the user reported only 1–2 of 3 snaps triggering, READY remaining on missed attempts, and repeated triggers from typing. Acceptance is needs work. Synthetic regression passes do not override these real-device failures. Prior sequence 19 playback confirmation is historical; statistically measured recognition accuracy and false-positive rate remain unavailable.",
+    "Historical": true
+  },
+  "LastDeployedHandFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
+    "Bytes": 5032096,
+    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
+    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
+    "BuildLog": "logs/hand-model-build-size2.log",
+    "Flashed": true,
+    "OtaSequence": 23,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-154932-hand-detection/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-154932-hand-detection/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-detection.log",
+    "Note": "App and OTA sector 0 only; protected regions and original sector 1 preserved. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence."
+  },
+  "HandDetection": {
+    "Status": "Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
+    "Acceptance": "pending labeled physical trials",
+    "OtaSequence": 23,
+    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
+    "AccuracyPending": true,
+    "StartupEvidence": {
+      "BootLog": "logs/device-hand-boot.log",
+      "OtaVerificationLog": "logs/device-hand-ota-verify.log",
+      "Scope": "App startup and VALID readback only; model activation/RAM/latency not established"
+    },
+    "AuthorizedDependencies": [
+      {
+        "Component": "espressif/esp-dl",
+        "Version": "==3.3.0",
+        "UserAuthorized": true
+      },
+      {
+        "Component": "espressif/hand_detect",
+        "Version": "==0.2.0",
+        "UserAuthorized": true
+      }
+    ],
+    "DependencyEvidence": {
+      "Path": "logs/hand-model-dependencies-summary.json",
+      "SHA256": "7808a150526b64b352835544abe5440d83b30946ec88af70cad231b1f1f13b31"
+    },
+    "ChangedPreexistingLockComponents": [],
+    "Model": {
+      "File": "StackChan/firmware/managed_components/espressif__hand_detect/models/s3/espdet_pico_224_224_hand.espdl",
+      "Bytes": 497184,
+      "SHA256": "ada47f76f8393cbb5572c26862edea17905e8f352669b29033a996ffbcba020a",
+      "Input": "INT8 NHWC 1x224x224x3",
+      "Location": "flash rodata; one model",
+      "Output": "Hand bounding boxes and scores only; no finger landmarks or snap-posture classifier"
+    },
+    "Operators": {
+      "Names": [
+        "Add",
+        "Concat",
+        "Conv",
+        "MaxPool",
+        "RequantizeLinear",
+        "Resize",
+        "Split"
+      ],
+      "GraphCounts": {
+        "Add": 5,
+        "Concat": 10,
+        "Conv": 101,
+        "MaxPool": 3,
+        "RequantizeLinear": 4,
+        "Resize": 2,
+        "Split": 3
+      },
+      "PrivateManagedComponentOverlay": false
+    },
+    "Mechanism": {
+      "Capture": "Single mmap buffer flushed/requeued, then fresh RGB888 copied while capture mutex is held; inference after requeue/unlock",
+      "Inference": "Checked public ESP-DL model/preprocessor/postprocessor; synchronous single-core run in camera task",
+      "Geometry": "Score >=0.5; sufficiently large hand in upper-central interaction region; not a general keyboard classifier",
+      "Gate": "250 ms clear -> present -> 100 ms hold -> one permission up to 1800 ms; accepted interaction consumes permission",
+      "Freshness": "Capture request start conservatively bounds acquisition+inference within 500 ms; stale/failure resets evidence",
+      "OptionalCamera": "Explicit CAM OFF bypasses the hand gate; current configuration is not inferred by this helper"
+    },
+    "Build": {
+      "InitialOversizeBytes": 6112672,
+      "FinalBytes": 5032096,
+      "AppSlotBytes": 5177344,
+      "RemainingBytes": 145248,
+      "InitialOversizeLog": "logs/hand-model-build-resume.log",
+      "BuildLogs": [
+        "logs/hand-model-build.log",
+        "logs/hand-model-build-resume.log",
+        "logs/hand-model-build-size.log",
+        "logs/hand-model-build-size2.log"
+      ],
+      "SizeBaselineLog": "logs/hand-model-size-baseline.log",
+      "SizeFinalLog": "logs/hand-model-size-final.log",
+      "SizeFlagsEvidence": {
+        "Path": "logs/hand-model-size-config-review.json",
+        "SHA256": "372fa0966254f33936d1665dbfa10bac690b83abce8bef5e76b274303600f73b"
+      },
+      "SizeFlags": {
+        "model_optimization_order": [
+          "-Os",
+          "-O3",
+          "-Os"
+        ],
+        "espdl_cpp_translation_units": 74,
+        "all_espdl_cpp_last_optimization_is_Os": true,
+        "model_has_function_sections": true,
+        "model_has_data_sections": true
+      },
+      "PixelSupport": "RGB888 -> RGB888/QINT8 preprocessing only; other ESP-DL pixel conversions disabled",
+      "PartitionChanged": false
+    },
+    "HostTests": {
+      "SuitesPassed": 10,
+      "HandGateGroups": 17,
+      "CameraRgbGroups": 5,
+      "Log": "logs/host-tests-20261031-145605-806-test.log",
+      "Scope": "Synthetic fixtures; no model-recognition rate inferred"
+    },
+    "DesktopView": {
+      "Manifest": ".tools/intro-ui-probe/hand-manifest.json",
+      "ManifestSHA256": "a2f6c689f3626ef435731033a4c3a5b586d0b3d75e49d31f6f395978ca774000",
+      "BehaviorChecks": 86,
+      "GeometryChecks": 1367,
+      "Clipped": 0,
+      "ImageStorageFrees": 6,
+      "ImageStorageFreedWhileBorrowed": 0,
+      "ContactSheet": ".tools/intro-ui-probe/hand-frames/hand-contact.png",
+      "Limits": [
+        "No hardware camera, model inference, microphone, ToF, JPEG decoder, FreeRTOS player worker or serial executed",
+        "HandGate pure state machine and production UI are actual source; hand detector classifications/in-zone inputs are synthetic and do not establish recognition accuracy",
+        "Snapshot adapter maps actual pure HandGate freshness/armed/in-zone states to visual flags, and simulates service resets on camera toggles",
+        "Original non-hand lifecycle fixtures supply explicitly synthetic complete Armed snapshots; they test trusted Accepted UI handoff, not classifier/gate integration",
+        "Global red warning decorator remains outside host StackChan adapter; actual pet Alert and top-label hidden state are tested",
+        "Desktop XRGB8888 differs from panel RGB565; natural text widths and object bounds include non-HIDDEN controls obscured by intro overlay",
+        "Metrics fixture uses valid confidence100% and500ms inference field, not arbitrary nonfinite scores or UINT32_MAX inference duration"
+      ],
+      "Scope": "Actual production desktop View and HandGate with synthetic detector/service inputs; no physical acceptance inferred."
+    },
+    "StaticReview": {
+      "Evidence": {
+        "Path": "logs/hand-gate-integration-review.json",
+        "SHA256": "16ca05c476c8108f54cf5e531a74f3a28d734b2b6794b51f7e74ca12383d3146"
+      },
+      "Result": "No remaining mandatory source fix identified in the reviewed integration after the queued-frame freshness correction. Runtime and recognition acceptance remain unverified.",
+      "RemainingMandatoryFixes": [],
+      "Limits": [
+        "This is source inspection only. No main firmware build, device, serial capture, labeled hand trials or physical typing trials were run by this review.",
+        "The detector identifies hands, not finger-snap posture. Any model-detected hand passing the size/region rule plus an audio transient accepted by the heuristic can still trigger one interaction. This is not posture classification or proof of a finger snap.",
+        "The geometric region is a requested large upper-central hand position, not a universal keyboard-use classifier. A keyboard hand that physically enters this region can qualify.",
+        "The state machine consumes eligibility labels, not ground-truth hand continuity. False-negative model intervals long enough to clear the region, followed by eligible detections, can create a new presentation even if a physical hand never actually left.",
+        "captured=request start is a conservative frame-age lower bound rather than a hardware timestamp. The gate's 250/100 ms intervals are evaluated on these request times. Under highly variable acquisition delays this does not prove the exact physical hold/absence duration; sensor timing and user response latency remain unmeasured.",
+        "Model/RGB destruction is ownership-safe but not guaranteed before stop returns. The camera worker must finish its current inference or DQBUF and return to its loop. The SDK DQBUF waits portMAX_DELAY; a permanently blocked driver can retain model/RGB memory and the capture mutex indefinitely. Stop deliberately waits only for microphone cleanup.",
+        "A fresh last valid in-zone frame may corroborate audio until the next model result or the 500 ms age limit. The software cannot know that the physical hand disappeared between samples.",
+        "Busy capture preserves still-fresh prior evidence. Invalid/unavailable capture failures reset the gate. A future driver/API change must preserve this distinction and the single-buffer guarantee for the flush proof.",
+        "When camera_required is explicitly disabled, the configuration intentionally bypasses the hand gate.",
+        "The earlier standalone MSVC C++17 /W4 /WX hand_gate_test run passed 17 synthetic test groups, including 4 motion-only eligible windows versus 0 rearmed windows after consumption. This does not test the current camera/service integration or establish real recognition accuracy.",
+        "Model initialization preflight and exception checks do not eliminate every vendor allocation/assert failure path; this remains documented in hand_model.cpp."
+      ]
+    },
+    "NanoFormatAudit": {
+      "Evidence": {
+        "Path": "logs/hand-model-format-audit.json",
+        "SHA256": "5721a18aa24db37e602d05642711c447b86b38bf910ead1875fce5fc96bc94f8"
+      },
+      "Result": "No 64-bit printf format on the inspected init/infer/memory-getter chain. Unsafe profile methods are not called.",
+      "InactiveUnsafeMethods": {
+        "file": "managed_components/espressif__esp-dl/dl/model/src/dl_model_base.cpp",
+        "functions": [
+          "Model::profile_memory",
+          "Model::profile_module",
+          "Model::profile"
+        ],
+        "format": "version:%lld",
+        "first_line": 708
+      },
+      "Scope": "Static inspected init/infer/memory-getter path; not exhaustive vendor runtime coverage"
+    },
+    "Limitations": [
+      "Labeled physical hand, snap and typing trials remain pending; parsed telemetry is observation only.",
+      "A hand box plus accepted transient is not proof of a finger snap; a keyboard hand entering the region can qualify.",
+      "Model false-negative intervals can create a new presentation without a physical hand actually leaving.",
+      "Physical inference latency, LCD frame timing, touch and long-running stability are unmeasured.",
+      "SDK DQBUF can block indefinitely; worker-owned model/RGB release is not guaranteed before stop returns.",
+      "Heap preflight and exceptions cannot eliminate every vendor allocation/assert failure path."
+    ],
+    "HardwareCapture": {
+      "Path": "logs/device-hand-detection-audit.json",
+      "SHA256": "f9533721c20f001f5ba04dfc47c16f90ed44579876b6779ff077d4a8ee12c776",
+      "Data": {
+        "complete_scan": true,
+        "lines": 1823,
+        "bytes_scanned": 451826,
+        "ordinary_lines_ignored": 1823,
+        "embedded_snap_prefix_ignored": 0,
+        "oversize_lines_ignored": 0,
+        "snap_lines": 0,
+        "invalid_snap_frames": 0,
+        "legacy_snap_frames_without_hand_fields": 0,
+        "hand": {
+          "valid_polling_samples": 0,
+          "malformed_samples": 0,
+          "malformed_reasons": {},
+          "phases": {},
+          "detected_polling_samples": 0,
+          "in_zone_polling_samples": 0,
+          "armed_polling_samples": 0,
+          "fresh_visual_polling_samples": 0,
+          "camera_errors": {},
+          "first": null,
+          "last": null,
+          "counter_deltas": {
+            "camera_samples": 0,
+            "candidates": 0,
+            "accepted": 0,
+            "rejected": 0
+          },
+          "counter_wraps": {},
+          "counter_regressions": {},
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "invariant_violations": {},
+          "violation_samples": 0,
+          "violation_details": [],
+          "inference_latency_ms": {
+            "polling_samples": 0,
+            "nonzero_polling_samples": 0,
+            "min": null,
+            "median": null,
+            "p95": null,
+            "max": null,
+            "p95_method": "nearest-rank over valid hand telemetry polling samples",
+            "scope": "Snapshots can repeat the same inference; these are not unique inference timings."
+          }
+        },
+        "frame_dimensions": {
+          "width": 320,
+          "height": 240,
+          "scope": "Explicit coordinate contract; dimensions are not carried by SC_SNAP."
+        },
+        "limits": {
+          "max_bytes_per_scan": 67108864,
+          "max_lines_per_scan": 200000,
+          "max_line_bytes": 8192,
+          "max_details": 32,
+          "scans": 2
+        },
+        "limitations": [
+          "Polling samples and phase counts are not unique hand presentations, snap attempts or recognition rates.",
+          "Detected/in-zone flags show model and geometric filtering, not proof of a finger snap or keyboard classification.",
+          "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+          "Counter deltas exclude the first baseline, skip invalid/legacy frames, and do not bridge clock resets.",
+          "No reverse phase invariant: phase armed may legitimately remain while hand_armed is false outside the zone.",
+          "A no-observed-inconsistency result validates bounded telemetry only, not physical feature acceptance."
+        ],
+        "base_audit": {
+          "complete_scan": true,
+          "lines": 1823,
+          "bytes_scanned": 451826,
+          "ordinary_lines_ignored": 19,
+          "oversize_lines_ignored": 0,
+          "embedded_telemetry_prefix_ignored": 1,
+          "snap": {
+            "frames": 0,
+            "malformed": 0,
+            "statuses": {},
+            "camera_statuses": {},
+            "audio_reasons": {},
+            "event_reason_observations": {},
+            "last_decisions": {},
+            "errors": {},
+            "configurations": [],
+            "configuration_changes": 0,
+            "last_configuration": null,
+            "first": null,
+            "last": null,
+            "last_transient": null,
+            "counter_deltas": {
+              "candidates": 0,
+              "accepted": 0,
+              "rejected": 0,
+              "camera_samples": 0
+            },
+            "counter_wraps": {},
+            "counter_regressions": {},
+            "accounting_inconsistencies": 0,
+            "accounting_details": [],
+            "last_pending_balance": null,
+            "clock_wraps": 0,
+            "reset_or_backward_boundaries": 0,
+            "max_visual_age_ms": null,
+            "max_motion_cells": 0,
+            "max_peak": 0,
+            "max_rms": 0
+          },
+          "distance": {
+            "frames": 1804,
+            "malformed": 0,
+            "valid": 1804,
+            "states": {
+              "ranging": 1804
+            },
+            "errors": {},
+            "first_seq": 670,
+            "last_seq": 2473,
+            "sequence_gaps": 0,
+            "sequence_duplicates": 0,
+            "clock_wraps": 0,
+            "reset_or_backward_boundaries": 0,
+            "median_mismatches": 0,
+            "policy_mismatches": 0,
+            "raw_min_mm": 216,
+            "raw_max_mm": 556
+          },
+          "events": {},
+          "distance_start_markers": 0,
+          "boot_markers": 0,
+          "limits": {
+            "max_bytes": 67108864,
+            "max_lines": 200000,
+            "max_line_bytes": 8192
+          },
+          "limitations": [
+            "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+            "Playback reason is the firmware reference-channel heuristic; reference RMS is not exported.",
+            "Telemetry polls snapshots: event reason observations are not unique event counts.",
+            "Counter deltas exclude the first observed baseline and do not bridge reboot boundaries.",
+            "Camera sample growth demonstrates frame processing, not recognition of fingers."
+          ],
+          "snap_observation": "no_snap_activation_evidence",
+          "activation_note": "Without SC_SNAP or a DISTANCE sensing-start marker, menu/startup capture or an unopened DISTANCE app remains possible; absence alone does not prove sensing failure.",
+          "both_telemetry_streams_observed": false,
+          "camera_sample_growth_observed": false,
+          "audit_result": "no_observed_inconsistency"
+        },
+        "hand_observation": "not_observed",
+        "schema_observation": "no_snap_telemetry",
+        "audit_result": "not_observed"
+      },
+      "Scope": "Unmodified parsed observations; attention/errors retained. No accuracy or physical acceptance inferred."
+    }
   }
 }

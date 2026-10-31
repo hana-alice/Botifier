@@ -188,3 +188,51 @@ seq287 因无效测量清除；seq672 中值483 mm 达到恢复阈值后解除�
 修复后的 150 秒窗口有 **1506 个连续 SC_DISTANCE 帧**（seq69–1574），776 有效、730 明确无效；没有序号缺帧、协议拒绝、中值或规则不一致，也没有 panic/assert 标记。不能将无效帧算作有效测距。白名单审计汇总为 `logs/device-snap-fixed-audit.json`，审计器的 11 组合成输入检查通过。
 
 **本窗口未观察到修复后 DISTANCE 启动，也没有 SC_SNAP 帧**。因此只确认了新版写入、启动记录、重启与距离通路；修复后的入口回归、MIC/CAM 状态、实际响指响应和误触发率仍等待用户现场操作，未声称感知功能已通过实机验收。初次失败日志与译码记录保留，不用无崩溃的菜单窗口替代进入 App 的验证。
+
+## 第七次部署：响指播放黑底 KURO GAMES 片头
+
+按用户确认的黑底 Logo 版本，从[库洛 PGR 官网](https://pgr.kurogame.net/)公开的 **Aeon Reforged** 宣传片截取原始 0–3.4 秒。保留淡入淡出；该区间静音，没有添加人声或音轨。中心裁切到 4:3 后缩放为 320×240，12 fps、41 张 baseline JPEG；包 176,092 字节，SHA256 `ebb2f97d8e294b1571f711d9b9477269eac9a97e495808915563accf1bc873f3`。来源与转换参数保存在固件 `apps/app_distance/media/source.json`，根目录 `scripts/Prepare-KuroIntro.py` 可用已有 ffmpeg 重建；重复生成逐字节相同，41 帧均独立解码成功。
+
+一次新鲜 Accepted 同步占用播放器，独立任务按时间解码并跳过落后帧，不排队；最多持有两张 RGB565 图。播放期间同步暂停本功能的输入并作废相机旧会话，结束、取消或错误后清空旧候选并恢复预热；累计计数与用户配置保留。完成基线阻断播放前间隙的事件补播。全屏黑底覆盖原控件但保留 HOME，新的距离 Alert 会中断片头。App 关闭先停感知再停播放器，所有阻塞等待在 LVGL 锁外。仅使用现有 JPEG 解码与 app 分区，不修改输出音频路径、不新增依赖。
+
+固件提交 `4ebe86a`；应用 **3,958,176 字节**，SHA256 `2db3b2c8e43727f6c92ed2c935adcd0b0ed3686d346bc5da892eb913056ebd8f`，最小应用分区剩余约 24%。完整构建 `logs/firmware-kuro-intro.log`；主机 CTest **8/8**（新增包解析 6 组），电脑端 **57 项与模拟**通过。静态独立审查未发现锁反转或图像引用失效；底层 checked 输入关闭和 JPEG 解码没有已证明的总时限。
+
+真实生产 View、LVGL 9.4、字体和 `LvglAllocatedImage` 的桌面验证：12 张截图、**36 项行为/生命周期及 304 项边界检查**通过，文字裁切 0，6 次图像释放中仍被 LVGL 借用的次数 0。覆盖 busy 期间连续事件不重启/排队、完成基线、恢复后新事件、空帧快照保持图像、错误/取消、Alert 与 HOME；旧时钟顺序反例按预期失败。证据 `.tools/intro-ui-probe/manifest.json`、同目录 `frames/contact.png`、`logs/intro-render-run.log`。感知和播放器为替身，未纳入全局红色告警装饰；这些结果不代表真实 LCD、触摸、JPEG 解码速度或识别准确率。
+
+重新核对 COM38、MAC、当前 seq17/VALID 与上一版 app SHA 后更新。备份与当前镜像归档 `.tools/device-backups/20261031-141300-kuro-intro/`，文件 `kuro-intro-deployed.bin`；部署日志 `logs/device-update-kuro-intro.log`。只写 ota_0 与 `0xd000` 单个启动扇区，新记录 seq19/NEW；当前 NVS、bootloader、分区表、原厂 ota_1、原资源和另一启动扇区摘要保护校验均通过。
+
+25 秒启动后独立读回 **seq19 / VALID / CRC 正确**，原 seq2/VALID 扇区全字节不变，见同目录 `ota-confirmation.json`；随后 USB 重启再采集 `logs/device-kuro-intro.log`。实际进入 DISTANCE、识别触发与连续响指播放行为的现场结果另据该日志与用户反馈记录，不从菜单窗口推断通过。
+
+用户确认“播一次，结束后恢复；播放中响指无影响”。150 秒窗口记录 5 次 request→playing→finished，均 error0/cancelled0；512 条 SC_SNAP 均可解析，最后恢复 listening/audio_open/ready。SC_DISTANCE 为 seq41–1543 共 1503 条，其中 1501 有效、2 明确无效，无缺帧、中值或规则不一致，没有 panic/assert。原始日志和 `logs/device-kuro-intro-audit.json` 保留。
+
+审计仍为 `attention_required`：每次恢复输入都有一次 SDK 的 `i2s_channel_disable: the channel has not been enabled yet`，共 5 条，不能把本窗口写成“零错误日志”。源码闭环为：checked close 已关闭并核验 RX；恢复时 `esp_codec_dev_open()` 先调用厂商 `audio_codec_data_i2s.c` 的 `set_fmt`，其再次无条件 disable RX 且忽略该返回值，随后重新配置并 enable；checked open 再核验 RX 已启用。实际随后恢复采音，未因这条日志改动 codec、掩盖日志或提前启 RX。这一解释仅限该条重复关闭记录。
+
+### 后续灵敏度反馈与证据
+
+用户随后反馈第一次灵敏，之后往往没反应、间隔一段时间又能触发；宠物表情变化让其难以区分识别和播放。新的 180 秒 `logs/device-kuro-intro-responsiveness.log` 有 876 条 SC_SNAP，候选与接受仅各增加 1、融合拒绝计数不变；该一次接受有完整播放周期，摄像头处理样本增加 1325。同期 1805/1805 个距离样本有效、连续，规则与中值复算一致。这支持当前问题主要出在融合前的声音过滤，而非已接受事件被播放器漏掉。
+
+按 `uptime_ms-event_age_ms` 去重并排除采集前旧记录，得到 34 条以 tonal 结束的短瞬态：edge0.0461–0.773 全部低于固定 0.8，crest2.514–11.332 均通过原 2.5；duration10–60ms。因此这些记录由 edge 条件过滤。没有逐次声源标注或原始 PCM，不能将 34 条全部认定为响指，也不能以重复上报的 event_reason 次数计算识别率。另 6 条 long_sound 是保留观测，不等于 6 次独立声音。SENS 只调幅度门槛，不改变原固定 edge 门槛。
+
+### seq21：短衰减瞬态与明确就绪提示
+
+源码提交 `217f37a` 保留原 broadband 分支，另允许 duration≤30ms / edge≥0.45 / crest≥3.0 的短高峰瞬态，原幅度、保护与摄像头规则保持。8 个连续衰减合成夹具（含跨块）在旧规则全拒、新规则全过，4 个边界负控仍拒；原 12 组保留，检测器 14 组、CTest8/8，日志 `logs/host-tests-20261031-142121-166-test.log`。短敲击和衰减铃声也可能通过，合成测试不代表现场识别率。
+
+LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日常宠物动画不作为识别反馈。首次桌面验证抓到 Alert 首帧标签未隐藏，已改为每帧跟随告警显隐、文字仍100ms刷新。真实 View 最终 57 行为与761边界检查通过、0裁切，6次释放无借用违规；证据 `.tools/intro-ui-probe/responsive-manifest.json` 与 `responsive-frames/contact.png`，原证据存入 `baseline-intro/`。
+
+完整构建 `logs/firmware-kuro-snap-response.log`；镜像 **3,958,976 字节**，SHA256 `e22df798f9002fab7fcbf8277fbaf8c750a2e69d3a59408a55944a84bd0a29ac`。核对上一版 app 和 seq19/VALID 后，仅写 ota_0 与启动扇区0，部署日志 `logs/device-update-snap-response.log`；备份与归档 `.tools/device-backups/20261031-142411-snap-response/snap-response-deployed.bin`。保护区域摘要校验通过，独立读回 **seq21/VALID、CRC正确**，原 seq2/VALID 全扇区保留。重启后以 `logs/device-snap-response.log` 采集现场复测，未用上一版单次成功代替修正版灵敏度验收。
+
+**seq21 仍未通过识别验收。** 用户按 READY 测试三次仅成功 1–2 次，之后明确报告敲键盘持续触发。`logs/device-keyboard-false-positive.log` 中 accepted 从15增至25，camera_samples 从926增至1997；配置始终 SENS3、CAM ON。原采集文件名 `device-snap-sens5.log` 不代表实际调到5，不能写成 SENS5 的测试结果。`logs/device-snap-response.log` 中一次播放取消与有效 ToF Alert 同时发生，属于距离提醒抢占，不能据此解释所有漏识别。
+
+现有摄像头门槛仅判断亮度局部运动，没有手检测；此前声音规则放宽并不能解决键盘误触发。已复位回主菜单停止反复播放，记录 `logs/device-snap-reset-menu.log`。用户随后明确授权新增乐鑫官方 ESP-DL 与 hand_detect，继续实现“镜头前举手＋短声音”；模型只输出手框，不识别响指姿态，现场准确率须重新验收。
+
+### seq23：官方手检测与一次举手授权
+
+固件提交 `374a7a4e6e27893b195a8518e9d60ff02ddbc8d4`，新增精确锁定的 hand_detect0.2.0 和 ESP-DL3.3.0，其它依赖版本保持。生产相机路径改为真实 RGB888 手框检测，区域内的大手稳定后才授权一次声音互动；持续有手不能重复授权，接受或1.8秒到期后要求移开再举手。取帧前丢弃排队旧帧，取帧加推理统一受500ms新鲜度预算约束。模型输出手框，不识别响指姿态；几何区域也不等于键盘分类器。
+
+默认 O3 构建超槽935,328字节，未刷入；仅将新增 ESP-DL 组件改为大小优化，并关闭其不用的像素转换，未改 managed 源码或分区布局。最终构建 `logs/hand-model-build-size2.log` 通过，应用 **5,032,096 字节**、SHA256 `23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9`，应用槽余145,248字节（约3%）。主机CTest10/10、实际View86行为/1367边界检查通过；测试输入和硬件识别分开记录，见 `DEVELOPMENT.md`。
+
+更新前核对 COM38、MAC7c:4f:ad:af:61:f0、seq21/VALID和旧镜像摘要；只写 ota_0 和启动扇区0。`logs/device-update-hand-detection.log` 记录当前NVS、bootloader、分区表、原厂槽、资源与另一启动扇区的保护摘要通过。备份目录 `.tools/device-backups/20261031-154932-hand-detection/`，归档 `hand-detection-deployed.bin`、匹配 ELF 和 map。
+
+启动25秒采集 `logs/device-hand-boot.log` 后，独立 ROM 读回 **seq23/VALID、CRC正确**，原seq2/VALID扇区逐字节保留，证据同目录 `ota-confirmation.json` 及 `logs/device-hand-ota-verify.log`。随后复位回菜单，开始 `logs/device-hand-detection.log` 现场采集；模型加载、推理耗时、举手响应和正常键盘负样本仍须结合该窗口与用户操作确认，不能从菜单启动或主机合成测试推断通过。
+
+该180秒窗口实际记录 **1804/1804 有效 SC_DISTANCE**（seq670–2473），没有序号缺帧、中值或规则复算不一致，未见 panic/assert 或 SDK 错误标记。**SC_SNAP 为0，未观察到模型激活**；`logs/device-hand-detection-audit.json` 正确标记 `not_observed`。这只能补充测距与启动证据，不能据此宣称手检测、推理耗时、响指成功率或键盘负样本已通过。现场测试问题已发出，等待用户实际打开 DISTANCE 并操作。

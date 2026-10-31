@@ -170,18 +170,54 @@ bootloader、分区表及资源未被刷写改变。备份、修正旧设备版�
 用户表示手通常在镜头前方，2026-10-30 先完成代码、未操作硬件；次日连接 USB 后继续部署。上文 seq13/VALID、602 帧和 301 帧测距结果均属于上一版，不能用于验证本次感知功能。
 
 - `snap_detector.h`：纯 C++17、固定大小状态；24 kHz、10 ms 音频块，约 500 ms 预热，自适应噪声、起音、时长、波峰和相邻差分能量筛选。PCM 通道 0 是麦克风，通道 1 是播放参考，不按两个独立麦克风处理。播放及其后 200 ms、明显削波、长音和窄带音被抑制。这些规则不等于真实响指分类准确率。
-- 图像仅取 32×24 亮度网格，以亮度平移补偿和局部变化筛选运动，拒绝大范围变化；它不判断手或响指姿态。默认需要帧龄不超过 500 ms、候选前 600 ms 至后 350 ms 内的运动；超过等待窗拒绝，不自动降级为声音独判。会话重置时丢弃一个旧缓冲，下一张仅建立基线。
+- seq21 及之前的图像路径仅取 32×24 亮度网格，以亮度平移补偿和局部变化筛选运动，拒绝大范围变化；它不判断手或响指姿态。原规则需要帧龄不超过 500 ms、候选前 600 ms 至后 350 ms 内的运动。用户实测键盘持续误触发后，生产服务已改用下述真实手检测，亮度运动不再充当后备证据。
 - `snap_service.cpp`：独立音频/相机任务、短锁快照和 epoch 隔离；DISTANCE 打开后监听，关闭时等待 checked 输入关闭确认后才交还麦克风。采样、I²C、相机等待和输入关闭均不在 LVGL 锁内执行；ToF 不可用/过期/滤波未就绪、过近或播放时拒绝互动。参考 RMS 200 是尚未校准的门槛，不是声学回声消除。
 - `stackchan_camera` 复用原有 V4L2 缓冲，兼容 YUYV 与本项目驱动使用的 YUV422P；新网格接口不编码 JPEG、不改 `frame_` 或原厂拍照设置。SDK `VIDIOC_DQBUF` 可无限等待，因此相机独立执行，退出只作废其会话，不等待相机线程。硬件故障可能让该线程及相机锁持续等待，后续拍照也可能受阻；不能声称有硬超时。
 - `cores3_audio_codec` 新增 checked 输入开关，检查底层 ADC、增益和 RX 关闭结果，失败清理可重试，读错误不再伪报成功；输出与原有 AI 开关入口沿用。底层关闭也没有可证明的总时限，故障时退出可能等待，需实机验证。既有 `input_gain_=60` 最终受 ES7210 档位限制，不表示物理 60 dB。
-- 复用 DISTANCE 三行调参控件新增 SNAP 页；调参只更新感知配置、不会写距离 SAVE。默认 LISTEN/CAM ON、SENS 3，RAM 保存；成功互动惊讶→开心→日常，距离 Alert 随时抢占。只改变五官，不增加舵机动作或提示音。`SC_SNAP` 最多 5 Hz，保留最近瞬态特征便于排查；不保存或上传原始音频/图像。
+- 复用 DISTANCE 三行调参控件新增 SNAP 页；调参只更新感知配置、不会写距离 SAVE。默认 LISTEN/CAM ON、SENS 3，RAM 保存。最初的惊讶→开心反应已由下述 KURO GAMES 片头替代，距离 Alert 随时抢占。`SC_SNAP` 最多 5 Hz，保留最近瞬态特征便于排查；不保存或上传原始音频/图像。
 
-当前验证：
+片头集成前的验证记录：
 
 1. `logs/host-tests-snap-final.log`：CTest 7/7；宠物动作 15 组（新增互动、抢占与回绕），检测器 12 组合成 PCM/网格测试，覆盖播放、参考通道隔离、削波、连续声、采样间断、全局亮度变化、候选时窗、冷却与计时回绕。
 2. `logs/pc-tests-snap-final.log`：电脑端 57 项通过，无硬件模拟产生 1 次提醒。
 3. `.tools/snap-ui-probe/manifest.json`：完整生产 View、真实 LVGL 9.4.0、控件与字体的桌面渲染，15 张截图，24 项行为与 408 项对象边界检查通过，0 裁切；极值计数压缩为 9999+，底行自然宽度 269/304 px。新增后台事件时序回归：快照将时钟从 100 推至 103 ms 时，修复版产生 Surprise、相同计数不重播；隔离副本恢复旧读取顺序则事件被吞掉，日志 `logs/snap-render-old-order.log`，反例按预期退出 42。音频/相机/ToF 为替身输入，全局红框层未纳入，不能当作实机触摸和感知验收。
 4. 完整 ESP-IDF 构建与当前二进制摘要见 `environment.json`，最新物理部署见 `DEVICE_DEPLOYMENT.md`。初次进入 DISTANCE 的真实崩溃暴露了桌面 libc 与设备 nano printf 的差异：后者不支持 `PRIi64`，已将新日志中仅需 -1 哨兵的 `visual_age` 改为 `int` / `%d`，保留原 libc 配置。修复版 seq17/VALID 已独立读回；真实响指/拍手/键盘/音乐准确率、资源占用和硬件采样时序仍未完整验证。
+
+## 响指触发黑底片头
+
+`intro_clip.h` 校验只读 `KINTRO1` 包，`intro_player.cpp` 在独立任务中按时间选择 JPEG 帧，复用原有 `jpeg_dec::decode_to_lvgl()`；落后时跳帧，不积压播放请求。当前资源来自[库洛 PGR 官网](https://pgr.kurogame.net/)公开宣传片的原始黑底 Logo，320×240、12 fps、41 帧、3.4 秒、176,092 字节。该区间静音；不增加音频控制或新依赖。来源、SHA256、格式与可重复生成步骤见 `main/apps/app_distance/media/README.md` 和根目录 `scripts/Prepare-KuroIntro.py`。
+
+资源只嵌入 app；不替换设备 assets 分区。播放器至多保留两张解码图，View 持有当前图，确保 LVGL 借用的 descriptor 与像素在切换或删除前有效；解码在显示锁外。画面暂时没有新帧时保留上一帧，不闪回加载状态。
+
+第一次有效事件在启动任务前同步设置 busy。`pause_for_playback()` 等待输入关闭确认，作废旧音频/相机会话；播放期间不接收新候选，计数和用户配置保留。完成、取消和错误均恢复监听并重新预热，完成基线屏蔽暂停前已经到达的旧事件。App 关闭先 stop 感知，再 stop 播放器，恢复过程不会重新打开已关闭 App 的输入。新距离 Alert 中断播放，HOME 可直接退出；等待均不持 LVGL 锁。底层输入关闭和 JPEG 解码仍没有已证明的总时限。
+
+主机测试 CTest **8/8**，新增包解析 6 组涵盖真实 baseline JPEG、截断、非法表项/边界/尺寸/时长和非 baseline 格式；日志 `logs/host-tests-intro.log`。全部 41 帧另经 ffmpeg 完整解码，重复转换所得包逐字节相同。电脑端 **57 项及无硬件模拟**通过，日志 `logs/pc-tests-kuro-intro.log`。ESP-IDF 5.5.4 完整构建通过，应用 **3,958,176 字节**，分区余量约 24%，日志 `logs/firmware-kuro-intro.log`。桌面播放界面与实际部署结果另记 `DEVICE_DEPLOYMENT.md`；主机测试不代表真实响指准确率或 LCD 播放帧率。
+
+### 依据实机短瞬态修正形状过滤
+
+seq19 的后续 180 秒窗口中，用户反馈 5 次仅 0–1 次触发；876 条 SC_SNAP 只有一次新候选/接受，且该接受完整播放。保留的 34 个 tonal 事件全部因 edge<0.8 被拒，crest 均通过原 2.5；SENS 不影响这个固定门槛。事件没有逐次用户标签，不能把所有事件认定为响指或据此计算准确率。
+
+保留原 broadband 分支，另允许 `duration<=30ms && edge_ratio>=0.45 && crest>=3.0` 的短高峰衰减瞬态；原起音、峰值/RMS、长音、削波、播放与摄像头规则保持。8 个连续指数衰减合成夹具（含跨块）在旧规则全拒、新规则全过；低 edge、两个 40ms 衰减声及低峰度短音 4 个负控仍拒，原 12 组保留，检测器合计 **14 组**。CTest **8/8**，日志 `logs/host-tests-20261031-142121-166-test.log`。这是对观测特征的兼容，不是训练分类器；短敲击或衰减铃声也可能通过。
+
+LIVE 顶部明确显示 READY、WARMING、SOUND FILTERED 与画面/距离未就绪状态，避免把闲置表情误认为接受事件。反馈文字仍每 100ms 刷新；标签显隐跟随每帧告警信号，保护全局提醒标题。真实 View 新增状态验证曾捕获首个 Alert 帧仍留 READY 的缺陷，修复后 **57 行为/761 边界**检查通过、0 裁切，6 次图像释放中 0 次仍被借用；最大文字 206/304px。证据 `.tools/intro-ui-probe/responsive-manifest.json` 和 `responsive-frames/contact.png`，初版片头证据保存在 `baseline-intro/`。桌面感知/播放器为替身，现场灵敏度须另测。
+
+修正源码提交 `217f37a`，构建 `logs/firmware-kuro-snap-response.log`，二进制 **3,958,976 字节**、SHA256 `e22df798f9002fab7fcbf8277fbaf8c750a2e69d3a59408a55944a84bd0a29ac`。部署与现场复测见 `DEVICE_DEPLOYMENT.md`。
+
+### 官方手检测与一次举手授权
+
+首次完整链接生成6,112,672字节镜像，超出原有0x4f0000应用槽935,328字节，见 `logs/hand-model-build-resume.log`，该镜像未刷入。尺寸表 `logs/hand-model-size-baseline.log` 显示 ESP-DL 的 flash code 占1,645,905字节。项目据此仅对该组件追加 `-Os`，并通过官方Kconfig只启用 RGB888→RGB888（包括int8量化）转换；其余14项像素转换关闭。设置在顶层 `project()` 完成之后应用，生成命令的最后一个优化项为 `-Os`，证据 `logs/hand-model-size-config-review.json`。
+
+尺寸修正后完整构建通过，日志 `logs/hand-model-build-size2.log`。应用5,032,096字节，SHA256 `23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9`，原槽剩余145,248字节（约3%）；最终 ESP-DL flash code 为571,335字节，见 `logs/hand-model-size-final.log`。固件提交 `374a7a4e6e27893b195a8518e9d60ff02ddbc8d4`。未采用私有算子注册表覆盖；实际推理速度仍待设备采样。
+
+用户明确授权新增依赖后，精确锁定 `espressif/hand_detect==0.2.0` 与 `espressif/esp-dl==3.3.0`，保留所有既有组件版本。选取这组兼容版本是为了沿用 JPEG0.6.1 和 DSP1.7.0；没有升级其它音视频依赖。S3 模型 `espdet_pico_224_224_hand.espdl` 为497,184字节，SHA256 `ada47f76f8393cbb5572c26862edea17905e8f352669b29033a996ffbcba020a`，只嵌入 app rodata，不新增模型分区。模型只返回手框，不返回响指姿态或手指关键点。
+
+`hand_model.cpp` 在独立相机任务中同步单核推理，RGB888 输入由已有 GC0308 的 YUV422 转换而来。`TrySampleRgbFrame()` 要求单 mmap buffer，在同一相机锁内先归还排队旧帧、再等待新帧，复制后释放锁；推理不占相机或 LVGL 锁。ESP Video 没有填有效采集时间戳，因此以调用前时钟为保守下界，取帧加推理总耗时超过500ms即拒绝。相机任务目标周期200ms、优先级1、栈16KiB；这些配置不等于实测5Hz。底层 DQBUF 仍可无限等待，退出仅隔离 epoch，不等待该线程。
+
+`hand_gate.h` 要求置信度至少0.5、手框宽至少画面1/6、高至少1/4，中心在横向20–80%、纵向12.5–66.7%的区域。有效无手/区域外样本至少两帧跨250ms后，进入 SHOW HAND；区域内至少两帧跨100ms后进入 READY，授权固定1.8秒，持续有手不会延长。接受一次短声音立即消费授权，之后必须移出再举手；无效、晚到或过期画面拒绝。授权时间由保守采样时钟计算，尚未测量物理举手持续时长。
+
+LIVE 显示 MOVE HAND OUT／SHOW HAND／HOLD HAND／READY，SNAP 页显示手置信度、阶段和推理毫秒数；串口追加手框、区域、授权和相机错误。`camera_required` 默认开启，只有用户显式关闭后才声音独判。任意符合区域的手配合通过启发式的短声音仍可能触发；区域规则不是键盘分类器，误检/漏检造成的新举手窗口仍需实测。
+
+新增 RGB 转换5组、手门控17组合成测试，完整主机CTest10/10通过，日志 `logs/host-tests-20261031-145605-806-test.log`。实际生产View与HandGate桌面验证86行为/1367边界检查通过、0裁切、6次图像释放无借用违规，证据 `.tools/intro-ui-probe/hand-manifest.json`；摄像头识别输入为替身。静态调用链审计 `logs/hand-model-format-audit.json` 未发现当前路径中的64位printf；禁止调用含 `%lld` 的 SDK `profile_memory/profile_module/profile`，保留 nano libc。模型预检与异常处理不能保证厂商内部全部 OOM/assert 路径可恢复，完整链接、RAM、延迟及键盘负样本须以实机证据为准。
 
 官方依据：[固件构建说明](https://github.com/m5stack/StackChan/blob/f901cc2969189f3f0e96af1442c0f96e77e1e2c1/firmware/README.md)、
 [StackChan 硬件文档](https://docs.m5stack.com/zh_CN/StackChan)、
