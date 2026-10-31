@@ -546,7 +546,9 @@ esp_err_t ensure_tasks()
         audio_task = created;
     }
     if (!existing_camera) {
-        if (xTaskCreatePinnedToCore(camera_worker, "snap-camera", 16384, nullptr, 1, &created, 1) != pdPASS) {
+        // Keep single-core inference off the avatar/LVGL update core. Audio
+        // remains higher priority on core 0 so microphone reads can preempt it.
+        if (xTaskCreatePinnedToCore(camera_worker, "snap-camera", 16384, nullptr, 1, &created, 0) != pdPASS) {
             return ESP_ERR_NO_MEM;
         }
         std::lock_guard<std::mutex> lock(state_mutex);
