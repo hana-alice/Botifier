@@ -116,8 +116,11 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
     // Sample the reporting clock after the copied event/frame timestamps.
     const auto timestamp = now_ms();
     last_emitted_ms = timestamp;
-    const auto visual_age = current.visual.available
-                                ? static_cast<std::int64_t>(timestamp - current.visual.captured_ms) : -1;
+    // ESP-IDF's configured ROM nano printf cannot consume 64-bit integers.
+    // The snapshot only exposes fresh visual evidence (<=500ms); age needs
+    // a signed sentinel, not a long long that corrupts later varargs parsing.
+    const int visual_age = current.visual.available
+                               ? static_cast<int>(timestamp - current.visual.captured_ms) : -1;
     char event[240];
     if (current.has_audio_event) {
         std::snprintf(event, sizeof(event),
@@ -135,7 +138,7 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
                 "\"audio_open\":%s,\"peak\":%" PRIu32 ",\"rms\":%" PRIu32 ",\"noise\":%" PRIu32
                 ",\"duration\":%" PRIu32 ",\"edge_ratio\":%.4f,\"crest\":%.3f,\"audio_reason\":\"%s\","
                 "\"camera_status\":\"%s\",\"camera_samples\":%" PRIu32 ",\"motion_cells\":%u,"
-                "\"visual_age\":%" PRIi64 ",\"candidates\":%" PRIu32 ",\"accepted\":%" PRIu32
+                "\"visual_age\":%d,\"candidates\":%" PRIu32 ",\"accepted\":%" PRIu32
                 ",\"rejected\":%" PRIu32 ",\"camera_required\":%s,\"sensitivity\":%u,\"listening\":%s,"
                 "\"last_decision\":\"%s\",\"error\":%d,%s}\n",
                 timestamp, status_text(current.status), current.active ? "true" : "false",
