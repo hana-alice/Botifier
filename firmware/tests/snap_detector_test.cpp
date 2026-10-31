@@ -53,6 +53,22 @@ Block tone(double frequency)
     return block;
 }
 
+// Synthetic decaying oscillations exercise representative transient features;
+// these are not recordings of finger snaps. Generate one continuous envelope
+// and phase across blocks, letting the tail decay naturally to quantized zero.
+Block damped_tone(double frequency, double decay_samples, std::size_t offset, unsigned block_index)
+{
+    Block block{};
+    for (std::size_t i = 0; i < block.size(); ++i) {
+        const auto sample_index = block_index * kBlockFrames + i;
+        if (sample_index < offset) continue;
+        const auto age = static_cast<double>(sample_index - offset);
+        block[i] = static_cast<std::int16_t>(12000 * std::exp(-age / decay_samples) *
+                                           std::sin(age * 6.283185307179586 * frequency / kSampleRate));
+    }
+    return block;
+}
+
 void warm(AudioDetector& detector, std::uint32_t start = 0)
 {
     for (std::uint32_t elapsed = 0; elapsed < 500; elapsed += 10) {
@@ -70,6 +86,84 @@ AudioFeatures burst(AudioDetector& detector, std::uint32_t start, unsigned block
               "a still-active sound was accepted before its duration was known");
     }
     return detector.process(silence.data(), silence.size(), 1, start + blocks * 10, false);
+}
+
+AudioFeatures damped_burst(double frequency, double decay_samples, std::size_t offset)
+{
+    AudioDetector detector;
+    warm(detector);
+    AudioFeatures completed;
+    unsigned verdicts = 0;
+    for (unsigned i = 0; i < 12; ++i) {
+        const auto input = damped_tone(frequency, decay_samples, offset, i);
+        const auto result = detector.process(input.data(), input.size(), 1, 600 + i * 10, false);
+        if (result.reason == AudioReason::Candidate || result.reason == AudioReason::Tonal ||
+            result.reason == AudioReason::LongSound) {
+            ++verdicts;
+            completed = result;
+        }
+    }
+    check(verdicts == 1, "one decaying transient must yield exactly one completed verdict");
+    std::cout << "synthetic damped f=" << frequency << " decay=" << decay_samples << " offset=" << offset
+              << " duration=" << completed.duration_ms << " peak=" << completed.peak << " rms=" << completed.rms
+              << " edge=" << completed.edge_ratio << " crest=" << completed.crest
+              << " candidate=" << completed.candidate << '\n';
+    return completed;
+}
+
+void short_shape_negative_controls()
+{
+    const auto low_edge = damped_burst(1600, 24, 0);
+    check(low_edge.duration_ms == 10 && low_edge.edge_ratio < 0.45f && low_edge.crest >= 3.0f,
+          "low-edge transient fixture did not isolate the edge guard");
+    check(!low_edge.candidate && low_edge.reason == AudioReason::Tonal, "low-edge transient was accepted");
+
+    for (const auto frequency : {1800.0, 2200.0}) {
+        const auto longer = damped_burst(frequency, 220, 0);
+        check(longer.duration_ms == 40 && longer.edge_ratio >= 0.45f && longer.edge_ratio < 0.8f && longer.crest >= 3.0f,
+              "40 ms transient fixture did not isolate the short-duration guard");
+        check(!longer.candidate && longer.reason == AudioReason::Tonal, "40 ms low-edge transient was accepted");
+    }
+
+    auto low_crest_tone = tone(1800);
+    for (std::size_t i = 0; i < low_crest_tone.size(); ++i) {
+        const auto envelope = std::sin(i * 3.141592653589793 / (low_crest_tone.size() - 1));
+        low_crest_tone[i] = static_cast<std::int16_t>(low_crest_tone[i] * std::pow(envelope, 4));
+    }
+    AudioDetector detector;
+    warm(detector);
+    const auto low_crest = burst(detector, 600, 1, low_crest_tone);
+    check(low_crest.duration_ms == 10 && low_crest.edge_ratio >= 0.45f && low_crest.edge_ratio < 0.8f &&
+              low_crest.crest >= 2.5f && low_crest.crest < 3.0f,
+          "smooth low-crest tone fixture did not isolate the short-transient crest guard");
+    check(!low_crest.candidate && low_crest.reason == AudioReason::Tonal, "short low-crest tone was accepted");
+    std::cout << "synthetic smooth tone duration=" << low_crest.duration_ms << " peak=" << low_crest.peak
+              << " rms=" << low_crest.rms << " edge=" << low_crest.edge_ratio << " crest=" << low_crest.crest << '\n';
+}
+
+void short_damped_transients_and_block_alignment()
+{
+    struct Fixture {
+        double frequency;
+        double decay_samples;
+        std::size_t offset;
+        std::uint32_t duration_ms;
+    };
+    const std::array fixtures{
+        Fixture{1800, 24, 0, 10}, Fixture{2200, 24, 0, 10},
+        Fixture{1800, 72, 0, 20}, Fixture{2200, 72, 0, 20},
+        Fixture{1800, 24, 210, 20}, Fixture{2200, 72, 180, 20},
+        Fixture{1800, 160, 0, 30}, Fixture{2200, 160, 0, 30},
+    };
+    bool all_candidates = true;
+    for (const auto& fixture : fixtures) {
+        const auto result = damped_burst(fixture.frequency, fixture.decay_samples, fixture.offset);
+        check(result.duration_ms == fixture.duration_ms && result.edge_ratio >= 0.45f && result.edge_ratio < 0.8f &&
+                  result.crest >= 3.0f && result.peak >= 2200 && result.rms >= 320,
+              "synthetic damped fixture did not reach the intended short-transient feature range");
+        all_candidates = all_candidates && result.candidate && result.reason == AudioReason::Candidate;
+    }
+    check(all_candidates, "short synthetic damped transient was rejected");
 }
 
 void warmup_and_invalid_arguments()
@@ -434,6 +528,8 @@ int main()
         fusion_motion_window_and_pending_deadline,
         fusion_freshness_global_unavailable_and_future_frames,
         fusion_rollover_and_cooldown_at_zero,
+        short_shape_negative_controls,
+        short_damped_transients_and_block_alignment,
     };
     try {
         for (const auto test : tests) test();

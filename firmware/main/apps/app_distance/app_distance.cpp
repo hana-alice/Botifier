@@ -137,6 +137,7 @@ struct AppDistance::View {
     std::unique_ptr<Button> tune_button;
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
+    std::unique_ptr<Label> live_snap_status;
     std::unique_ptr<Button> tune_home;
     std::unique_ptr<Button> live_button;
     std::unique_ptr<Button> mode_button;
@@ -166,6 +167,9 @@ struct AppDistance::View {
         live_state = make_label(*live_controls, 108, 214, 104, &lv_font_montserrat_14);
         live_distance->setTextAlign(LV_TEXT_ALIGN_CENTER);
         live_state->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        live_snap_status = make_label(*live_controls, 8, 8, 304, &lv_font_montserrat_14, kMuted);
+        live_snap_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        live_snap_status->setText("SNAP WARMING");
 
         tune_page = make_page();
         tune_home = make_button(*tune_page, 8, 4, 80, "HOME");
@@ -284,6 +288,8 @@ struct AppDistance::View {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
+        if (signal == distance_pet::Signal::Alert) live_snap_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+        else live_snap_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
         live_avatar->tick(now, signal);
     }
 
@@ -324,6 +330,53 @@ struct AppDistance::View {
     {
         save_status->setText(text);
         save_status->setTextColor(lv_color_hex(color));
+    }
+
+    void show_listening(std::uint32_t now, const distance_sensor::Snapshot& distance,
+                        const snap_sense::Snapshot& heard)
+    {
+        // Leave the global TOO CLOSE title unobstructed.
+        if (distance.valid && !distance.stale &&
+            distance.proximity_state == distance_sensor::ProximityState::Alert) {
+            live_snap_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+            return;
+        }
+        live_snap_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        const char* text = "SNAP READY";
+        auto color = kSafe;
+        if (!heard.active || !heard.config.listening) {
+            text = "SNAP OFF";
+            color = kMuted;
+        } else if (heard.status == snap_sense::Status::AudioError) {
+            text = "SNAP MIC ERROR";
+            color = kAlert;
+        } else if (heard.status != snap_sense::Status::Listening || !heard.audio_open) {
+            text = "SNAP WARMING";
+            color = kNear;
+        } else if (!distance.valid || distance.stale || distance.filtered_mm < 0) {
+            text = "SNAP NEEDS DISTANCE";
+            color = kNear;
+        } else if (heard.config.camera_required && !heard.visual.available) {
+            text = "SNAP CAMERA WAIT";
+            color = kNear;
+        } else if (heard.audio.reason == snap_sense::AudioReason::Playback) {
+            text = "SNAP SPEAKER ACTIVE";
+            color = kNear;
+        } else if (heard.has_audio_event && now - heard.last_audio_event_ms <= 1000u) {
+            const auto reason = heard.last_audio_event.reason;
+            if (reason == snap_sense::AudioReason::Tonal || reason == snap_sense::AudioReason::LongSound ||
+                reason == snap_sense::AudioReason::Clipped) {
+                text = "SNAP SOUND FILTERED";
+                color = kNear;
+            } else if (reason == snap_sense::AudioReason::Candidate &&
+                       heard.last_decision != snap_sense::Decision::Accepted) {
+                text = heard.last_decision == snap_sense::Decision::NoVisual ?
+                           "SNAP NO CAMERA MOTION" : "SNAP WAITING FOR MOTION";
+                color = kNear;
+            }
+        }
+        live_snap_status->setText(text);
+        live_snap_status->setTextColor(lv_color_hex(color));
     }
 
     void show_config(const distance_sensor::ProximityConfig& configuration)
@@ -488,6 +541,7 @@ void AppDistance::onOpen()
     _view.reset();
     _view = std::make_unique<View>(*this);
     _view->update(current, distance_sensor::config(), heard);
+    _view->show_listening(GetHAL().millis(), current, heard);
     _last_refresh_ms = GetHAL().millis();
 }
 
@@ -536,6 +590,7 @@ void AppDistance::onRunning()
         _view->raise_controls();
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), heard);
+            _view->show_listening(now, current, heard);
         }
         save = _view->save_requested;
         _view->save_requested = false;

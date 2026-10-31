@@ -144,9 +144,12 @@ public:
             result.edge_ratio = burst_energy_ ? static_cast<float>(std::sqrt(static_cast<double>(burst_edges_) / burst_energy_)) : 0;
             result.crest = result.rms ? static_cast<float>(burst_peak_) / result.rms : 0;
             result.duration_ms = std::max(burst_duration_ms_, now_ms - burst_started_ms_);
+            const bool broadband = result.edge_ratio >= 0.8f && result.crest >= 2.5f;
+            // Short, high-crest decays can have less adjacent-sample edge energy.
+            const bool short_transient = result.duration_ms <= 30u && result.edge_ratio >= 0.45f && result.crest >= 3.0f;
             if (result.duration_ms > 60u) {
                 result.reason = AudioReason::LongSound;
-            } else if (result.edge_ratio < 0.8f || result.crest < 2.5f) {
+            } else if (!broadband && !short_transient) {
                 result.reason = AudioReason::Tonal;
             } else if (result.peak >= minimum_peak[index] && result.rms >= minimum_rms[index]) {
                 result.candidate = true;
