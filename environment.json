@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-30T20:34:52.3418150+08:00",
+  "RecordedAt": "2026-10-31T13:38:01.6822542+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa"
+    "LocalImplementationCommit": "8b11962020be3c249afaefe360922b90849e0a20"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,8 +15,10 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "COM38 is the last deployed port; no StackChan USB serial currently enumerated. User deferred hardware access for this code-only snap implementation.",
-    "UpdatedThisIteration": false,
+    "ConnectionStatus": "COM38 re-enumerated 2026-10-31; USB VID303A/PID1001 and MAC7c:4f:ad:af:61:f0 verified before updating",
+    "UpdatedThisIteration": true,
+    "CurrentOtaSequence": 17,
+    "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
     "HistoricalBootLogVersion": "1.5.1",
@@ -72,14 +74,14 @@
     }
   ],
   "HostTest": "CTest 7/7: motion, 11 driver groups, 30 proximity groups, 9 snapshot groups, 2 avatar lifetime groups, 15 pet motion groups and 12 snap detector/fusion groups. Snap inputs are synthetic PCM/grids; real acoustic accuracy is unmeasured. Log: logs/host-tests-snap-final.log",
-  "FirmwareBuild": "ESP-IDF 5.5.4 build passed; new DISTANCE snap candidate interaction and camera motion corroboration are NOT DEPLOYED. User requested code completion without hardware access. Current binary differs from the last deployed pet build; seq13 VALID refers only to LastDeployedPetFirmwareBinary.",
+  "FirmwareBuild": "ESP-IDF5.5.4 build passed and corrected snap image deployed on2026-10-31. Initial image crashed at DISTANCE entry due to unsupported PRIi64 with nano printf; replaced the bounded visual age with int/%d. Independent metadata readback confirms seq17 VALID and original sector1 unchanged. Reboot/distance telemetry pass; corrected DISTANCE entry, microphone/camera activation and recognition await user interaction.",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 3776496,
-    "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
-    "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
-    "BuildLog": "logs/firmware-20261030-203157.log",
-    "Flashed": false
+    "Bytes": 3776464,
+    "SHA256": "6e75aae593da35c926d331d5984212852d29117eeaf38ecd7a0b95c59667fbb0",
+    "SourceCommit": "8b11962020be3c249afaefe360922b90849e0a20",
+    "BuildLog": "logs/firmware-20261031-133112.log",
+    "Flashed": true
   },
   "LastDeployedPetFirmwareBinary": {
     "Path": ".tools/device-backups/20261030-182853-pet-face/distance-pet-working.bin",
@@ -88,10 +90,51 @@
     "SourceCommit": "e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d",
     "OtaSequence": 13,
     "OtaState": "VALID",
-    "Note": "Last confirmed physical deployment; the snap feature has not been written to the device."
+    "Note": "Historical pet-only deployment retained as a known prior artifact; the device has since been updated to LastDeployedSnapFirmwareBinary."
+  },
+  "LastDeployedSnapFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-133312-snap-printf-fix/snap-sensing-deployed.bin",
+    "Bytes": 3776464,
+    "SHA256": "6e75aae593da35c926d331d5984212852d29117eeaf38ecd7a0b95c59667fbb0",
+    "SourceCommit": "8b11962020be3c249afaefe360922b90849e0a20",
+    "OtaSequence": 17,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-133312-snap-printf-fix/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-133312-snap-printf-fix/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-snap-fixed.log",
+    "HardwareAudit": "logs/device-snap-fixed-audit.json",
+    "Note": "App and sector0 only; original firmware slot, current configuration, bootloader, partitions, resources and original sector1 preserved. Activation/recognition not observed in the corrected capture."
   },
   "SnapPrototype": {
-    "Status": "code, full firmware build and synthetic/desktop verification complete; no device access or deployment",
+    "Status": "corrected firmware deployed seq17 VALID; reboot/distance verified, corrected DISTANCE entry and perception activation await user interaction",
+    "InitialDeploymentFailure": {
+      "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
+      "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
+      "OtaSequence": 15,
+      "UserReport": "Entering DISTANCE resets the robot",
+      "MalformedSnapLines": 2,
+      "Panics": 2,
+      "RawLog": "logs/device-snap.log",
+      "DecodedStack": "logs/device-snap-crash-decoded.log",
+      "CauseEvidence": "Matching ELF f4010ed2e; nano-vfprintf -> printf -> emit_telemetry. visual_age emitted literal li; sdkconfig enables nano formatting and SDK Kconfig explicitly excludes64-bit integer formats.",
+      "Fix": "Use int/%d for visual_age's -1 sentinel and short age instead of PRIi64; no global libc/config changes. Host printf did not reproduce target limitations."
+    },
+    "CorrectedHardwareCapture": {
+      "Log": "logs/device-snap-fixed.log",
+      "Summary": "logs/device-snap-fixed-audit.json",
+      "DistanceFrames": 1506,
+      "ValidDistanceFrames": 776,
+      "InvalidDistanceFrames": 730,
+      "FirstSeq": 69,
+      "LastSeq": 1574,
+      "SequenceGaps": 0,
+      "MalformedDistanceFrames": 0,
+      "MedianMismatches": 0,
+      "PolicyMismatches": 0,
+      "PanicMarkers": 0,
+      "SnapFrames": 0,
+      "Limitation": "No corrected DISTANCE activation observed; absence of SC_SNAP is not evidence of sensing failure or success. Invalid measurements remain marked invalid. Recognition accuracy, camera/microphone activation and the entry regression need user interaction."
+    },
     "DefaultConfig": {
       "Listening": true,
       "CameraRequired": true,
@@ -127,7 +170,7 @@
     ],
     "NewDependencies": false,
     "ServoMotionAdded": false,
-    "Flashed": false
+    "Flashed": true
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -142,7 +185,7 @@
     "HardwareTested": true,
     "Flashed": true,
     "HardwareEvidenceSourceCommit": "e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d",
-    "HardwareEvidenceAppliesTo": "LastDeployedPetFirmwareBinary; the new snap firmware is not deployed",
+    "HardwareEvidenceAppliesTo": "The historical windows below refer to LastDeployedPetFirmwareBinary; corrected snap deployment evidence is in SnapPrototype.CorrectedHardwareCapture",
     "DefaultThresholdMm": 400,
     "DefaultHysteresisMm": 80,
     "DefaultHoldMs": 0,

@@ -172,3 +172,19 @@ seq287 因无效测量清除；seq672 中值483 mm 达到恢复阈值后解除�
 首轮 `logs/device-pet-face.log` 的 60 秒窗口有 **602/602** 连续有效样本（seq138–739），原始距离 145–591mm，采样间隔 90–110ms、平均 99.734ms；每个可复算中值和判定均一致，协议拒绝与缺帧为 0。7 次进入 Alert，全部 `near_ms=0 / hold_ms=0`；6 次达到恢复距离后解除，窗口结束时处于另一次提醒。首行旧半帧与启动片段拼接已排除。汇总分别为 `logs/device-pet-face-summary.json` 与 `logs/device-pet-face-reboot-summary.json`。
 
 固件本地提交 `e3d1e91ce1258be9ea7d140b0b11e29c5d3f9e3d`。改动为 `apps/app_distance/app_distance.cpp`、新增 `pet_avatar.h/.cpp` 与 `pet_motion.h`，以及 `tests/CMakeLists.txt`、`pet_motion_test.cpp`。本次采样证据不包含 LCD 延迟或用户对表情的最终观感；触摸、编辑后 SAVE/重启往返和完整 AI 回归仍未独立验收。
+
+## 第六次部署：响指候选与摄像头辅助（2026-10-31）
+
+用户连接 USB 后，重新枚举 COM38，核对 MAC、此前电子宠物镜像摘要和 seq13/VALID。初次部署 `e8cc8ec` 的 3,776,496 字节镜像，SHA256 `c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc`。备份目录 `.tools/device-backups/20261031-132642-snap-sensing/`，部署日志 `logs/device-update-snap.log`；仍仅写 ota_0 与启动扇区0，seq15/NEW，原厂槽、当前配置、bootloader、分区表、另一启动扇区与资源摘要均通过。
+
+**该初版未通过实机验收**：用户报告进入 DISTANCE 就重启，`logs/device-snap.log` 捕获两次相同崩溃。`SC_SNAP` 输出在 `visual_age` 处出现字面 `li`，随后 `LoadProhibited`。旧 ELF 摘要以 `f4010ed2e` 开头，与崩溃记录一致；解码 `logs/device-snap-crash-decoded.log` 指向 `nano-vfprintf_i.c` → `printf` → `snap_service.cpp:134` 的 `emit_telemetry`。
+
+本机 `sdkconfig` 启用 `CONFIG_LIBC_NEWLIB_NANO_FORMAT=y`，ESP-IDF 5.5.4 `components/newlib/Kconfig:110` 明确说明不支持 64 位整数格式。新日志错误使用 `PRIi64`，破坏后续可变参数解析；桌面完整 printf 与固件编译没有暴露这一运行时差异。已将仅需 -1 哨兵与新鲜帧龄的字段改为 `int` / `%d`，保留现有 nano 配置，不扩大为全局 libc 替换。不能将此前 CTest/桌面检查当作实机可用结论。
+
+修复提交 `8b11962020be3c249afaefe360922b90849e0a20`，完整构建日志 `logs/firmware-20261031-133112.log`；最终镜像 **3,776,464 字节**，SHA256 `6e75aae593da35c926d331d5984212852d29117eeaf38ecd7a0b95c59667fbb0`。先核对当前 seq15/VALID 及初版镜像摘要，再写入 ota_0 和启动扇区0，seq17/NEW；部署记录 `.tools/device-backups/20261031-133312-snap-printf-fix/` 与 `logs/device-update-snap-fixed.log`。再次验证当前配置、bootloader、分区表、原厂槽、资源和另一启动扇区不变；最终镜像归档为该目录内 `snap-sensing-deployed.bin`。
+
+先采集 25 秒启动与测距日志，再独立进入 ROM 读回启动记录：**seq17 / VALID / CRC 正确**，原 seq2/VALID 扇区全字节保留。证据为该目录 `ota-confirmation.json`。随后正常重启，`logs/device-snap-fixed.log` 的 HAL 确认 `ota_0 / state=2`。
+
+修复后的 150 秒窗口有 **1506 个连续 SC_DISTANCE 帧**（seq69–1574），776 有效、730 明确无效；没有序号缺帧、协议拒绝、中值或规则不一致，也没有 panic/assert 标记。不能将无效帧算作有效测距。白名单审计汇总为 `logs/device-snap-fixed-audit.json`，审计器的 11 组合成输入检查通过。
+
+**本窗口未观察到修复后 DISTANCE 启动，也没有 SC_SNAP 帧**。因此只确认了新版写入、启动记录、重启与距离通路；修复后的入口回归、MIC/CAM 状态、实际响指响应和误触发率仍等待用户现场操作，未声称感知功能已通过实机验收。初次失败日志与译码记录保留，不用无崩溃的菜单窗口替代进入 App 的验证。
