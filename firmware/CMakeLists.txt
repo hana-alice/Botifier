@@ -26,3 +26,11 @@ project(stack-chan)
 # SHELL keeps this final -Os distinct from IDF's earlier size option.
 idf_component_get_property(espdl_lib espressif__esp-dl COMPONENT_LIB)
 target_compile_options(${espdl_lib} PRIVATE "SHELL:-Os")
+
+# Keep the scalar/dispatch convolution hot paths at the vendor's speed setting
+# while the remaining ESP-DL code stays small enough for the existing OTA slot.
+idf_component_get_property(espdl_dir espressif__esp-dl COMPONENT_DIR)
+set_property(SOURCE
+    "${espdl_dir}/dl/base/dl_base_conv2d.cpp"
+    "${espdl_dir}/dl/base/dl_base_depthwise_conv2d.cpp"
+    DIRECTORY "${espdl_dir}" APPEND PROPERTY COMPILE_OPTIONS -O3)

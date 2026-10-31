@@ -4,6 +4,7 @@
 #include "dl_detect_espdet_postprocessor.hpp"
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <cmath>
 #include <exception>
 #include <limits>
@@ -83,6 +84,38 @@ public:
             {{8, 8, 4, 4}, {16, 16, 8, 8}, {32, 32, 16, 16}});
         return ESP_OK;
     }
+
+    std::list<dl::detect::result_t>& run(const dl::image::img_t& image) override
+    {
+        // Preserve DetectImpl's pipeline, timing each stage without the SDK's
+        // 64-bit profiling formats (unsupported by this firmware's nano printf).
+        const auto clock_ms = [] { return static_cast<std::uint32_t>(esp_timer_get_time() / 1000); };
+        const auto started = clock_ms();
+        m_image_preprocessor->preprocess(image);
+        const auto preprocessed = clock_ms();
+        m_model->run();
+        const auto inferred = clock_ms();
+        m_postprocessor->clear_result();
+        m_postprocessor->postprocess();
+        auto& results = m_postprocessor->get_result(image.width, image.height);
+        const auto completed = clock_ms();
+        if (!reported_timing_ || completed - last_timing_ms_ >= 5000u) {
+            reported_timing_ = true;
+            last_timing_ms_ = completed;
+            ESP_LOGI(kTag, "stages: pre_ms=%u model_ms=%u post_ms=%u total_ms=%u internal_free=%u internal_block=%u",
+                     static_cast<unsigned>(preprocessed - started),
+                     static_cast<unsigned>(inferred - preprocessed),
+                     static_cast<unsigned>(completed - inferred),
+                     static_cast<unsigned>(completed - started),
+                     static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+                     static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)));
+        }
+        return results;
+    }
+
+private:
+    bool reported_timing_ = false;
+    std::uint32_t last_timing_ms_ = 0;
 };
 
 HandModel::~HandModel()
@@ -149,7 +182,7 @@ esp_err_t HandModel::infer(const std::uint8_t* rgb, std::size_t width, std::size
             .height = static_cast<std::uint16_t>(height),
             .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888,
         };
-        // DetectImpl calls Model::run() with its SINGLE_CORE default.
+        // The checked pipeline keeps Model::run() at its SINGLE_CORE default.
         const auto& results = detector_->run(image);
         for (const auto& result : results) {
             if (!std::isfinite(result.score) || result.score < kScoreThreshold || result.score > 1.0f ||
