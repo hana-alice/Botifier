@@ -107,6 +107,7 @@ void reset_request_locked(std::uint32_t timestamp)
     latest.hand = {};
     latest.hand_box = {};
     latest.hand_in_zone = false;
+    latest.camera_capture_ms = 0;
     latest.hand_inference_ms = 0;
     latest.camera_error = ESP_OK;
     latest.last_audio_event = {};
@@ -159,7 +160,8 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
                 ",\"rejected\":%" PRIu32 ",\"camera_required\":%s,\"sensitivity\":%u,\"listening\":%s,"
                 "\"last_decision\":\"%s\",\"error\":%d,\"camera_error\":%d,"
                 "\"hand_phase\":\"%s\",\"hand_detected\":%s,\"hand_score\":%.3f,"
-                "\"hand_in_zone\":%s,\"hand_armed\":%s,\"hand_inference_ms\":%" PRIu32 ","
+                "\"hand_in_zone\":%s,\"hand_armed\":%s,\"camera_capture_ms\":%" PRIu32
+                ",\"hand_inference_ms\":%" PRIu32 ","
                 "\"hand_box\":[%d,%d,%d,%d],%s}\n",
                 timestamp, status_text(current.status), current.active ? "true" : "false",
                 current.audio_open ? "true" : "false", current.playback_paused ? "true" : "false",
@@ -172,7 +174,7 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
                 static_cast<int>(current.error), static_cast<int>(current.camera_error),
                 hand_phase_text(current.hand.phase), current.hand_box.detected ? "true" : "false",
                 finite_value(current.hand_box.score), current.hand_in_zone ? "true" : "false",
-                current.visual.motion ? "true" : "false", current.hand_inference_ms,
+                current.visual.motion ? "true" : "false", current.camera_capture_ms, current.hand_inference_ms,
                 current.hand_box.left, current.hand_box.top, current.hand_box.right, current.hand_box.bottom, event);
 }
 
@@ -402,7 +404,10 @@ void camera_worker(void*)
     std::unique_ptr<HandModel> model;
     std::unique_ptr<std::uint8_t, decltype(&heap_caps_free)> rgb(nullptr, heap_caps_free);
     constexpr std::size_t rgb_bytes = 320 * 240 * 3;
-    auto failure = [](std::uint32_t expected_epoch, esp_err_t error, CameraStatus status) {
+    bool reported_slow_frame = false;
+    std::uint32_t last_slow_report_ms = 0;
+    auto failure = [](std::uint32_t expected_epoch, esp_err_t error, CameraStatus status,
+                      std::uint32_t capture_ms = 0, std::uint32_t inference_ms = 0) {
         std::lock_guard<std::mutex> lock(state_mutex);
         if (epoch != expected_epoch || !listening_enabled(latest) || !latest.config.camera_required) return;
         latest.camera_status = status;
@@ -410,6 +415,8 @@ void camera_worker(void*)
         latest.visual = {};
         latest.hand_box = {};
         latest.hand_in_zone = false;
+        latest.camera_capture_ms = capture_ms;
+        latest.hand_inference_ms = inference_ms;
         hand_gate.observe(now_ms(), false, false);
         latest.hand = hand_gate.snapshot(now_ms());
     };
@@ -472,7 +479,17 @@ void camera_worker(void*)
             const auto error = model->infer(rgb.get(), width, height, detections);
             const auto completed = now_ms();
             if (error != ESP_OK || completed - captured > visual_timeout_ms) {
-                failure(request.epoch, error == ESP_OK ? ESP_ERR_TIMEOUT : error, CameraStatus::Unavailable);
+                if (!reported_slow_frame || completed - last_slow_report_ms >= 5000u) {
+                    reported_slow_frame = true;
+                    last_slow_report_ms = completed;
+                    ESP_LOGW(tag, "hand frame refused: capture_ms=%u inference_ms=%u total_ms=%u error=%d stack_free=%u",
+                             static_cast<unsigned>(inference_started - started),
+                             static_cast<unsigned>(completed - inference_started),
+                             static_cast<unsigned>(completed - started), static_cast<int>(error),
+                             static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+                }
+                failure(request.epoch, error == ESP_OK ? ESP_ERR_TIMEOUT : error, CameraStatus::Unavailable,
+                        inference_started - started, completed - inference_started);
             } else {
                 HandBox selected;
                 bool in_zone = false;
@@ -490,6 +507,7 @@ void camera_worker(void*)
                     latest.hand = hand_gate.snapshot(completed);
                     latest.hand_box = selected;
                     latest.hand_in_zone = in_zone;
+                    latest.camera_capture_ms = inference_started - started;
                     latest.hand_inference_ms = completed - inference_started;
                     latest.camera_status = CameraStatus::Ready;
                     latest.camera_error = ESP_OK;

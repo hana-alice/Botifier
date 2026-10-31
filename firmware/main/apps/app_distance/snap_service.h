@@ -28,6 +28,7 @@ struct Snapshot {
     HandGateState hand;
     HandBox hand_box;
     bool hand_in_zone = false;
+    std::uint32_t camera_capture_ms = 0;
     std::uint32_t hand_inference_ms = 0;
     esp_err_t camera_error = ESP_OK;
     bool active = false;
