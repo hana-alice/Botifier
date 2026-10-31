@@ -236,3 +236,11 @@ LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日�
 启动25秒采集 `logs/device-hand-boot.log` 后，独立 ROM 读回 **seq23/VALID、CRC正确**，原seq2/VALID扇区逐字节保留，证据同目录 `ota-confirmation.json` 及 `logs/device-hand-ota-verify.log`。随后复位回菜单，开始 `logs/device-hand-detection.log` 现场采集；模型加载、推理耗时、举手响应和正常键盘负样本仍须结合该窗口与用户操作确认，不能从菜单启动或主机合成测试推断通过。
 
 该180秒窗口实际记录 **1804/1804 有效 SC_DISTANCE**（seq670–2473），没有序号缺帧、中值或规则复算不一致，未见 panic/assert 或 SDK 错误标记。**SC_SNAP 为0，未观察到模型激活**；`logs/device-hand-detection-audit.json` 正确标记 `not_observed`。这只能补充测距与启动证据，不能据此宣称手检测、推理耗时、响指成功率或键盘负样本已通过。现场测试问题已发出，等待用户实际打开 DISTANCE 并操作。
+
+### seq23 实机故障：SNAP CAMERA ERROR
+
+用户进入后报告 CAMERA ERROR。20秒采集 `logs/device-hand-camera-error.log` 包含98条手检测快照，均 `camera_error=263`（`ESP_ERR_TIMEOUT`）、audio listening/error0、camera_samples0。它们是轮询快照，不能当作98次独立推理。当前源码中该超时出现在取帧和推理返回后的统一500ms预算检查；具体哪段耗时仍未知。旧实现仅在成功发布时更新 `hand_inference_ms`，因此失败帧留下的0ms不能解释为真实推理速度。
+
+诊断提交 `1250d3a` 保留时效门槛，改为在拒绝帧中保留取帧和推理耗时，每5秒最多打印一次包含任务栈余量的32位整数诊断。构建 `logs/hand-timing-build.log` 通过；镜像5,032,480字节，SHA256 `37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206`。这是定位更新，尚未解决超时，不将编译通过写为故障修复。
+
+本次归档 `.tools/device-backups/20261031-160657-hand-timing/hand-timing-deployed.bin` 与匹配ELF；部署日志 `logs/device-update-hand-timing.log` 验证当前设置和原厂保护区域不变。25秒启动采集后独立读回 **seq25/VALID、CRC正确**，原seq2/VALID全扇区保留，见同目录 `ota-confirmation.json`。首次150秒 `logs/device-hand-timing.log` 仍无 SC_SNAP，审计 `not_observed`；没有获得分段耗时。现有远程接口没有打开内置App的命令，warm reboot索引仅选中菜单图标，仍需要用户点击DISTANCE才能继续实测。

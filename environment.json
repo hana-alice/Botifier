@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-31T15:58:09.387609+08:00",
+  "RecordedAt": "2026-10-31T16:15:25.626546+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4"
+    "LocalImplementationCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -17,7 +17,7 @@
     "Port": "COM38",
     "ConnectionStatus": "COM38 re-enumerated 2026-10-31; USB VID303A/PID1001 and MAC7c:4f:ad:af:61:f0 verified before updating",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 23,
+    "CurrentOtaSequence": 25,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -74,13 +74,13 @@
     }
   ],
   "HostTest": "CTest 10/10 passed; hand gate 17 synthetic groups and RGB conversion 5 groups, with prior snap/parser/pet suites retained. Log: logs/host-tests-20261031-145605-806-test.log. Synthetic eligibility does not establish physical hand/snap accuracy.",
-  "FirmwareBuild": "Final ESP-IDF 5.5.4 build is 5032096 bytes, within the unchanged 5177344-byte app slot; archive/hash, protected deployment stages and independent OTA 23 VALID readback verified. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
+  "FirmwareBuild": "Timing diagnostic build/archive verified: 5032480 bytes within unchanged 5177344-byte slot; protected deployment and independent OTA 25 VALID readback verified. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 5032096,
-    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
-    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
-    "BuildLog": "logs/hand-model-build-size2.log",
+    "Bytes": 5032480,
+    "SHA256": "37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206",
+    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
+    "BuildLog": "logs/hand-timing-build.log",
     "Flashed": true
   },
   "LastDeployedPetFirmwareBinary": {
@@ -106,7 +106,7 @@
     "Note": "App and sector0 only; original firmware slot, current configuration, bootloader, partitions, resources and original sector1 preserved. Activation/recognition not observed in the corrected capture."
   },
   "SnapPrototype": {
-    "Status": "Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
+    "Status": "Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
     "InitialDeploymentFailure": {
       "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
       "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
@@ -753,21 +753,21 @@
     "Note": "Previous blinking/breathing DISTANCE LIVE build retained as a verified historical artifact."
   },
   "LastDeployedKuroIntroFirmwareBinary": {
-    "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
-    "Bytes": 5032096,
-    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
-    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
-    "BuildLog": "logs/hand-model-build-size2.log",
+    "Path": ".tools/device-backups/20261031-160657-hand-timing/hand-timing-deployed.bin",
+    "Bytes": 5032480,
+    "SHA256": "37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206",
+    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
+    "BuildLog": "logs/hand-timing-build.log",
     "Flashed": true,
-    "OtaSequence": 23,
+    "OtaSequence": 25,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261031-154932-hand-detection/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261031-154932-hand-detection/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-hand-detection.log",
-    "Note": "App and OTA sector 0 only; protected regions and original sector 1 preserved. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence."
+    "Record": ".tools/device-backups/20261031-160657-hand-timing/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-160657-hand-timing/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-timing.log",
+    "Note": "App/OTA sector 0 only; protected regions and original sector 1 preserved. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry."
   },
   "KuroIntro": {
-    "Status": "Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
+    "Status": "Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
     "AssetPath": "StackChan/firmware/main/apps/app_distance/media/kuro_intro.bin",
     "SourceRecord": "StackChan/firmware/main/apps/app_distance/media/source.json",
     "Source": {
@@ -1025,7 +1025,10 @@
         "Desktop XRGB8888 differs from panel RGB565; natural text widths and object bounds include non-HIDDEN controls obscured by intro overlay",
         "Metrics fixture uses valid confidence100% and500ms inference field, not arbitrary nonfinite scores or UINT32_MAX inference duration"
       ],
-      "Scope": "Actual production desktop View and HandGate with synthetic detector/service inputs; no physical acceptance inferred."
+      "Scope": "Actual production desktop View and HandGate with synthetic detector/service inputs; no physical acceptance inferred.",
+      "Historical": true,
+      "OtaSequence": 23,
+      "HistoricalScope": "Sequence 23 desktop evidence; production View unchanged, no new visual test claimed for sequence 25."
     },
     "PreviousDesktopViewSeq21": {
       "Manifest": ".tools/intro-ui-probe/responsive-manifest.json",
@@ -1426,29 +1429,29 @@
     "Historical": true
   },
   "LastDeployedHandFirmwareBinary": {
-    "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
-    "Bytes": 5032096,
-    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
-    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
-    "BuildLog": "logs/hand-model-build-size2.log",
+    "Path": ".tools/device-backups/20261031-160657-hand-timing/hand-timing-deployed.bin",
+    "Bytes": 5032480,
+    "SHA256": "37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206",
+    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
+    "BuildLog": "logs/hand-timing-build.log",
     "Flashed": true,
-    "OtaSequence": 23,
+    "OtaSequence": 25,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261031-154932-hand-detection/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261031-154932-hand-detection/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-hand-detection.log",
-    "Note": "App and OTA sector 0 only; protected regions and original sector 1 preserved. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence."
+    "Record": ".tools/device-backups/20261031-160657-hand-timing/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-160657-hand-timing/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-timing.log",
+    "Note": "App/OTA sector 0 only; protected regions and original sector 1 preserved. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry."
   },
   "HandDetection": {
-    "Status": "Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
-    "Acceptance": "pending labeled physical trials",
-    "OtaSequence": 23,
-    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
+    "Status": "Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
+    "Acceptance": "needs work: camera timeout unresolved",
+    "OtaSequence": 25,
+    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
     "AccuracyPending": true,
     "StartupEvidence": {
-      "BootLog": "logs/device-hand-boot.log",
-      "OtaVerificationLog": "logs/device-hand-ota-verify.log",
-      "Scope": "App startup and VALID readback only; model activation/RAM/latency not established"
+      "BootLog": "logs/device-hand-timing-boot.log",
+      "OtaVerificationLog": "logs/device-hand-timing-ota.log",
+      "Scope": "Sequence 25 boot/VALID readback only; not evidence that camera timeout or recognition is fixed."
     },
     "AuthorizedDependencies": [
       {
@@ -1506,9 +1509,9 @@
     },
     "Build": {
       "InitialOversizeBytes": 6112672,
-      "FinalBytes": 5032096,
+      "FinalBytes": 5032480,
       "AppSlotBytes": 5177344,
-      "RemainingBytes": 145248,
+      "RemainingBytes": 144864,
       "InitialOversizeLog": "logs/hand-model-build-resume.log",
       "BuildLogs": [
         "logs/hand-model-build.log",
@@ -1534,7 +1537,8 @@
         "model_has_data_sections": true
       },
       "PixelSupport": "RGB888 -> RGB888/QINT8 preprocessing only; other ESP-DL pixel conversions disabled",
-      "PartitionChanged": false
+      "PartitionChanged": false,
+      "CurrentBuildLog": "logs/hand-timing-build.log"
     },
     "HostTests": {
       "SuitesPassed": 10,
@@ -1561,7 +1565,10 @@
         "Desktop XRGB8888 differs from panel RGB565; natural text widths and object bounds include non-HIDDEN controls obscured by intro overlay",
         "Metrics fixture uses valid confidence100% and500ms inference field, not arbitrary nonfinite scores or UINT32_MAX inference duration"
       ],
-      "Scope": "Actual production desktop View and HandGate with synthetic detector/service inputs; no physical acceptance inferred."
+      "Scope": "Actual production desktop View and HandGate with synthetic detector/service inputs; no physical acceptance inferred.",
+      "Historical": true,
+      "OtaSequence": 23,
+      "HistoricalScope": "Sequence 23 desktop evidence; production View unchanged, no new visual test claimed for sequence 25."
     },
     "StaticReview": {
       "Evidence": {
@@ -1763,7 +1770,250 @@
         "schema_observation": "no_snap_telemetry",
         "audit_result": "not_observed"
       },
-      "Scope": "Unmodified parsed observations; attention/errors retained. No accuracy or physical acceptance inferred."
+      "Scope": "Unmodified parsed observations; attention/errors retained. No accuracy or physical acceptance inferred.",
+      "Historical": true,
+      "OtaSequence": 23,
+      "HistoricalScope": "Initial sequence 23 capture had no SC_SNAP activation; retained unchanged, not current acceptance."
+    },
+    "PreviousBuildSeq23": {
+      "InitialOversizeBytes": 6112672,
+      "FinalBytes": 5032096,
+      "AppSlotBytes": 5177344,
+      "RemainingBytes": 145248,
+      "InitialOversizeLog": "logs/hand-model-build-resume.log",
+      "BuildLogs": [
+        "logs/hand-model-build.log",
+        "logs/hand-model-build-resume.log",
+        "logs/hand-model-build-size.log",
+        "logs/hand-model-build-size2.log"
+      ],
+      "SizeBaselineLog": "logs/hand-model-size-baseline.log",
+      "SizeFinalLog": "logs/hand-model-size-final.log",
+      "SizeFlagsEvidence": {
+        "Path": "logs/hand-model-size-config-review.json",
+        "SHA256": "372fa0966254f33936d1665dbfa10bac690b83abce8bef5e76b274303600f73b"
+      },
+      "SizeFlags": {
+        "model_optimization_order": [
+          "-Os",
+          "-O3",
+          "-Os"
+        ],
+        "espdl_cpp_translation_units": 74,
+        "all_espdl_cpp_last_optimization_is_Os": true,
+        "model_has_function_sections": true,
+        "model_has_data_sections": true
+      },
+      "PixelSupport": "RGB888 -> RGB888/QINT8 preprocessing only; other ESP-DL pixel conversions disabled",
+      "PartitionChanged": false
+    },
+    "PreviousStartupEvidenceSeq23": {
+      "BootLog": "logs/device-hand-boot.log",
+      "OtaVerificationLog": "logs/device-hand-ota-verify.log",
+      "Scope": "App startup and VALID readback only; model activation/RAM/latency not established"
+    },
+    "Seq23Failure": {
+      "OtaSequence": 23,
+      "Historical": true,
+      "UserReport": "SNAP CAMERA ERROR",
+      "Log": "logs/device-hand-camera-error.log",
+      "Audit": "logs/device-hand-camera-error-audit.json",
+      "AuditSHA256": "6debc9d9c3827f9b72f38aad70fbf442691fd2840c8be5df9b1d4d8974faa23b",
+      "AuditResult": "attention_required",
+      "SnapshotSamples": 98,
+      "CameraError": 263,
+      "TimeoutSnapshotSamples": 98,
+      "CameraSamplesFirst": 0,
+      "CameraSamplesLast": 0,
+      "CameraSamplesDelta": 0,
+      "ReportedInferenceMs": 0,
+      "Scope": "98 polling snapshots, not 98 unique failures or attempted snaps. The old failure path did not update capture/inference durations, so its zero field is not measured inference latency and does not prove inference never ran. Error 263 alone does not locate time spent between acquisition and inference; that is why the diagnostic fields were added.",
+      "OtherAuditAttention": "Original audit attention and malformed-distance observation retained in the linked audit; no zero-error claim."
+    },
+    "CurrentTimingDiagnostic": {
+      "OtaSequence": 25,
+      "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
+      "Status": "Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
+      "CaptureField": "camera_capture_ms",
+      "InferenceField": "hand_inference_ms",
+      "FailureLog": "hand frame refused: capture_ms=%u inference_ms=%u total_ms=%u error=%d stack_free=%u",
+      "Log": "logs/device-hand-timing.log",
+      "BuildLog": "logs/hand-timing-build.log",
+      "FreshnessBudgetMs": 500,
+      "FreshnessBudgetChanged": false,
+      "TimeoutFixed": false,
+      "ProductionViewUnchangedFromSeq23": true,
+      "Scope": "Failure snapshots now retain capture and inference durations, with bounded failure logs. Later audits record observations only; no acceptance or recognition rate is inferred. Existing host/UI evidence is historical, not a claim that these checks were rerun.",
+      "HardwareCapture": {
+        "Path": "logs/device-hand-timing-audit.json",
+        "SHA256": "664961ca802fc2329488d1a9cf841c34ef39959e4659d37a179a7a11dcbfac3c",
+        "Data": {
+          "complete_scan": true,
+          "lines": 1520,
+          "bytes_scanned": 376428,
+          "ordinary_lines_ignored": 1520,
+          "embedded_snap_prefix_ignored": 0,
+          "oversize_lines_ignored": 0,
+          "snap_lines": 0,
+          "invalid_snap_frames": 0,
+          "legacy_snap_frames_without_hand_fields": 0,
+          "hand": {
+            "valid_polling_samples": 0,
+            "malformed_samples": 0,
+            "malformed_reasons": {},
+            "phases": {},
+            "detected_polling_samples": 0,
+            "in_zone_polling_samples": 0,
+            "armed_polling_samples": 0,
+            "fresh_visual_polling_samples": 0,
+            "camera_errors": {},
+            "first": null,
+            "last": null,
+            "counter_deltas": {
+              "camera_samples": 0,
+              "candidates": 0,
+              "accepted": 0,
+              "rejected": 0
+            },
+            "counter_wraps": {},
+            "counter_regressions": {},
+            "clock_wraps": 0,
+            "reset_or_backward_boundaries": 0,
+            "invariant_violations": {},
+            "violation_samples": 0,
+            "violation_details": [],
+            "inference_latency_ms": {
+              "polling_samples": 0,
+              "nonzero_polling_samples": 0,
+              "min": null,
+              "median": null,
+              "p95": null,
+              "max": null,
+              "p95_method": "nearest-rank over valid hand telemetry polling samples",
+              "scope": "Snapshots can repeat the same inference; these are not unique inference timings."
+            }
+          },
+          "frame_dimensions": {
+            "width": 320,
+            "height": 240,
+            "scope": "Explicit coordinate contract; dimensions are not carried by SC_SNAP."
+          },
+          "limits": {
+            "max_bytes_per_scan": 67108864,
+            "max_lines_per_scan": 200000,
+            "max_line_bytes": 8192,
+            "max_details": 32,
+            "scans": 2
+          },
+          "limitations": [
+            "Polling samples and phase counts are not unique hand presentations, snap attempts or recognition rates.",
+            "Detected/in-zone flags show model and geometric filtering, not proof of a finger snap or keyboard classification.",
+            "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+            "Counter deltas exclude the first baseline, skip invalid/legacy frames, and do not bridge clock resets.",
+            "No reverse phase invariant: phase armed may legitimately remain while hand_armed is false outside the zone.",
+            "A no-observed-inconsistency result validates bounded telemetry only, not physical feature acceptance."
+          ],
+          "base_audit": {
+            "complete_scan": true,
+            "lines": 1520,
+            "bytes_scanned": 376428,
+            "ordinary_lines_ignored": 16,
+            "oversize_lines_ignored": 0,
+            "embedded_telemetry_prefix_ignored": 1,
+            "snap": {
+              "frames": 0,
+              "malformed": 0,
+              "statuses": {},
+              "camera_statuses": {},
+              "audio_reasons": {},
+              "event_reason_observations": {},
+              "last_decisions": {},
+              "errors": {},
+              "configurations": [],
+              "configuration_changes": 0,
+              "last_configuration": null,
+              "first": null,
+              "last": null,
+              "last_transient": null,
+              "counter_deltas": {
+                "candidates": 0,
+                "accepted": 0,
+                "rejected": 0,
+                "camera_samples": 0
+              },
+              "counter_wraps": {},
+              "counter_regressions": {},
+              "accounting_inconsistencies": 0,
+              "accounting_details": [],
+              "last_pending_balance": null,
+              "clock_wraps": 0,
+              "reset_or_backward_boundaries": 0,
+              "max_visual_age_ms": null,
+              "max_motion_cells": 0,
+              "max_peak": 0,
+              "max_rms": 0
+            },
+            "distance": {
+              "frames": 1504,
+              "malformed": 0,
+              "valid": 1504,
+              "states": {
+                "ranging": 1504
+              },
+              "errors": {},
+              "first_seq": 243,
+              "last_seq": 1746,
+              "sequence_gaps": 0,
+              "sequence_duplicates": 0,
+              "clock_wraps": 0,
+              "reset_or_backward_boundaries": 0,
+              "median_mismatches": 0,
+              "policy_mismatches": 0,
+              "raw_min_mm": 332,
+              "raw_max_mm": 946
+            },
+            "events": {},
+            "distance_start_markers": 0,
+            "boot_markers": 0,
+            "limits": {
+              "max_bytes": 67108864,
+              "max_lines": 200000,
+              "max_line_bytes": 8192
+            },
+            "limitations": [
+              "No labeled trials: recognition accuracy and false-positive rate are unmeasured.",
+              "Playback reason is the firmware reference-channel heuristic; reference RMS is not exported.",
+              "Telemetry polls snapshots: event reason observations are not unique event counts.",
+              "Counter deltas exclude the first observed baseline and do not bridge reboot boundaries.",
+              "Camera sample growth demonstrates frame processing, not recognition of fingers."
+            ],
+            "snap_observation": "no_snap_activation_evidence",
+            "activation_note": "Without SC_SNAP or a DISTANCE sensing-start marker, menu/startup capture or an unopened DISTANCE app remains possible; absence alone does not prove sensing failure.",
+            "both_telemetry_streams_observed": false,
+            "camera_sample_growth_observed": false,
+            "audit_result": "no_observed_inconsistency"
+          },
+          "hand_observation": "not_observed",
+          "schema_observation": "no_snap_telemetry",
+          "audit_result": "not_observed"
+        },
+        "Scope": "Unmodified parsed observations; errors/attention preserved. No timeout resolution or accuracy inferred."
+      }
     }
+  },
+  "PreviousHandDetectionFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
+    "Bytes": 5032096,
+    "SHA256": "23926da2e211574131b0e4422da21944df221659e2c7f2b2a62a575ad53acec9",
+    "SourceCommit": "374a7a4e6e27893b195a8518e9d60ff02ddbc8d4",
+    "BuildLog": "logs/hand-model-build-size2.log",
+    "Flashed": true,
+    "OtaSequence": 23,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-154932-hand-detection/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-154932-hand-detection/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-detection.log",
+    "Note": "App and OTA sector 0 only; protected regions and original sector 1 preserved. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
+    "Historical": true
   }
 }
