@@ -7,7 +7,7 @@
 当前设备已部署，实际 ToF 与 USB 数据接收通过；原厂固件槽和配置区保留。
 备份与实测记录见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 
-当前设备为 **seq25/VALID 耗时诊断版**：seq23 实机出现 `SNAP CAMERA ERROR / 263`，手检测流程超出500ms预算，尚未修复。新版会记录失败帧的取帧与推理耗时，等待进入 DISTANCE 后采集。官方手检测已替换亮度运动门槛；seq21 的漏触发、键盘误触发与原版播放确认保留为历史证据，见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
+当前设备为 **seq27/VALID CPU 调度对照版**：seq25 实测手检测推理577–1277ms，导致 `SNAP CAMERA ERROR / 263`。新版只将手检测移到CPU0，避免与CPU1上的表情/LVGL刷新竞争，500ms时效门槛保持；实际改善和识别效果仍待验证。官方手检测已替换亮度运动门槛；seq21 的漏触发、键盘误触发与原版播放确认保留为历史证据，见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 
 ## 接线与摆放
 

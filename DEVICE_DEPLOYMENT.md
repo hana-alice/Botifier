@@ -244,3 +244,15 @@ LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日�
 诊断提交 `1250d3a` 保留时效门槛，改为在拒绝帧中保留取帧和推理耗时，每5秒最多打印一次包含任务栈余量的32位整数诊断。构建 `logs/hand-timing-build.log` 通过；镜像5,032,480字节，SHA256 `37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206`。这是定位更新，尚未解决超时，不将编译通过写为故障修复。
 
 本次归档 `.tools/device-backups/20261031-160657-hand-timing/hand-timing-deployed.bin` 与匹配ELF；部署日志 `logs/device-update-hand-timing.log` 验证当前设置和原厂保护区域不变。25秒启动采集后独立读回 **seq25/VALID、CRC正确**，原seq2/VALID全扇区保留，见同目录 `ota-confirmation.json`。首次150秒 `logs/device-hand-timing.log` 仍无 SC_SNAP，审计 `not_observed`；没有获得分段耗时。现有远程接口没有打开内置App的命令，warm reboot索引仅选中菜单图标，仍需要用户点击DISTANCE才能继续实测。
+
+### seq25 实际激活后的超时基线
+
+用户进入 DISTANCE 后仍显示 CAMERA ERROR。35秒 `logs/device-hand-timing-active.log` 中172个SC_SNAP轮询全部为camera_error263，camera_samples保持0；39组连续变化的耗时值中，取帧87–286ms、中位143ms，推理577–1277ms、中位670ms，合计715–1462ms。轮询会重复同一结果，39组变化值也不等于39次独立推理。6条限频拒帧日志的实测总耗时789–1200ms，底层error全部为0，确认推理成功后被500ms新鲜度门槛拒绝。分析见 `logs/hand-timing-baseline.json`，不能据此计算识别准确率。
+
+### seq27：手检测 CPU 调度单变量对照
+
+提交 `82185aea25c3671fbd56e7798abf0bcafacde0eb` 只将 priority1 的 snap-camera 从CPU1移到CPU0。源码 `hal.cpp:200` 与 `stackchan_display.cc:123` 表明CPU1上已有priority3的表情和LVGL任务；模型默认SINGLE_CORE，摄像头接口没有CPU1专属约束。CPU0上的priority3音频仍可抢占推理。调度竞争是待实测的性能假设，模型参数、内存分配、识别门槛与500ms有效期均保持，不把编译通过写成修复成功。
+
+`logs/hand-camera-core0-build.log` 编译链接与槽检查通过，主机CTest10/10通过（`logs/hand-camera-core0-host.log`）。镜像5,032,480字节，SHA256 `8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268`，应用槽余144,864字节。归档 `.tools/device-backups/20261031-162745-hand-camera-core0/` 含镜像、匹配ELF和map。
+
+部署 `logs/device-update-hand-camera-core0.log` 验证旧镜像身份并只更新ota_0与启动扇区0，当前NVS、原厂槽、资源、bootloader、分区表和原启动扇区1的保护摘要全部通过。25秒启动采集后独立读回 **seq27/VALID、CRC正确**，原seq2/VALID扇区逐字节保留，见归档 `ota-confirmation.json`。已开始 `logs/device-hand-camera-core0.log`，等待进入DISTANCE后的实际耗时与手检测状态；超时改善、键盘反例与举手正例尚未确认。

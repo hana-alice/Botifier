@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-31T16:15:25.626546+08:00",
+  "RecordedAt": "2026-10-31T16:31:22.413598+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220"
+    "LocalImplementationCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -17,7 +17,7 @@
     "Port": "COM38",
     "ConnectionStatus": "COM38 re-enumerated 2026-10-31; USB VID303A/PID1001 and MAC7c:4f:ad:af:61:f0 verified before updating",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 25,
+    "CurrentOtaSequence": 27,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,14 +73,14 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 10/10 passed; hand gate 17 synthetic groups and RGB conversion 5 groups, with prior snap/parser/pet suites retained. Log: logs/host-tests-20261031-145605-806-test.log. Synthetic eligibility does not establish physical hand/snap accuracy.",
-  "FirmwareBuild": "Timing diagnostic build/archive verified: 5032480 bytes within unchanged 5177344-byte slot; protected deployment and independent OTA 25 VALID readback verified. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
+  "HostTest": "CTest 10/10 passed; logs/hand-camera-core0-host.log. Host tests do not verify device scheduling performance.",
+  "FirmwareBuild": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified. Image 5032480 bytes; unchanged slot 5177344 bytes; remaining 144864 bytes.",
   "FirmwareBinary": {
     "Path": "StackChan/firmware/build/stack-chan.bin",
     "Bytes": 5032480,
-    "SHA256": "37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206",
-    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
-    "BuildLog": "logs/hand-timing-build.log",
+    "SHA256": "8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268",
+    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
+    "BuildLog": "logs/hand-camera-core0-build.log",
     "Flashed": true
   },
   "LastDeployedPetFirmwareBinary": {
@@ -106,7 +106,7 @@
     "Note": "App and sector0 only; original firmware slot, current configuration, bootloader, partitions, resources and original sector1 preserved. Activation/recognition not observed in the corrected capture."
   },
   "SnapPrototype": {
-    "Status": "Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
+    "Status": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
     "InitialDeploymentFailure": {
       "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
       "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
@@ -166,10 +166,9 @@
       "HistoricalScope": "Prior snap-only View; retained as historical evidence."
     },
     "RemainingHardwareChecks": [
-      "Real snap, clap, keyboard and background music samples; sensitivity and false positive calibration",
-      "Physical microphone/reference mapping, playback threshold and camera timing/lighting behavior",
-      "Task/heap/CPU usage and repeated DISTANCE close -> AI microphone reopen",
-      "SDK camera DQBUF and codec cleanup have no total hard timeout; camera faults can retain capture mutex and block subsequent photo capture"
+      "Compare core0 timings, camera sample growth and CAMERA ERROR recovery",
+      "Labeled hand presentation and no-hand keyboard trials",
+      "Playback once, ignore snaps during playback, resume and re-arm"
     ],
     "NewDependencies": false,
     "ServoMotionAdded": false,
@@ -1429,29 +1428,29 @@
     "Historical": true
   },
   "LastDeployedHandFirmwareBinary": {
-    "Path": ".tools/device-backups/20261031-160657-hand-timing/hand-timing-deployed.bin",
+    "Path": ".tools/device-backups/20261031-162745-hand-camera-core0/hand-camera-core0-deployed.bin",
     "Bytes": 5032480,
-    "SHA256": "37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206",
-    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
-    "BuildLog": "logs/hand-timing-build.log",
+    "SHA256": "8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268",
+    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
+    "BuildLog": "logs/hand-camera-core0-build.log",
     "Flashed": true,
-    "OtaSequence": 25,
+    "OtaSequence": 27,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261031-160657-hand-timing/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261031-160657-hand-timing/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-hand-timing.log",
-    "Note": "App/OTA sector 0 only; protected regions and original sector 1 preserved. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry."
+    "Record": ".tools/device-backups/20261031-162745-hand-camera-core0/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-162745-hand-camera-core0/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-camera-core0.log",
+    "Note": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified."
   },
   "HandDetection": {
-    "Status": "Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry.",
-    "Acceptance": "needs work: camera timeout unresolved",
-    "OtaSequence": 25,
-    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
+    "Status": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
+    "Acceptance": "Pending physical core0 measurements and labeled positive/negative trials",
+    "OtaSequence": 27,
+    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
     "AccuracyPending": true,
     "StartupEvidence": {
-      "BootLog": "logs/device-hand-timing-boot.log",
-      "OtaVerificationLog": "logs/device-hand-timing-ota.log",
-      "Scope": "Sequence 25 boot/VALID readback only; not evidence that camera timeout or recognition is fixed."
+      "BootLog": "logs/device-hand-camera-core0-boot.log",
+      "OtaVerificationLog": "logs/device-hand-camera-core0-ota.log",
+      "Scope": "Sequence27 VALID boot/readback only; no hand acceptance inferred"
     },
     "AuthorizedDependencies": [
       {
@@ -1538,7 +1537,7 @@
       },
       "PixelSupport": "RGB888 -> RGB888/QINT8 preprocessing only; other ESP-DL pixel conversions disabled",
       "PartitionChanged": false,
-      "CurrentBuildLog": "logs/hand-timing-build.log"
+      "CurrentBuildLog": "logs/hand-camera-core0-build.log"
     },
     "HostTests": {
       "SuitesPassed": 10,
@@ -1998,7 +1997,31 @@
           "audit_result": "not_observed"
         },
         "Scope": "Unmodified parsed observations; errors/attention preserved. No timeout resolution or accuracy inferred."
+      },
+      "ActiveFailureObservation": {
+        "Log": "logs/device-hand-timing-active.log",
+        "Audit": "logs/device-hand-timing-active-audit.json",
+        "TimingSummary": "logs/hand-timing-baseline.json",
+        "SummarySHA256": "adcaf612dfddce0bad168e50292fdb7e7ecae94924fde5146e26174032242e33",
+        "Observation": "172 repeated snapshots all camera_error263; 6 sampled refusal warnings all underlying error0. See summary for timing populations."
       }
+    },
+    "PreviousStartupEvidenceSeq25": {
+      "BootLog": "logs/device-hand-timing-boot.log",
+      "OtaVerificationLog": "logs/device-hand-timing-ota.log",
+      "Scope": "Sequence 25 boot/VALID readback only; not evidence that camera timeout or recognition is fixed."
+    },
+    "CoreAffinityExperiment": {
+      "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
+      "OtaSequence": 27,
+      "PreviousCore": 1,
+      "CurrentCore": 0,
+      "Priority": 1,
+      "AudioPriority": 3,
+      "FreshnessBudgetMs": 500,
+      "OtherModelSettingsChanged": false,
+      "TimeoutFixed": null,
+      "Status": "Awaiting actual DISTANCE activation after the OTA readback reboot"
     }
   },
   "PreviousHandDetectionFirmwareBinary": {
@@ -2015,5 +2038,19 @@
     "DeploymentLog": "logs/device-update-hand-detection.log",
     "Note": "App and OTA sector 0 only; protected regions and original sector 1 preserved. Hand-detection bundle deployed as OTA 23 VALID with valid startup; model activation and labeled physical hand, snap and typing trials await observation. Startup alone does not establish model RAM use or inference latency. Build, synthetic tests, desktop UI and parsed telemetry do not establish recognition accuracy or acceptance. Sequence 21 sensitivity/keyboard failures and sequence 19 playback confirmation remain historical evidence.",
     "Historical": true
+  },
+  "PreviousHandTimingFirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-160657-hand-timing/hand-timing-deployed.bin",
+    "Bytes": 5032480,
+    "SHA256": "37317e86b0adff3477f3a664a9694571166efca169b43d659739b7a6f1d1e206",
+    "SourceCommit": "1250d3a0e8cdca6bfbb645a55b918cdec3ba5220",
+    "BuildLog": "logs/hand-timing-build.log",
+    "Flashed": true,
+    "OtaSequence": 25,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-160657-hand-timing/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-160657-hand-timing/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-timing.log",
+    "Note": "App/OTA sector 0 only; protected regions and original sector 1 preserved. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry."
   }
 }
