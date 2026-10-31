@@ -1,12 +1,14 @@
 #include "app_distance.h"
 #include "pet_avatar.h"
 #include "snap_service.h"
+#include "intro_player.h"
 
 #include <assets/assets.h>
 #include <distance_sensor/service.h>
 #include <hal/hal.h>
 #include <smooth_lvgl.hpp>
 #include <stackchan/stackchan.h>
+#include <lvgl_image.h>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -126,6 +128,11 @@ struct AppDistance::View {
     // Parents precede their child wrappers so destruction releases children first.
     std::unique_ptr<Container> live_controls;
     std::unique_ptr<Container> tune_page;
+    std::unique_ptr<Container> intro_page;
+    lv_obj_t* intro_image = nullptr;
+    std::unique_ptr<Button> intro_home;
+    std::unique_ptr<Label> intro_status;
+    std::shared_ptr<LvglAllocatedImage> intro_frame;
     std::unique_ptr<Button> live_home;
     std::unique_ptr<Button> tune_button;
     std::unique_ptr<Label> live_distance;
@@ -146,7 +153,7 @@ struct AppDistance::View {
     DistancePetAvatar* live_avatar = nullptr;
     bool save_requested = false;
     std::uint32_t edit_revision = 0;
-    std::uint32_t last_snap_event = 0;
+    bool intro_visible = false;
 
     explicit View(AppDistance& app)
     {
@@ -200,12 +207,27 @@ struct AppDistance::View {
             set_enabled(*save_button, false);
             set_save_status("SAVING...", kNear);
         });
-        last_snap_event = snap_sense::snapshot().accepted;
+        intro_page = make_page();
+        intro_page->setBgColor(lv_color_hex(0x000000));
+        intro_image = lv_image_create(intro_page->get());
+        lv_obj_center(intro_image);
+        lv_obj_remove_flag(intro_image, LV_OBJ_FLAG_CLICKABLE);
+        intro_home = make_button(*intro_page, 12, 190, 92, "HOME");
+        intro_home->onClick().connect([&app]() { app.close(); });
+        intro_status = make_label(*intro_page, 8, 100, 304, &lv_font_montserrat_16);
+        intro_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        intro_status->setText("KURO GAMES");
+        intro_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         apply_mode();
     }
 
     ~View()
     {
+        // The LVGL object borrows its source descriptor. Delete it before
+        // releasing the final shared image reference.
+        lv_obj_delete(intro_image);
+        intro_image = nullptr;
+        intro_frame.reset();
         stop_live();
     }
 
@@ -254,24 +276,43 @@ struct AppDistance::View {
         }
     }
 
-    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot,
-                    const snap_sense::Snapshot& heard)
+    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot)
     {
-        const bool new_event = heard.accepted != last_snap_event;
-        last_snap_event = heard.accepted;
         if (!live_avatar) return;
         auto signal = distance_pet::Signal::Unavailable;
         if (!snapshot.stale && snapshot.valid && snapshot.filtered_mm >= 0) {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
-        const bool react = new_event && signal == distance_pet::Signal::Ready &&
-                           now - heard.last_accepted_ms <= 500;
-        live_avatar->tick(now, signal, react);
+        live_avatar->tick(now, signal);
+    }
+
+    void show_intro(const intro_player::Snapshot& playback)
+    {
+        intro_visible = playback.busy;
+        if (!intro_visible) {
+            lv_image_set_src(intro_image, nullptr);
+            intro_frame.reset();
+            intro_page->addFlag(LV_OBJ_FLAG_HIDDEN);
+            return;
+        }
+        if (playback.frame && playback.frame != intro_frame) {
+            lv_image_set_src(intro_image, playback.frame->image_dsc());
+            intro_frame = playback.frame;
+            lv_obj_center(intro_image);
+        }
+        if (intro_frame) intro_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+        else intro_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        intro_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(intro_page->get());
     }
 
     void raise_controls()
     {
+        if (intro_visible) {
+            lv_obj_move_foreground(intro_page->get());
+            return;
+        }
         // A newly created global warning is a later screen child. Keep the
         // two bottom controls above it without changing the warning itself.
         if (mode == Mode::Live && lv_obj_get_child(lv_screen_active(), -1) != live_controls->get()) {
@@ -438,8 +479,11 @@ AppDistance::~AppDistance()
 void AppDistance::onOpen()
 {
     snap_sense::start(); // An unavailable microphone must not prevent ranging or UI.
+    const auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
     const auto heard = snap_sense::snapshot();
+    _last_snap_event = heard.accepted;
+    _intro_completed_count = playback.completed_count;
     LvglLockGuard lock;
     _view.reset();
     _view = std::make_unique<View>(*this);
@@ -449,9 +493,29 @@ void AppDistance::onOpen()
 
 void AppDistance::onRunning()
 {
+    auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
-    const auto heard = snap_sense::snapshot();
+    auto heard = snap_sense::snapshot();
+    // Keep the original distance warning ahead of the optional short clip.
+    const bool alert = current.valid && !current.stale &&
+                       current.proximity_state == distance_sensor::ProximityState::Alert;
+    const bool interrupted = playback.busy && alert;
+    if (interrupted) {
+        intro_player::stop(); // Never hold LVGL while waiting for the worker.
+        playback = intro_player::snapshot();
+        heard = snap_sense::snapshot();
+    }
     const auto now = GetHAL().millis();
+    if (playback.completed_count != _intro_completed_count) {
+        _intro_completed_count = playback.completed_count;
+        _last_snap_event = playback.sensing_baseline;
+    }
+    const bool new_event = heard.accepted != _last_snap_event;
+    _last_snap_event = heard.accepted; // Busy events are consumed, never queued.
+    if (!interrupted && !playback.busy && new_event && now - heard.last_accepted_ms <= 500 &&
+        current.valid && !current.stale && current.filtered_mm >= 0 && !alert) {
+        if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
+    }
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
     if (refresh) {
         _last_refresh_ms = now;
@@ -466,8 +530,9 @@ void AppDistance::onRunning()
         }
         const auto previous_mode = _view->mode;
         _view->apply_mode();
-        _view->update_pet(now, current, heard);
+        _view->update_pet(now, current);
         GetStackChan().update();
+        _view->show_intro(playback);
         _view->raise_controls();
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), heard);
@@ -492,6 +557,7 @@ void AppDistance::onClose()
 {
     // Input handoff can wait for I2S. Never hold the display lock while stopping.
     snap_sense::stop();
+    intro_player::stop();
     if (!_view) {
         return;
     }

@@ -325,6 +325,10 @@ idf_component_register(SRCS ${SOURCES}
                         smooth_ui_toolkit
                     )
 
+# Keep the short local clip in the app slot; do not replace the shared assets partition.
+target_add_binary_data(${COMPONENT_LIB}
+    "${CMAKE_CURRENT_SOURCE_DIR}/apps/app_distance/media/kuro_intro.bin" BINARY)
+
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
 # If BOARD_NAME is empty, use BOARD_TYPE
 if(NOT BOARD_NAME)

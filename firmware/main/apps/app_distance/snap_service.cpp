@@ -47,19 +47,24 @@ std::uint32_t now_ms()
 
 struct Control {
     Config config;
-    bool active;
+    bool listening;
     std::uint32_t epoch;
 };
+
+bool listening_enabled(const Snapshot& state)
+{
+    return state.active && state.config.listening && !state.playback_paused;
+}
 
 Control control()
 {
     std::lock_guard<std::mutex> lock(state_mutex);
-    return {latest.config, latest.active, epoch};
+    return {latest.config, listening_enabled(latest), epoch};
 }
 
 bool camera_enabled(const Control& request)
 {
-    return request.active && request.config.listening && request.config.camera_required;
+    return request.listening && request.config.camera_required;
 }
 
 void notify_workers()
@@ -90,12 +95,12 @@ void reset_request_locked(std::uint32_t timestamp)
     ++epoch;
     cancel_pending_locked();
     latest.audio = {};
-    latest.audio.reason = latest.active && latest.config.listening ? AudioReason::Warming : AudioReason::Quiet;
+    latest.audio.reason = listening_enabled(latest) ? AudioReason::Warming : AudioReason::Quiet;
     latest.visual = {};
     latest.last_audio_event = {};
     latest.last_audio_event_ms = 0;
     latest.has_audio_event = false;
-    latest.camera_status = latest.active && latest.config.listening && latest.config.camera_required
+    latest.camera_status = listening_enabled(latest) && latest.config.camera_required
                                ? CameraStatus::Warming : CameraStatus::Off;
     camera_wait_since_ms = timestamp;
     if (!audio_task) {
@@ -135,14 +140,15 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
                       "\"event_crest\":null,\"event_age_ms\":null");
     }
     std::printf("SC_SNAP {\"v\":1,\"uptime_ms\":%" PRIu32 ",\"status\":\"%s\",\"active\":%s,"
-                "\"audio_open\":%s,\"peak\":%" PRIu32 ",\"rms\":%" PRIu32 ",\"noise\":%" PRIu32
+                "\"audio_open\":%s,\"playback_paused\":%s,\"peak\":%" PRIu32 ",\"rms\":%" PRIu32 ",\"noise\":%" PRIu32
                 ",\"duration\":%" PRIu32 ",\"edge_ratio\":%.4f,\"crest\":%.3f,\"audio_reason\":\"%s\","
                 "\"camera_status\":\"%s\",\"camera_samples\":%" PRIu32 ",\"motion_cells\":%u,"
                 "\"visual_age\":%d,\"candidates\":%" PRIu32 ",\"accepted\":%" PRIu32
                 ",\"rejected\":%" PRIu32 ",\"camera_required\":%s,\"sensitivity\":%u,\"listening\":%s,"
                 "\"last_decision\":\"%s\",\"error\":%d,%s}\n",
                 timestamp, status_text(current.status), current.active ? "true" : "false",
-                current.audio_open ? "true" : "false", current.audio.peak, current.audio.rms, current.audio.noise,
+                current.audio_open ? "true" : "false", current.playback_paused ? "true" : "false",
+                current.audio.peak, current.audio.rms, current.audio.noise,
                 current.audio.duration_ms, finite_value(current.audio.edge_ratio), finite_value(current.audio.crest),
                 reason_text(current.audio.reason), camera_status_text(current.camera_status), current.camera_samples,
                 static_cast<unsigned>(current.visual.changed_cells), visual_age, current.candidates, current.accepted,
@@ -154,7 +160,7 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
 void audio_error(std::uint32_t expected_epoch, esp_err_t error)
 {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (epoch != expected_epoch) return;
+    if (epoch != expected_epoch || !listening_enabled(latest)) return;
     cancel_pending_locked();
     latest.audio = {};
     latest.audio.reason = AudioReason::Invalid;
@@ -170,7 +176,7 @@ void close_input(CoreS3AudioCodec* codec, bool& touched, bool& opened, std::uint
     while (!codec->TryEnableInput(false)) {
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            latest.status = latest.active && latest.config.listening ? Status::AudioError : Status::Stopping;
+            latest.status = listening_enabled(latest) ? Status::AudioError : Status::Stopping;
             latest.error = ESP_FAIL;
         }
         emit_telemetry(last_emitted_ms);
@@ -218,11 +224,11 @@ void audio_worker(void*)
             pending = false;
             local_epoch = request.epoch;
         }
-        if (!request.active || !request.config.listening) {
+        if (!request.listening) {
             close_input(codec, touched, opened, last_emitted_ms);
             {
                 std::lock_guard<std::mutex> lock(state_mutex);
-                if (!latest.active || !latest.config.listening) {
+                if (!listening_enabled(latest)) {
                     audio_idle = true;
                     audio_idle_epoch = epoch;
                     latest.audio_open = false;
@@ -237,7 +243,7 @@ void audio_worker(void*)
 
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            if (epoch != request.epoch || !latest.active || !latest.config.listening) continue;
+            if (epoch != request.epoch || !listening_enabled(latest)) continue;
             // Mark acquisition in flight before the first codec call. stop()
             // cannot treat audio_open=false during that call as an idle ack.
             audio_idle = false;
@@ -281,7 +287,7 @@ void audio_worker(void*)
             {
                 std::lock_guard<std::mutex> lock(state_mutex);
                 latest.audio_open = true;
-                latest.status = latest.active && latest.config.listening ? Status::Warming : Status::Stopping;
+                latest.status = listening_enabled(latest) ? Status::Warming : Status::Stopping;
             }
         }
         if (control().epoch != request.epoch) continue;
@@ -330,7 +336,7 @@ void audio_worker(void*)
 
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            if (epoch == request.epoch && latest.active && latest.config.listening) {
+            if (epoch == request.epoch && listening_enabled(latest)) {
                 latest.audio = features;
                 latest.last_audio_ms = timestamp;
                 latest.status = features.reason == AudioReason::Warming ? Status::Warming : Status::Listening;
@@ -422,7 +428,7 @@ void camera_worker(void*)
         }
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            if (epoch == request.epoch && latest.active && latest.config.listening && latest.config.camera_required) {
+            if (epoch == request.epoch && listening_enabled(latest) && latest.config.camera_required) {
                 latest.camera_status = camera_status;
                 if (publish_visual) latest.visual = visual;
                 if (ready) ++latest.camera_samples;
@@ -463,6 +469,21 @@ esp_err_t ensure_tasks()
     return ESP_OK;
 }
 
+// Caller holds lifecycle_mutex, preventing start/resume from reopening input
+// before the worker acknowledges this (or a newer config) epoch as closed.
+void wait_for_audio_idle()
+{
+    notify_workers();
+    while (true) {
+        {
+            std::lock_guard<std::mutex> lock(state_mutex);
+            if (audio_idle && audio_idle_epoch == epoch && !latest.audio_open) break;
+        }
+        GetHAL().feedTheDog();
+        vTaskDelay(1);
+    }
+}
+
 }  // namespace
 
 esp_err_t start()
@@ -481,7 +502,7 @@ esp_err_t start()
         latest.active = true;
         latest.error = ESP_OK;
         reset_request_locked(timestamp);
-        latest.status = latest.config.listening ? Status::Starting : Status::Paused;
+        latest.status = listening_enabled(latest) ? Status::Starting : Status::Paused;
     }
     ESP_LOGI(tag, "DISTANCE local sensing requested (no AI AudioService)");
     notify_workers();
@@ -500,16 +521,44 @@ void stop()
         latest.status = audio_task ? Status::Stopping : Status::Off;
     }
     ESP_LOGI(tag, "stop requested; waiting for checked microphone cleanup");
-    notify_workers();
-    while (true) {
-        {
-            std::lock_guard<std::mutex> lock(state_mutex);
-            if (audio_idle && audio_idle_epoch == epoch && !latest.audio_open) break;
-        }
-        GetHAL().feedTheDog();
-        vTaskDelay(1);
-    }
+    wait_for_audio_idle();
     ESP_LOGI(tag, "microphone handed back; camera session invalidated without joining DQBUF");
+}
+
+void pause_for_playback()
+{
+    std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        if (!latest.playback_paused) {
+            latest.playback_paused = true;
+            reset_request_locked(now_ms());
+        }
+        latest.status = audio_task ? Status::Stopping : (latest.active ? Status::Paused : Status::Off);
+    }
+    ESP_LOGI(tag, "playback pause requested; waiting for checked microphone cleanup");
+    wait_for_audio_idle();
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        latest.status = latest.active ? Status::Paused : Status::Off;
+    }
+    ESP_LOGI(tag, "playback pause acknowledged; microphone handed back");
+}
+
+void resume_after_playback()
+{
+    std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        if (!latest.playback_paused) return;
+        latest.playback_paused = false;
+        reset_request_locked(now_ms());
+        latest.status = listening_enabled(latest) ? Status::Warming : (latest.active ? Status::Paused : Status::Off);
+    }
+    // stop() intentionally leaves the pause latch intact until the output owner
+    // finishes cleanup. Clearing it here never changes the app's active state.
+    notify_workers();
+    ESP_LOGI(tag, "playback output closed; sensing session reset");
 }
 
 Config config()
@@ -530,7 +579,7 @@ void set_config(const Config& configuration)
         latest.config = next;
         reset_request_locked(timestamp);
         if (latest.active) {
-            latest.status = next.listening ? Status::Warming
+            latest.status = listening_enabled(latest) ? Status::Warming
                                           : (audio_idle && !latest.audio_open ? Status::Paused : Status::Stopping);
         }
     }
@@ -547,7 +596,7 @@ Snapshot snapshot()
         waiting_since = camera_wait_since_ms;
     }
     const auto timestamp = now_ms();
-    if (!result.active || !result.config.listening || !result.config.camera_required) {
+    if (!listening_enabled(result) || !result.config.camera_required) {
         result.camera_status = CameraStatus::Off;
         result.visual = {};
     } else if ((result.visual.available && timestamp - result.visual.captured_ms > visual_timeout_ms) ||

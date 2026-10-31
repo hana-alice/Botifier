@@ -18,4 +18,6 @@ private:
     struct View;
     std::unique_ptr<View> _view;
     std::uint32_t _last_refresh_ms = 0;
+    std::uint32_t _last_snap_event = 0;
+    std::uint32_t _intro_completed_count = 0;
 };

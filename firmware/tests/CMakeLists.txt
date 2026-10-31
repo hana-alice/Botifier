@@ -58,3 +58,8 @@ add_executable(snap_detector_test snap_detector_test.cpp)
 target_include_directories(snap_detector_test PRIVATE ../main)
 target_compile_features(snap_detector_test PRIVATE cxx_std_17)
 add_test(NAME snap_detector_test COMMAND $<TARGET_FILE:snap_detector_test>)
+
+add_executable(intro_clip_test intro_clip_test.cpp)
+target_include_directories(intro_clip_test PRIVATE ../main)
+target_compile_features(intro_clip_test PRIVATE cxx_std_17)
+add_test(NAME intro_clip_test COMMAND $<TARGET_FILE:intro_clip_test>)
