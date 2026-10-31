@@ -256,3 +256,29 @@ LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日�
 `logs/hand-camera-core0-build.log` 编译链接与槽检查通过，主机CTest10/10通过（`logs/hand-camera-core0-host.log`）。镜像5,032,480字节，SHA256 `8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268`，应用槽余144,864字节。归档 `.tools/device-backups/20261031-162745-hand-camera-core0/` 含镜像、匹配ELF和map。
 
 部署 `logs/device-update-hand-camera-core0.log` 验证旧镜像身份并只更新ota_0与启动扇区0，当前NVS、原厂槽、资源、bootloader、分区表和原启动扇区1的保护摘要全部通过。25秒启动采集后独立读回 **seq27/VALID、CRC正确**，原seq2/VALID扇区逐字节保留，见归档 `ota-confirmation.json`。已开始 `logs/device-hand-camera-core0.log`，等待进入DISTANCE后的实际耗时与手检测状态；超时改善、键盘反例与举手正例尚未确认。
+
+用户随后报告空镜头仍为ERROR。完成的seq27采集共482个SC_SNAP轮询，其中10个是初始化零耗时快照，其余472个全部camera_error263，没有Ready帧。排除初始化后，97组连续变化的耗时值中，检测流程672–1046ms、中位806ms，合计848–1212ms、中位968ms；17条限频拒帧日志全部底层error0。见 `logs/hand-core0-timing-summary.json`。换核没有解决超时；没有CPU占用对照证据，不能将先前关于CPU1表情竞争的假设写成根因。
+
+### seq29：局部优化仍超时，随后切换 NFC
+
+`ac43a385fd7663813d805e965b3f004df2c06dfb` 将两个卷积实现文件恢复为O3，其余72个ESP-DL C++单元仍为Os，另增加32位格式的pre/model/post分段日志。镜像5,039,248字节，SHA256 `b17cd70a1038497e1d1784ec571098f2722c7c9219dd3741677e6fda0b56af4d`；归档 `.tools/device-backups/20261031-163805-hand-hot-conv/`，独立读回seq29/VALID、CRC和原扇区保护通过。
+
+用户实测空镜头仍为ERROR。`logs/device-hand-hot-conv.log` 首批分段样本为pre25–27ms/model825–842ms/post1–2ms；完成采集中的28条限频拒帧日志均底层error0，合计884–1136ms，见 `logs/hand-hot-conv-timing-summary.json`。不能将局部优化写为有效提速。
+
+后续完整O3配合7算子注册裁剪在本地构建为4,856,224字节、SHA256 `d1b8566df6bc5bd2d31217073269ee14192d051a2575e89e752316f5a42bc63b`，静态检查见 `logs/hand-graph-o3-review.json`，**未刷入或实测**。用户改用随附NFC卡并明确允许删除handdetect；该实验的镜像、ELF和构建源片段归档 `.tools/hand-graph-o3-research/`，没有继续部署。
+
+### NFC 替代实现与验证范围
+
+用户明确授权引入四个M5Stack官方库并移除手检测。四库固定Git提交，项目侧处理IDF5.5.4组件名称大小写映射；60个保留组件的版本/hash/依赖无漂移，managed源码与官方提交一致。见 `logs/nfc-dependency-verification.json`。删除生产手模型、响指服务、hand_detect和ESP-DL依赖，片头、距离提醒与宠物表情保留。
+
+读卡使用机身ST25R3916、共享I2C总线0x50，仅执行NFC-A UID选择（4/7/10字节）和易失RF状态切换，不写卡片存储。任一传输/选择错误不算移卡；候选无卡须RF关场/开场各实际等待至少10ms后再次确认无响应。服务在播放/告警/无效距离时关闭触发许可，结束后须至少两次有效无卡且跨度达到300ms才能重新触发。错误后约1秒重新初始化，不把错误当作有效移卡。
+
+主机CTest10/10通过，NFC门控11组包含1000次生命周期；实际生产View的LVGL探针875断言（88行为/787几何）、0裁切、6次图像释放/0借用中释放、heap完整性通过。证据 `logs/nfc-host.log`、`.tools/intro-ui-probe/nfc-manifest.json`，视觉判定96/pass已归档 `.omx/state/nfc-ui/ralph-progress.json`。硬件读卡、持卡去重和移卡重触发仍待实机；主机输入为模拟数据。
+
+### NFC 构建就绪，USB 中断导致尚未部署
+
+源码提交 `d3014aab3c78646aeb95e5db550a31343a10262e`。完整固件构建2473/2473步骤通过，日志 `logs/nfc-firmware-build.log`；镜像 **4,025,936字节**、SHA256 `f337d8c73581b0272f9f9649cd133b8d1070fcb48069a4fada954b9cabe87e30`，应用槽保持5,177,344字节，剩余1,151,408字节（约22%）。候选镜像、匹配ELF/map及身份记录归档 `.tools/firmware-artifacts/20261031-nfc-trigger/`，文件名 `nfc-trigger-candidate.bin`；明确标记 `Flashed=false`。
+
+17:16尝试更新时COM38已不在Windows设备枚举中；`logs/device-update-nfc-trigger.log` 显示工具在 `port.open()` 即报找不到端口，尚未读取或写入设备。空的备份目标 `.tools/device-backups/20261031-171610-nfc-trigger/` 不是成功部署记录。最后已核验设备状态仍为 **seq29/VALID**，没有seq31更新或NFC硬件验收结果。
+
+接回USB数据线后，重新核验设备身份与旧镜像，使用新的备份目录完成受保护更新，再读回OTA状态。现场验收包括进入DISTANCE后的初始化、随附卡片读取、持卡不重复、移卡重触发、播放期间刷卡无影响及ToF告警抢占。日志审计工具 `.tools/audit_nfc_log.py` 的12组合成自检通过，但这不替代物理刷卡验证。

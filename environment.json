@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-10-31T16:31:22.413598+08:00",
+  "RecordedAt": "2026-10-31T17:21:41.956235+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb"
+    "LocalImplementationCommit": "d3014aab3c78646aeb95e5db550a31343a10262e"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,9 +15,9 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "COM38 re-enumerated 2026-10-31; USB VID303A/PID1001 and MAC7c:4f:ad:af:61:f0 verified before updating",
-    "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 27,
+    "ConnectionStatus": "USB serial absent at NFC update attempt; last verified device was COM38, MAC7c:4f:ad:af:61:f0, seq29/VALID. No NFC firmware writes occurred.",
+    "UpdatedThisIteration": false,
+    "CurrentOtaSequence": 29,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,14 +73,14 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 10/10 passed; logs/hand-camera-core0-host.log. Host tests do not verify device scheduling performance.",
-  "FirmwareBuild": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified. Image 5032480 bytes; unchanged slot 5177344 bytes; remaining 144864 bytes.",
+  "HostTest": "Current NFC source: CTest 10/10 passed, logs/nfc-host.log; physical card behavior remains unverified.",
+  "FirmwareBuild": "NFC candidate built successfully: 4025936 bytes; unchanged app slot 5177344 bytes, remaining 1151408 bytes (22%). logs/nfc-firmware-build.log. Candidate is not flashed; FirmwareBinary describes the last deployed seq29 image.",
   "FirmwareBinary": {
-    "Path": "StackChan/firmware/build/stack-chan.bin",
-    "Bytes": 5032480,
-    "SHA256": "8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268",
-    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
-    "BuildLog": "logs/hand-camera-core0-build.log",
+    "Path": ".tools/device-backups/20261031-163805-hand-hot-conv/hand-hot-conv-deployed.bin",
+    "Bytes": 5039248,
+    "SHA256": "b17cd70a1038497e1d1784ec571098f2722c7c9219dd3741677e6fda0b56af4d",
+    "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
+    "BuildLog": "logs/hand-hot-conv-build.log",
     "Flashed": true
   },
   "LastDeployedPetFirmwareBinary": {
@@ -106,7 +106,7 @@
     "Note": "App and sector0 only; original firmware slot, current configuration, bootloader, partitions, resources and original sector1 preserved. Activation/recognition not observed in the corrected capture."
   },
   "SnapPrototype": {
-    "Status": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
+    "Status": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed.",
     "InitialDeploymentFailure": {
       "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
       "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
@@ -147,7 +147,7 @@
     "Visual": "RGB888 hand bounding-box detection with score/upper-central geometry and bounded presentation permission; camera evidence must be fresh within 500 ms. This detects hand boxes, not finger-snap pose.",
     "Cooldown": "1000ms in a continuous session; changing config or restarting resets detector warmup, visual baseline and fusion state.",
     "Telemetry": "SC_SNAP v1 at most 5Hz; current sound levels, retained last transient duration/shape, decision and counters. No raw audio/images retained or uploaded by this service. SC_DISTANCE unchanged.",
-    "HostTests": "CTest 10/10 passed; hand gate 17 synthetic groups and RGB conversion 5 groups, with prior snap/parser/pet suites retained. Log: logs/host-tests-20261031-145605-806-test.log. Synthetic eligibility does not establish physical hand/snap accuracy.",
+    "HostTests": "CTest 10/10 passed; logs/hand-hot-conv-host.log. Synthetic hand/RGB/audio/UI logic tests do not establish physical inference latency or recognition accuracy.",
     "PcTests": "57 passed plus one no-hardware simulated reminder; logs/pc-tests-kuro-intro.log",
     "DesktopView": {
       "Manifest": ".tools/snap-ui-probe/manifest.json",
@@ -166,13 +166,14 @@
       "HistoricalScope": "Prior snap-only View; retained as historical evidence."
     },
     "RemainingHardwareChecks": [
-      "Compare core0 timings, camera sample growth and CAMERA ERROR recovery",
-      "Labeled hand presentation and no-hand keyboard trials",
-      "Playback once, ignore snaps during playback, resume and re-arm"
+      "Superseded by user request; NFC hardware acceptance is tracked in NfcTrigger."
     ],
     "NewDependencies": false,
     "ServoMotionAdded": false,
-    "Flashed": true
+    "Flashed": true,
+    "PreviousStatusSeq27": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
+    "TimeoutFixed": false,
+    "SupersededByNfc": true
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -1428,29 +1429,28 @@
     "Historical": true
   },
   "LastDeployedHandFirmwareBinary": {
-    "Path": ".tools/device-backups/20261031-162745-hand-camera-core0/hand-camera-core0-deployed.bin",
-    "Bytes": 5032480,
-    "SHA256": "8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268",
-    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
-    "BuildLog": "logs/hand-camera-core0-build.log",
+    "Path": ".tools/device-backups/20261031-163805-hand-hot-conv/hand-hot-conv-deployed.bin",
+    "Bytes": 5039248,
+    "SHA256": "b17cd70a1038497e1d1784ec571098f2722c7c9219dd3741677e6fda0b56af4d",
+    "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
+    "BuildLog": "logs/hand-hot-conv-build.log",
     "Flashed": true,
-    "OtaSequence": 27,
+    "OtaSequence": 29,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261031-162745-hand-camera-core0/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261031-162745-hand-camera-core0/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-hand-camera-core0.log",
-    "Note": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified."
+    "Record": ".tools/device-backups/20261031-163805-hand-hot-conv/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-163805-hand-hot-conv/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-hot-conv.log",
+    "Note": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed."
   },
   "HandDetection": {
-    "Status": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
-    "Acceptance": "Pending physical core0 measurements and labeled positive/negative trials",
-    "OtaSequence": 27,
-    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
+    "Status": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed.",
+    "Acceptance": "Failed on seq29: CAMERA ERROR at idle; superseded by NFC at user request. No hand recognition accuracy established.",
+    "OtaSequence": 29,
+    "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
     "AccuracyPending": true,
     "StartupEvidence": {
-      "BootLog": "logs/device-hand-camera-core0-boot.log",
-      "OtaVerificationLog": "logs/device-hand-camera-core0-ota.log",
-      "Scope": "Sequence27 VALID boot/readback only; no hand acceptance inferred"
+      "OtaReadback": ".tools/device-backups/20261031-163805-hand-hot-conv/ota-confirmation.json",
+      "Scope": "Sequence 29 VALID/CRC/protected-sector readback only; no current model-speed or recognition acceptance inferred"
     },
     "AuthorizedDependencies": [
       {
@@ -1508,42 +1508,38 @@
     },
     "Build": {
       "InitialOversizeBytes": 6112672,
-      "FinalBytes": 5032480,
+      "FinalBytes": 5039248,
       "AppSlotBytes": 5177344,
-      "RemainingBytes": 144864,
+      "RemainingBytes": 138096,
       "InitialOversizeLog": "logs/hand-model-build-resume.log",
       "BuildLogs": [
         "logs/hand-model-build.log",
         "logs/hand-model-build-resume.log",
         "logs/hand-model-build-size.log",
-        "logs/hand-model-build-size2.log"
+        "logs/hand-model-build-size2.log",
+        "logs/hand-hot-conv-build.log"
       ],
       "SizeBaselineLog": "logs/hand-model-size-baseline.log",
       "SizeFinalLog": "logs/hand-model-size-final.log",
       "SizeFlagsEvidence": {
-        "Path": "logs/hand-model-size-config-review.json",
-        "SHA256": "372fa0966254f33936d1665dbfa10bac690b83abce8bef5e76b274303600f73b"
+        "Path": "logs/hand-hot-conv-flags.json",
+        "SHA256": "81205fd19396628f5fe2ae65098e736c927871425c9406aa9bdc3926f6bd0129"
       },
       "SizeFlags": {
-        "model_optimization_order": [
-          "-Os",
-          "-O3",
-          "-Os"
-        ],
         "espdl_cpp_translation_units": 74,
-        "all_espdl_cpp_last_optimization_is_Os": true,
-        "model_has_function_sections": true,
-        "model_has_data_sections": true
+        "hot_conv_units_last_optimization": "-O3",
+        "other_72_cpp_units_last_optimization": "-Os",
+        "model_base_last_optimization": "-Os"
       },
       "PixelSupport": "RGB888 -> RGB888/QINT8 preprocessing only; other ESP-DL pixel conversions disabled",
       "PartitionChanged": false,
-      "CurrentBuildLog": "logs/hand-camera-core0-build.log"
+      "CurrentBuildLog": "logs/hand-hot-conv-build.log"
     },
     "HostTests": {
       "SuitesPassed": 10,
       "HandGateGroups": 17,
       "CameraRgbGroups": 5,
-      "Log": "logs/host-tests-20261031-145605-806-test.log",
+      "Log": "logs/hand-hot-conv-host.log",
       "Scope": "Synthetic fixtures; no model-recognition rate inferred"
     },
     "DesktopView": {
@@ -1612,7 +1608,7 @@
       "Labeled physical hand, snap and typing trials remain pending; parsed telemetry is observation only.",
       "A hand box plus accepted transient is not proof of a finger snap; a keyboard hand entering the region can qualify.",
       "Model false-negative intervals can create a new presentation without a physical hand actually leaving.",
-      "Physical inference latency, LCD frame timing, touch and long-running stability are unmeasured.",
+      "Seq25/27 timeout latency is measured; current seq29 latency, LCD timing, touch and long-running stability await measurement.",
       "SDK DQBUF can block indefinitely; worker-owned model/RGB release is not guaranteed before stop returns.",
       "Heap preflight and exceptions cannot eliminate every vendor allocation/assert failure path."
     ],
@@ -2020,9 +2016,131 @@
       "AudioPriority": 3,
       "FreshnessBudgetMs": 500,
       "OtherModelSettingsChanged": false,
+      "TimeoutFixed": false,
+      "Status": "Measured failure: all 472 positive-timing polling snapshots exceeded freshness and reported 263; no successful camera snapshot",
+      "ActualCapture": {
+        "OtaSequence": 27,
+        "Historical": true,
+        "Status": "Measured failure: core-affinity change did not resolve the timeout",
+        "Log": "logs/device-hand-camera-core0.log",
+        "TimingSummary": "logs/hand-core0-timing-summary.json",
+        "SummarySHA256": "6a5099de73dc43cce579df471fdad95932373101599f8e365b69a1edd267d9b8",
+        "PollingSnapshots": 482,
+        "PositiveTimingPollingSnapshots": 472,
+        "TimeoutPositiveTimingPollingSnapshots": 472,
+        "ZeroTimingStartupSnapshots": 10,
+        "SuccessfulCameraPollingSnapshots": 0,
+        "CameraSamplesLast": 0,
+        "SampledRefusedFrameWarnings": 17,
+        "TimeoutFixed": false,
+        "ZeroStartupCaveat": "Ten startup snapshots have capture/inference=0 and camera_error=0. They are not successful zero-ms inference frames; all 472 positive-timing polls have camera_error263.",
+        "Scope": "Repeated polling snapshots are not independent inference counts or labeled recognition trials. Refusal warnings are rate-limited samples. See linked summary for timing populations."
+      }
+    },
+    "PreviousStatusSeq27": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
+    "PreviousAcceptanceSeq27": "Pending physical core0 measurements and labeled positive/negative trials",
+    "PreviousBuildSeq27": {
+      "InitialOversizeBytes": 6112672,
+      "FinalBytes": 5032480,
+      "AppSlotBytes": 5177344,
+      "RemainingBytes": 144864,
+      "InitialOversizeLog": "logs/hand-model-build-resume.log",
+      "BuildLogs": [
+        "logs/hand-model-build.log",
+        "logs/hand-model-build-resume.log",
+        "logs/hand-model-build-size.log",
+        "logs/hand-model-build-size2.log"
+      ],
+      "SizeBaselineLog": "logs/hand-model-size-baseline.log",
+      "SizeFinalLog": "logs/hand-model-size-final.log",
+      "SizeFlagsEvidence": {
+        "Path": "logs/hand-model-size-config-review.json",
+        "SHA256": "372fa0966254f33936d1665dbfa10bac690b83abce8bef5e76b274303600f73b"
+      },
+      "SizeFlags": {
+        "model_optimization_order": [
+          "-Os",
+          "-O3",
+          "-Os"
+        ],
+        "espdl_cpp_translation_units": 74,
+        "all_espdl_cpp_last_optimization_is_Os": true,
+        "model_has_function_sections": true,
+        "model_has_data_sections": true
+      },
+      "PixelSupport": "RGB888 -> RGB888/QINT8 preprocessing only; other ESP-DL pixel conversions disabled",
+      "PartitionChanged": false,
+      "CurrentBuildLog": "logs/hand-camera-core0-build.log"
+    },
+    "PreviousStartupEvidenceSeq27": {
+      "BootLog": "logs/device-hand-camera-core0-boot.log",
+      "OtaVerificationLog": "logs/device-hand-camera-core0-ota.log",
+      "Scope": "Sequence27 VALID boot/readback only; no hand acceptance inferred"
+    },
+    "PreviousCoreAffinityExperimentSeq27": {
+      "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
+      "OtaSequence": 27,
+      "PreviousCore": 1,
+      "CurrentCore": 0,
+      "Priority": 1,
+      "AudioPriority": 3,
+      "FreshnessBudgetMs": 500,
+      "OtherModelSettingsChanged": false,
       "TimeoutFixed": null,
       "Status": "Awaiting actual DISTANCE activation after the OTA readback reboot"
-    }
+    },
+    "TimeoutFixed": false,
+    "Seq27Failure": {
+      "OtaSequence": 27,
+      "Historical": true,
+      "Status": "Measured failure: core-affinity change did not resolve the timeout",
+      "Log": "logs/device-hand-camera-core0.log",
+      "TimingSummary": "logs/hand-core0-timing-summary.json",
+      "SummarySHA256": "6a5099de73dc43cce579df471fdad95932373101599f8e365b69a1edd267d9b8",
+      "PollingSnapshots": 482,
+      "PositiveTimingPollingSnapshots": 472,
+      "TimeoutPositiveTimingPollingSnapshots": 472,
+      "ZeroTimingStartupSnapshots": 10,
+      "SuccessfulCameraPollingSnapshots": 0,
+      "CameraSamplesLast": 0,
+      "SampledRefusedFrameWarnings": 17,
+      "TimeoutFixed": false,
+      "ZeroStartupCaveat": "Ten startup snapshots have capture/inference=0 and camera_error=0. They are not successful zero-ms inference frames; all 472 positive-timing polls have camera_error263.",
+      "Scope": "Repeated polling snapshots are not independent inference counts or labeled recognition trials. Refusal warnings are rate-limited samples. See linked summary for timing populations."
+    },
+    "HotConvolutionExperiment": {
+      "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
+      "OtaSequence": 29,
+      "HotFiles": [
+        "dl_base_conv2d.cpp",
+        "dl_base_depthwise_conv2d.cpp"
+      ],
+      "HotFinalOptimization": "-O3",
+      "OtherCppFinalOptimization": "-Os",
+      "GeneratedFlagsEvidence": {
+        "Path": "logs/hand-hot-conv-flags.json",
+        "SHA256": "81205fd19396628f5fe2ae65098e736c927871425c9406aa9bdc3926f6bd0129"
+      },
+      "CameraCore": 0,
+      "CameraPriority": 1,
+      "FreshnessBudgetMs": 500,
+      "FreshnessBudgetChanged": false,
+      "StageProfiling": "Measured samples: pre25-27/model825-842/post1-2ms; complete capture has28 rate-limited refusals total884-1136ms, underlying error0. logs/hand-hot-conv-timing-summary.json.",
+      "TimeoutFixed": false,
+      "AccuracyPending": true,
+      "Status": "Measured failure on seq29; superseded by NFC at user request.",
+      "RuntimeOutcome": "Failed: user reports CAMERA ERROR at idle; stage samples pre25-27/model825-842/post1-2 ms; logs/device-hand-hot-conv.log and logs/hand-hot-conv-timing-summary.json. CPU and hot-file optimization did not resolve timeout."
+    },
+    "UnflashedGraphOptimization": {
+      "Bytes": 4856224,
+      "SHA256": "d1b8566df6bc5bd2d31217073269ee14192d051a2575e89e752316f5a42bc63b",
+      "Path": ".tools/hand-graph-o3-research/hand-graph-o3-unflashed.bin",
+      "BuildLog": "logs/hand-graph-o3-build.log",
+      "StaticReview": "logs/hand-graph-o3-review.json",
+      "Flashed": false,
+      "ReasonStopped": "User replaced snap/camera triggering with NFC card triggering and requested handdetect removal."
+    },
+    "SupersededByNfc": true
   },
   "PreviousHandDetectionFirmwareBinary": {
     "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
@@ -2052,5 +2170,50 @@
     "OtaReadback": ".tools/device-backups/20261031-160657-hand-timing/ota-confirmation.json",
     "DeploymentLog": "logs/device-update-hand-timing.log",
     "Note": "App/OTA sector 0 only; protected regions and original sector 1 preserved. Timing-diagnostic bundle deployed as OTA 25 VALID. The sequence 23 SNAP CAMERA ERROR / camera_error 263 timeout is not fixed by this change. Only capture/inference timing visibility was added; the 500 ms freshness budget remains. Diagnostic observations and labeled physical acceptance are pending; no recognition accuracy is inferred from parsed telemetry."
+  },
+  "PreviousHandCore0FirmwareBinary": {
+    "Path": ".tools/device-backups/20261031-162745-hand-camera-core0/hand-camera-core0-deployed.bin",
+    "Bytes": 5032480,
+    "SHA256": "8a998727043ca7c3dc493d32e986d34e3eb17b6656f838bff4823734b05be268",
+    "SourceCommit": "82185aea25c3671fbd56e7798abf0bcafacde0eb",
+    "BuildLog": "logs/hand-camera-core0-build.log",
+    "Flashed": true,
+    "OtaSequence": 27,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-162745-hand-camera-core0/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-162745-hand-camera-core0/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-camera-core0.log",
+    "Note": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified."
+  },
+  "NfcTrigger": {
+    "Status": "Ready for deployment. USB serial absent at 2026-10-31T17:16:40+08:00; updater failed opening COM38 before any hardware writes. Device remains seq29/VALID.",
+    "UserAuthorizedDependencies": [
+      "M5Unit-NFC",
+      "M5UnitUnified",
+      "M5HAL",
+      "M5Utility"
+    ],
+    "UserRequestedRemoval": [
+      "hand_detect",
+      "esp-dl hand model path"
+    ],
+    "Behavior": "One UID presentation starts one intro; ignore presentations during playback; require removal before another playback. ToF warning has priority.",
+    "SourceCommit": "d3014aab3c78646aeb95e5db550a31343a10262e",
+    "HardwareAcceptance": "Pending USB reconnection, first NFC activation, card-present/removal/playback trials",
+    "FailedDeploymentLog": "logs/device-update-nfc-trigger.log",
+    "LastAttemptWroteFlash": false,
+    "PreparedArchive": ".tools/firmware-artifacts/20261031-nfc-trigger/candidate.json"
+  },
+  "PreparedNfcFirmwareBinary": {
+    "Path": ".tools/firmware-artifacts/20261031-nfc-trigger/nfc-trigger-candidate.bin",
+    "Bytes": 4025936,
+    "SHA256": "f337d8c73581b0272f9f9649cd133b8d1070fcb48069a4fada954b9cabe87e30",
+    "SourceCommit": "d3014aab3c78646aeb95e5db550a31343a10262e",
+    "Flashed": false,
+    "BuildLog": "logs/nfc-firmware-build.log",
+    "HostTests": "logs/nfc-host.log",
+    "UiEvidence": ".tools/intro-ui-probe/nfc-manifest.json",
+    "DependencyEvidence": "logs/nfc-dependency-verification.json",
+    "Status": "Ready for deployment. USB serial absent at 2026-10-31T17:16:40+08:00; updater failed opening COM38 before any hardware writes. Device remains seq29/VALID."
   }
 }

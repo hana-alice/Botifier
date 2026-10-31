@@ -7,7 +7,7 @@
 当前设备已部署，实际 ToF 与 USB 数据接收通过；原厂固件槽和配置区保留。
 备份与实测记录见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 
-当前设备为 **seq27/VALID CPU 调度对照版**：seq25 实测手检测推理577–1277ms，导致 `SNAP CAMERA ERROR / 263`。新版只将手检测移到CPU0，避免与CPU1上的表情/LVGL刷新竞争，500ms时效门槛保持；实际改善和识别效果仍待验证。官方手检测已替换亮度运动门槛；seq21 的漏触发、键盘误触发与原版播放确认保留为历史证据，见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
+**NFC 刷卡版本已完成代码、构建和桌面验证，尚未刷入。** 已移除生产响指服务、hand_detect 和 ESP-DL；刷卡播一次，播放中忽略，移开卡片后才能再次触发。当前 USB 串口未连接，设备最后核验版本仍为 seq29/VALID，其手检测超时未解决；接回数据线后继续更新与读卡实测。版本与证据见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 
 ## 接线与摆放
 
@@ -64,30 +64,23 @@ flowchart LR
 
 动作只改变屏幕五官。真实距离仍由原有采样和阈值判断，TUNE/SAVE 用法相同。浏览器[动作设计与实际固件渲染预览](demos/face-lab/README.md)可以单独查看；实际 LVGL 图集包含开心、撒娇、委屈与告警切换动画，属于桌面渲染，不是机器人 LCD 实拍。
 
-## 响指播放 KURO GAMES 片头
+## NFC 刷卡播放 KURO GAMES 片头
 
-新固件在 **DISTANCE** 内本地监听短促声音，默认要求官方手检测模型确认镜头中央出现较大的手，并获得一次互动授权；候选通过后，全屏播放 **3.4 秒黑底 KURO GAMES Logo**，结束后返回原页面。素材取自[库洛 PGR 官网](https://pgr.kurogame.net/)公开宣传片，保留原始淡入淡出；该片头区间静音。来源、转换方法与文件摘要见 [media/README.md](StackChan/firmware/main/apps/app_distance/media/README.md)。
+以下为待部署 NFC 版本的操作。使用机身内置 ST25R3916 读取 NFC-A 卡片 UID，不写卡片存储。一次新刷卡全屏播放 **3.4 秒黑底 KURO GAMES Logo**，结束后返回原页面。素材取自[库洛 PGR 官网](https://pgr.kurogame.net/)公开宣传片，保留原始淡入淡出；该片头区间静音。来源、转换方法与文件摘要见 [media/README.md](StackChan/firmware/main/apps/app_distance/media/README.md)。随附卡片的实际兼容性和感应位置仍需实测。
 
-播放期间暂停本功能的麦克风与相机采样，忽略后续响指，不排队、不重播或延长；结束后清空旧候选并重新预热监听。画面上的 **HOME** 可中止播放并返回主菜单。过近或测距不可用时阻断触发，新的过近提醒会中断片头并优先显示。退出 DISTANCE 后交还麦克风供原厂功能使用。
+进入 **DISTANCE → TUNE → NFC**，确认 **READER ON** 后按 **LIVE**。测距保持安全，看到 **NFC TAP CARD** 后将卡片靠近机身 NFC 感应区。持续持卡只触发一次；播放期间的刷卡被忽略，不排队、不重播或延长。播放结束后移开卡片约1秒，等再次显示 TAP CARD 才重新刷卡。程序要求至少两次有效无卡读数、跨度达到300ms；读卡错误不算移卡。
 
-进入 **TUNE → SNAP** 确认 LISTEN/CAM assist 为 ON、SENS 为 3，再按 **LIVE**；保持测距安全，先把手移出镜头约1秒，再举到镜头中央，等绿色 **SNAP READY** 后打一次响指。每次播完或授权到期，都移开再举手。SNAP 顶部 **DISTANCE** 返回距离调参。
-
-LIVE 顶部 **MOVE HAND OUT → SHOW HAND → HOLD HAND → READY** 分别表示移开手、展示手、稳定检测和已授权；READY窗口为1.8秒。**WARMING** 表示音频预热，**SOUND FILTERED** 表示声音被规则过滤，**CAMERA WAIT / CAMERA ERROR / NEEDS DISTANCE** 表示输入未就绪。日常表情会自行变化，不代表响指被接受；成功接受会直接切到片头。
+画面上的 **HOME** 可中止播放并返回主菜单。过近或测距不可用时阻断触发，新的过近提醒会中断片头并优先显示。宠物表情与距离调参保持；本功能不再运行麦克风监听和摄像头手检测。
 
 | 控件/读数 | 含义 |
 | --- | --- |
-| SENS 1..5 | 默认 3；数值越大，声音门槛越低，也可能更容易误触发 |
-| CAM assist | 默认 ON，要求新鲜手检测和一次举手授权；OFF 可单独测试声音候选 |
-| LISTEN | 开关本地监听；OFF 停止本功能采音与相机采样 |
-| P / N | 当前声音峰值 / 自适应噪声估计，均为 PCM 数值 |
-| H% / clear、show、hold、armed / ms | 手框置信度 / 手检测阶段 / 最近一次推理耗时 |
-| OK / NO | 通过 / 被拒绝的候选；屏幕大计数显示为 9999+ |
+| READER ON/OFF | 本功能读卡开关，仅保存在内存；重启恢复 ON |
+| READS / TRIG | 读卡尝试次数 / 接受的触发次数；尝试次数不等于成功刷卡次数 |
+| UID | 最近读取的卡片标识，支持4、7或10字节 NFC-A UID |
+| NFC TAP CARD / MOVE CARD AWAY | 可刷卡 / 需要移开卡片重新准备 |
+| NFC STARTING / READER ERROR / NEEDS DISTANCE | 初始化 / 读卡异常 / 测距尚未满足触发条件 |
 
-这些选项仅保存在内存，不通过距离页 SAVE 写入；重启恢复默认。开监听、修改设置或播放结束后重新预热；连续会话内成功互动间隔至少 1 秒。当前声级、最近瞬态的时长/形状、候选判定与计数通过最多 5 Hz 的 `SC_SNAP` JSON 调试日志输出，`playback_paused` 表示片头暂停监听；原有 `SC_DISTANCE` 和电脑距离同步继续使用。
-
-当前使用短声音启发式与官方手框检测，**不识别响指姿态**。区域内的手配合拍手、敲击或键盘短声音仍可能触发一次；真实误触发率须实测。机器人播放声音的参考通道用于保守抑制，阈值仍待实测。摄像头异常或画面过期时，CAM ON 会拒绝候选。新服务不保存或上传原始音频和图像。
-
-2026-10-30 先完成代码与模拟检查；用户于次日连接 USB 后更新了固件。仍需要响指、拍手、打字、背景音乐等正负样本来校准灵敏度和误触发率。
+`SC_NFC` v1 以约2Hz输出读卡状态、错误码、计数与UID快照；重复快照不代表独立刷卡事件。原有 `SC_DISTANCE` 与电脑距离同步继续使用。旧响指版本的失败、改动和实测记录保存在部署文档中。
 
 ## USB、Wi-Fi 与参数
 
