@@ -35,6 +35,7 @@ private:
         v4l2_pix_fmt_t format = 0;
     } frame_;
     v4l2_pix_fmt_t sensor_format_ = 0;
+    bool dvp_yuv422_is_packed_ = false;
 #ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     uint16_t sensor_width_  = 0;
     uint16_t sensor_height_ = 0;
@@ -65,6 +66,15 @@ public:
     // Try only applies to capture_mutex_: the SDK's DQBUF can wait indefinitely.
     // Call from a dedicated background task whose lifetime does not outlive this camera.
     LumaSampleResult TrySampleLumaGrid(std::array<uint8_t, 32 * 24>& out);
+
+    // Raw sensor frame in RGB888 (R, G, B), before Capture() rotation/endian swap.
+    // Caller supplies storage (320 * 240 * 3 bytes for this board) and runs any
+    // inference after return. Dimensions are published only on Ready; discard
+    // destination contents otherwise. No frame_, shutter, preview or JPEG use.
+    // Requires one mmap buffer; discards its queued frame before taking a new
+    // capture. The caller's pre-call clock is a conservative frame-time bound.
+    // Try only applies to capture_mutex_: SDK DQBUF has no hard timeout.
+    LumaSampleResult TrySampleRgbFrame(uint8_t* rgb, size_t capacity, size_t& width, size_t& height);
 
     // 翻转控制函数
     virtual bool SetHMirror(bool enabled) override;

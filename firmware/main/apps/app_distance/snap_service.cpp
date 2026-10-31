@@ -1,4 +1,5 @@
 #include "snap_service.h"
+#include "hand_model.h"
 
 #include <board.h>
 #include <hal/board/cores3_audio_codec.h>
@@ -7,6 +8,7 @@
 #include <distance_sensor/service.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <algorithm>
@@ -15,6 +17,8 @@
 #include <cmath>
 #include <cstdio>
 #include <mutex>
+#include <memory>
+#include <new>
 #include <vector>
 
 namespace snap_sense {
@@ -22,7 +26,7 @@ namespace {
 
 constexpr char tag[] = "snap-sense";
 constexpr std::uint32_t visual_timeout_ms = 500;
-constexpr std::uint32_t camera_period_ms = 125;
+constexpr std::uint32_t camera_period_ms = 200;
 constexpr std::uint32_t retry_ms = 1000;
 constexpr std::uint32_t telemetry_period_ms = 200;
 // AC reference-channel RMS threshold is a conservative, uncalibrated playback
@@ -39,6 +43,7 @@ std::uint32_t camera_wait_since_ms = 0;
 bool audio_idle = true;
 std::uint32_t audio_idle_epoch = 1;
 bool candidate_pending = false;
+HandGate hand_gate; // Pure state; always protected by state_mutex.
 
 std::uint32_t now_ms()
 {
@@ -49,6 +54,7 @@ struct Control {
     Config config;
     bool listening;
     std::uint32_t epoch;
+    bool active;
 };
 
 bool listening_enabled(const Snapshot& state)
@@ -59,7 +65,7 @@ bool listening_enabled(const Snapshot& state)
 Control control()
 {
     std::lock_guard<std::mutex> lock(state_mutex);
-    return {latest.config, listening_enabled(latest), epoch};
+    return {latest.config, listening_enabled(latest), epoch, latest.active};
 }
 
 bool camera_enabled(const Control& request)
@@ -97,6 +103,12 @@ void reset_request_locked(std::uint32_t timestamp)
     latest.audio = {};
     latest.audio.reason = listening_enabled(latest) ? AudioReason::Warming : AudioReason::Quiet;
     latest.visual = {};
+    hand_gate.reset();
+    latest.hand = {};
+    latest.hand_box = {};
+    latest.hand_in_zone = false;
+    latest.hand_inference_ms = 0;
+    latest.camera_error = ESP_OK;
     latest.last_audio_event = {};
     latest.last_audio_event_ms = 0;
     latest.has_audio_event = false;
@@ -145,7 +157,10 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
                 "\"camera_status\":\"%s\",\"camera_samples\":%" PRIu32 ",\"motion_cells\":%u,"
                 "\"visual_age\":%d,\"candidates\":%" PRIu32 ",\"accepted\":%" PRIu32
                 ",\"rejected\":%" PRIu32 ",\"camera_required\":%s,\"sensitivity\":%u,\"listening\":%s,"
-                "\"last_decision\":\"%s\",\"error\":%d,%s}\n",
+                "\"last_decision\":\"%s\",\"error\":%d,\"camera_error\":%d,"
+                "\"hand_phase\":\"%s\",\"hand_detected\":%s,\"hand_score\":%.3f,"
+                "\"hand_in_zone\":%s,\"hand_armed\":%s,\"hand_inference_ms\":%" PRIu32 ","
+                "\"hand_box\":[%d,%d,%d,%d],%s}\n",
                 timestamp, status_text(current.status), current.active ? "true" : "false",
                 current.audio_open ? "true" : "false", current.playback_paused ? "true" : "false",
                 current.audio.peak, current.audio.rms, current.audio.noise,
@@ -154,7 +169,11 @@ void emit_telemetry(std::uint32_t& last_emitted_ms)
                 static_cast<unsigned>(current.visual.changed_cells), visual_age, current.candidates, current.accepted,
                 current.rejected, current.config.camera_required ? "true" : "false", current.config.sensitivity,
                 current.config.listening ? "true" : "false", decision_text(current.last_decision),
-                static_cast<int>(current.error), event);
+                static_cast<int>(current.error), static_cast<int>(current.camera_error),
+                hand_phase_text(current.hand.phase), current.hand_box.detected ? "true" : "false",
+                finite_value(current.hand_box.score), current.hand_in_zone ? "true" : "false",
+                current.visual.motion ? "true" : "false", current.hand_inference_ms,
+                current.hand_box.left, current.hand_box.top, current.hand_box.right, current.hand_box.bottom, event);
 }
 
 void audio_error(std::uint32_t expected_epoch, esp_err_t error)
@@ -313,7 +332,8 @@ void audio_worker(void*)
         const auto distance = distance_sensor::snapshot();
         const bool blocked = !distance.valid || distance.stale || distance.filtered_mm < 0 ||
                              distance.proximity_state == distance_sensor::ProximityState::Alert ||
-                             playback || features.reason == AudioReason::Playback;
+                             playback || features.reason == AudioReason::Playback ||
+                             (request.config.camera_required && (!visual.available || !visual.motion));
         std::uint32_t new_candidates = 0;
         std::uint32_t new_accepted = 0;
         std::uint32_t new_rejected = 0;
@@ -337,6 +357,14 @@ void audio_worker(void*)
         {
             std::lock_guard<std::mutex> lock(state_mutex);
             if (epoch == request.epoch && listening_enabled(latest)) {
+                // Recheck under the gate's lock: a frame can invalidate the
+                // permission between the copied evidence and this publication.
+                if (new_accepted && request.config.camera_required &&
+                    (!hand_gate.snapshot(now_ms()).armed || !latest.hand_in_zone)) {
+                    new_accepted = 0;
+                    ++new_rejected;
+                    decision = Decision::Suppressed;
+                }
                 latest.audio = features;
                 latest.last_audio_ms = timestamp;
                 latest.status = features.reason == AudioReason::Warming ? Status::Warming : Status::Listening;
@@ -344,7 +372,16 @@ void audio_worker(void*)
                 latest.candidates += new_candidates;
                 latest.accepted += new_accepted;
                 latest.rejected += new_rejected;
-                if (new_accepted) latest.last_accepted_ms = timestamp;
+                if (new_accepted) {
+                    latest.last_accepted_ms = timestamp;
+                    // One raised-hand presentation buys one interaction. Keeping
+                    // hands on a keyboard cannot continuously re-arm the gate.
+                    if (request.config.camera_required) {
+                        hand_gate.consume();
+                        latest.hand = hand_gate.snapshot(timestamp);
+                        latest.visual.motion = false;
+                    }
+                }
                 if (decision != Decision::None) latest.last_decision = decision;
                 candidate_pending = pending;
                 if (features.reason == AudioReason::Candidate || features.reason == AudioReason::Tonal ||
@@ -362,77 +399,108 @@ void audio_worker(void*)
 
 void camera_worker(void*)
 {
-    MotionDetector detector;
-    std::array<std::uint8_t, kGridCells> grid{};
-    std::uint32_t local_epoch = 0;
-    std::uint32_t previous_ready_ms = 0;
-    bool discard_first = true;
-    bool have_baseline = false;
+    std::unique_ptr<HandModel> model;
+    std::unique_ptr<std::uint8_t, decltype(&heap_caps_free)> rgb(nullptr, heap_caps_free);
+    constexpr std::size_t rgb_bytes = 320 * 240 * 3;
+    auto failure = [](std::uint32_t expected_epoch, esp_err_t error, CameraStatus status) {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        if (epoch != expected_epoch || !listening_enabled(latest) || !latest.config.camera_required) return;
+        latest.camera_status = status;
+        latest.camera_error = error;
+        latest.visual = {};
+        latest.hand_box = {};
+        latest.hand_in_zone = false;
+        hand_gate.observe(now_ms(), false, false);
+        latest.hand = hand_gate.snapshot(now_ms());
+    };
     while (true) {
         const auto request = control();
-        if (local_epoch != request.epoch) {
-            detector.reset();
-            previous_ready_ms = 0;
-            discard_first = true;
-            have_baseline = false;
-            local_epoch = request.epoch;
-        }
         if (!camera_enabled(request)) {
+            // Keep weights during the short clip, release them when this app or
+            // camera assist closes. The worker owns destruction, never the UI.
+            if (!request.active || !request.config.listening || !request.config.camera_required) {
+                model.reset();
+                rgb.reset();
+            }
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
             continue;
         }
+        if (!rgb) {
+            rgb.reset(static_cast<std::uint8_t*>(
+                heap_caps_aligned_alloc(16, rgb_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)));
+        }
+        if (!rgb) {
+            failure(request.epoch, ESP_ERR_NO_MEM, CameraStatus::Unavailable);
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(retry_ms));
+            continue;
+        }
+        if (!model) {
+            std::unique_ptr<HandModel> candidate(new (std::nothrow) HandModel());
+            const auto error = candidate ? candidate->init() : ESP_ERR_NO_MEM;
+            if (error != ESP_OK) {
+                failure(request.epoch, error, CameraStatus::Unavailable);
+                ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(retry_ms));
+                continue;
+            }
+            model = std::move(candidate);
+            ESP_LOGI(tag, "hand model ready; camera stack_free=%u",
+                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+        }
+        if (control().epoch != request.epoch) continue;
         const auto started = now_ms();
         auto* camera = hal_bridge::board_get_camera();
-        const auto result = camera ? camera->TrySampleLumaGrid(grid) : StackChanCamera::LumaSampleResult::Unavailable;
-        const auto completed = now_ms();
+        std::size_t width = 0, height = 0;
+        const auto result = camera ? camera->TrySampleRgbFrame(rgb.get(), rgb_bytes, width, height)
+                                   : StackChanCamera::LumaSampleResult::Unavailable;
+        // RGB sampling discards the queued frame and waits for a new one.
+        // Use the request start as a conservative capture-time lower bound;
+        // dequeue-completion time would understate the actual frame age.
+        const auto captured = started;
         // DQBUF may block indefinitely. Nothing else waits for this task, and
-        // an old session is never permitted to publish a late frame.
+        // inference runs only after QBUF and camera mutex release.
         const auto after = control();
         if (after.epoch != request.epoch || !camera_enabled(after)) continue;
-
-        VisualEvidence visual;
-        CameraStatus camera_status = CameraStatus::Unavailable;
-        bool publish_visual = false;
-        bool ready = result == StackChanCamera::LumaSampleResult::Ready;
-        bool reset_wait = false;
-        if (ready) {
-            if ((previous_ready_ms && completed - previous_ready_ms > visual_timeout_ms) ||
-                completed - started > visual_timeout_ms) {
-                detector.reset();
-                discard_first = true;
-                have_baseline = false;
-                reset_wait = true;
-            }
-            previous_ready_ms = completed;
-            camera_status = CameraStatus::Warming;
-            publish_visual = true;
-            if (discard_first) {
-                // The single MMAP buffer may contain a frame queued while the
-                // app was inactive. Discard it; the next Ready builds baseline.
-                discard_first = false;
-            } else {
-                visual = detector.process(grid, completed);
-                camera_status = have_baseline ? CameraStatus::Ready : CameraStatus::Warming;
-                have_baseline = true;
-            }
-        } else if (result == StackChanCamera::LumaSampleResult::Busy) {
-            camera_status = CameraStatus::Busy; // Preserve evidence's original timestamp.
-        } else {
-            camera_status = result == StackChanCamera::LumaSampleResult::InvalidFrame
-                                ? CameraStatus::InvalidFrame : CameraStatus::Unavailable;
-            detector.reset();
-            previous_ready_ms = 0;
-            discard_first = true;
-            have_baseline = false;
-            publish_visual = true;
-        }
-        {
+        if (result == StackChanCamera::LumaSampleResult::Busy) {
             std::lock_guard<std::mutex> lock(state_mutex);
-            if (epoch == request.epoch && listening_enabled(latest) && latest.config.camera_required) {
-                latest.camera_status = camera_status;
-                if (publish_visual) latest.visual = visual;
-                if (ready) ++latest.camera_samples;
-                if (reset_wait) camera_wait_since_ms = completed;
+            if (epoch == request.epoch) latest.camera_status = CameraStatus::Busy;
+        } else if (result != StackChanCamera::LumaSampleResult::Ready) {
+            failure(request.epoch, ESP_FAIL, result == StackChanCamera::LumaSampleResult::InvalidFrame
+                                               ? CameraStatus::InvalidFrame : CameraStatus::Unavailable);
+        } else {
+            HandDetections detections;
+            const auto inference_started = now_ms();
+            const auto error = model->infer(rgb.get(), width, height, detections);
+            const auto completed = now_ms();
+            if (error != ESP_OK || completed - captured > visual_timeout_ms) {
+                failure(request.epoch, error == ESP_OK ? ESP_ERR_TIMEOUT : error, CameraStatus::Unavailable);
+            } else {
+                HandBox selected;
+                bool in_zone = false;
+                for (std::size_t i = 0; i < detections.count; ++i) {
+                    const auto& box = detections.boxes[i];
+                    const bool eligible = is_interaction_hand(box, width, height);
+                    if ((eligible && !in_zone) || (eligible == in_zone && box.score > selected.score)) {
+                        selected = box;
+                        in_zone = eligible;
+                    }
+                }
+                std::lock_guard<std::mutex> lock(state_mutex);
+                if (epoch == request.epoch && listening_enabled(latest) && latest.config.camera_required) {
+                    hand_gate.observe(captured, in_zone);
+                    latest.hand = hand_gate.snapshot(completed);
+                    latest.hand_box = selected;
+                    latest.hand_in_zone = in_zone;
+                    latest.hand_inference_ms = completed - inference_started;
+                    latest.camera_status = CameraStatus::Ready;
+                    latest.camera_error = ESP_OK;
+                    latest.visual = {};
+                    latest.visual.available = latest.hand.available;
+                    latest.visual.captured_ms = captured;
+                    latest.visual.motion = latest.hand.armed && in_zone;
+                    latest.visual.motion_ms = captured;
+                    ++latest.camera_samples;
+                    camera_wait_since_ms = completed;
+                }
             }
         }
         const auto elapsed = now_ms() - started;
@@ -460,7 +528,7 @@ esp_err_t ensure_tasks()
         audio_task = created;
     }
     if (!existing_camera) {
-        if (xTaskCreatePinnedToCore(camera_worker, "snap-camera", 6144, nullptr, 2, &created, 1) != pdPASS) {
+        if (xTaskCreatePinnedToCore(camera_worker, "snap-camera", 16384, nullptr, 1, &created, 1) != pdPASS) {
             return ESP_ERR_NO_MEM;
         }
         std::lock_guard<std::mutex> lock(state_mutex);
@@ -590,20 +658,31 @@ Snapshot snapshot()
 {
     Snapshot result;
     std::uint32_t waiting_since;
+    std::uint32_t timestamp;
     {
         std::lock_guard<std::mutex> lock(state_mutex);
+        timestamp = now_ms();
         result = latest;
+        result.hand = hand_gate.snapshot(timestamp);
         waiting_since = camera_wait_since_ms;
     }
-    const auto timestamp = now_ms();
     if (!listening_enabled(result) || !result.config.camera_required) {
         result.camera_status = CameraStatus::Off;
         result.visual = {};
+        result.hand = {};
+        result.hand_box = {};
+        result.hand_in_zone = false;
     } else if ((result.visual.available && timestamp - result.visual.captured_ms > visual_timeout_ms) ||
                (!result.visual.available && timestamp - waiting_since > visual_timeout_ms)) {
         result.camera_status = CameraStatus::Unavailable;
         result.visual.available = false;
         result.visual.motion = false;
+        result.hand = {};
+        result.hand_box = {};
+        result.hand_in_zone = false;
+    } else {
+        result.visual.available = result.hand.available;
+        result.visual.motion = result.hand.armed && result.hand_in_zone;
     }
     return result;
 }
@@ -631,6 +710,17 @@ const char* camera_status_text(CameraStatus status)
         case CameraStatus::Busy: return "busy";
         case CameraStatus::Unavailable: return "unavailable";
         case CameraStatus::InvalidFrame: return "invalid_frame";
+    }
+    return "unknown";
+}
+
+const char* hand_phase_text(HandPhase phase)
+{
+    switch (phase) {
+        case HandPhase::NeedClear: return "clear";
+        case HandPhase::Looking: return "show";
+        case HandPhase::Stabilizing: return "hold";
+        case HandPhase::Armed: return "armed";
     }
     return "unknown";
 }

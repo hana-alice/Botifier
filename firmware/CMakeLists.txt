@@ -21,3 +21,8 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(stack-chan)
+
+# Apply after all components: ESP-DL appends -O3 in its own CMakeLists.
+# SHELL keeps this final -Os distinct from IDF's earlier size option.
+idf_component_get_property(espdl_lib espressif__esp-dl COMPONENT_LIB)
+target_compile_options(${espdl_lib} PRIVATE "SHELL:-Os")

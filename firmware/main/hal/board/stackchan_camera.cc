@@ -16,6 +16,7 @@
 #include "board.h"
 #include "display.h"
 #include "stackchan_camera.h"
+#include "camera_rgb.h"
 #include "esp_jpeg_common.h"
 #include "jpg/image_to_jpeg.h"
 #include "jpg/jpeg_to_image.h"
@@ -123,6 +124,7 @@ StackChanCamera::StackChanCamera(const esp_video_init_config_t& config)
 #if CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE
     else if (config.dvp != nullptr) {
         video_device_name = ESP_VIDEO_DVP_DEVICE_NAME;
+        dvp_yuv422_is_packed_ = true;
     }
 #endif
 #if CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_VIDEO_DEVICE
@@ -1033,6 +1035,72 @@ StackChanCamera::LumaSampleResult StackChanCamera::TrySampleLumaGrid(std::array<
     }
     if (result == LumaSampleResult::Ready) {
         out = sample;
+    }
+    return result;
+}
+
+StackChanCamera::LumaSampleResult StackChanCamera::TrySampleRgbFrame(uint8_t* rgb, size_t capacity,
+                                                                   size_t& width, size_t& height)
+{
+    std::unique_lock<std::mutex> capture_lock(capture_mutex_, std::try_to_lock);
+    if (!capture_lock.owns_lock()) return LumaSampleResult::Busy;
+    if (!streaming_on_ || video_fd_ < 0) return LumaSampleResult::Unavailable;
+
+    struct v4l2_format format = {};
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(video_fd_, VIDIOC_G_FMT, &format) != 0) return LumaSampleResult::Unavailable;
+    const auto& pix = format.fmt.pix;
+    if (pix.pixelformat != V4L2_PIX_FMT_YUYV && pix.pixelformat != V4L2_PIX_FMT_YUV422P) {
+        return LumaSampleResult::Unavailable;
+    }
+    size_t rgb_bytes = 0;
+    if (!rgb || !camera_rgb::Rgb888Size(pix.width, pix.height, rgb_bytes) || capacity < rgb_bytes) {
+        return LumaSampleResult::InvalidFrame;
+    }
+    // The DVP stream has one mmap buffer. Its done_list can retain a frame
+    // between inference cycles and supplies no capture timestamp. Return that
+    // frame first, then wait for a new capture while retaining this lock.
+    if (mmap_buffers_.size() != 1) return LumaSampleResult::Unavailable;
+    struct v4l2_buffer queued = {};
+    queued.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    queued.memory = V4L2_MEMORY_MMAP;
+    if (ioctl(video_fd_, VIDIOC_DQBUF, &queued) != 0) return LumaSampleResult::Unavailable;
+    if (ioctl(video_fd_, VIDIOC_QBUF, &queued) != 0) return LumaSampleResult::InvalidFrame;
+
+    auto layout = pix.pixelformat == V4L2_PIX_FMT_YUYV ? camera_rgb::Yuv422Layout::Yuyv
+                                                     : camera_rgb::Yuv422Layout::Planar;
+    if (pix.pixelformat == V4L2_PIX_FMT_YUV422P && dvp_yuv422_is_packed_) {
+        // esp_video 1.3.1 DVP maps sensor YUV422 to YUV422P without planar
+        // conversion. GC0308 register 0x24 emits Y Cb Y Cr (0xa2), or
+        // Cb Y Cr Y (0xa0) with CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER.
+#if CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER != CONFIG_ESP_VIDEO_ENABLE_SWAP_BYTE
+        layout = camera_rgb::Yuv422Layout::Uyvy;
+#else
+        layout = camera_rgb::Yuv422Layout::Yuyv;
+#endif
+    }
+
+    struct v4l2_buffer buf = {};
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+    // esp_video_ioctl_dqbuf() waits with portMAX_DELAY, including O_NONBLOCK.
+    if (ioctl(video_fd_, VIDIOC_DQBUF, &buf) != 0) return LumaSampleResult::Unavailable;
+
+    LumaSampleResult result = LumaSampleResult::InvalidFrame;
+    if (buf.index < mmap_buffers_.size()) {
+        const auto& mapping = mmap_buffers_[buf.index];
+        if (mapping.start && mapping.start != MAP_FAILED && (buf.flags & V4L2_BUF_FLAG_ERROR) == 0 &&
+            buf.bytesused <= mapping.length &&
+            camera_rgb::ConvertYuv422ToRgb888(static_cast<const uint8_t*>(mapping.start), buf.bytesused,
+                                             pix.width, pix.height, pix.bytesperline, layout, rgb, capacity)) {
+            result = LumaSampleResult::Ready;
+        }
+    }
+    // No path after a successful dequeue bypasses returning that buffer.
+    if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) return LumaSampleResult::InvalidFrame;
+    if (result == LumaSampleResult::Ready) {
+        width = pix.width;
+        height = pix.height;
     }
     return result;
 }

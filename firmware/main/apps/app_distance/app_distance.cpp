@@ -357,7 +357,11 @@ struct AppDistance::View {
             text = "SNAP NEEDS DISTANCE";
             color = kNear;
         } else if (heard.config.camera_required && !heard.visual.available) {
-            text = "SNAP CAMERA WAIT";
+            text = heard.camera_error == ESP_OK ? "SNAP CAMERA WAIT" : "SNAP CAMERA ERROR";
+            color = kNear;
+        } else if (heard.config.camera_required && !heard.visual.motion) {
+            text = heard.hand.phase == snap_sense::HandPhase::NeedClear ? "SNAP MOVE HAND OUT" :
+                   heard.hand.phase == snap_sense::HandPhase::Stabilizing ? "SNAP HOLD HAND" : "SNAP SHOW HAND";
             color = kNear;
         } else if (heard.audio.reason == snap_sense::AudioReason::Playback) {
             text = "SNAP SPEAKER ACTIVE";
@@ -371,7 +375,7 @@ struct AppDistance::View {
             } else if (reason == snap_sense::AudioReason::Candidate &&
                        heard.last_decision != snap_sense::Decision::Accepted) {
                 text = heard.last_decision == snap_sense::Decision::NoVisual ?
-                           "SNAP NO CAMERA MOTION" : "SNAP WAITING FOR MOTION";
+                           "SNAP HAND NOT READY" : "SNAP SOUND BLOCKED";
                 color = kNear;
             }
         }
@@ -456,13 +460,14 @@ struct AppDistance::View {
         set_enabled(*rows[1].plus, !config.camera_required);
         set_enabled(*rows[2].minus, config.listening);
         set_enabled(*rows[2].plus, !config.listening);
-        std::snprintf(text, sizeof(text), "P%lu R%lu N%lu", static_cast<unsigned long>(heard.audio.peak),
-                      static_cast<unsigned long>(heard.audio.rms), static_cast<unsigned long>(heard.audio.noise));
+        std::snprintf(text, sizeof(text), "P%lu N%lu H%u%% %s %lums",
+                      static_cast<unsigned long>(heard.audio.peak), static_cast<unsigned long>(heard.audio.noise),
+                      static_cast<unsigned>(heard.hand_box.score * 100),
+                      snap_sense::hand_phase_text(heard.hand.phase), static_cast<unsigned long>(heard.hand_inference_ms));
         snap_levels->setText(text);
-        std::snprintf(text, sizeof(text), "OK%lu%s NO%lu%s M%u %s",
+        std::snprintf(text, sizeof(text), "OK%lu%s NO%lu%s %s",
                       static_cast<unsigned long>(std::min<std::uint32_t>(heard.accepted, 9999)), heard.accepted > 9999 ? "+" : "",
                       static_cast<unsigned long>(std::min<std::uint32_t>(heard.rejected, 9999)), heard.rejected > 9999 ? "+" : "",
-                      heard.visual.changed_cells,
                       snap_sense::decision_text(heard.last_decision));
         snap_result->setText(text);
     }

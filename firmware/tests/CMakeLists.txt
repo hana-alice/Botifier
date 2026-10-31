@@ -63,3 +63,13 @@ add_executable(intro_clip_test intro_clip_test.cpp)
 target_include_directories(intro_clip_test PRIVATE ../main)
 target_compile_features(intro_clip_test PRIVATE cxx_std_17)
 add_test(NAME intro_clip_test COMMAND $<TARGET_FILE:intro_clip_test>)
+
+add_executable(camera_rgb_test camera_rgb_test.cpp)
+target_include_directories(camera_rgb_test PRIVATE ../main)
+target_compile_features(camera_rgb_test PRIVATE cxx_std_17)
+add_test(NAME camera_rgb_test COMMAND $<TARGET_FILE:camera_rgb_test>)
+
+add_executable(hand_gate_test hand_gate_test.cpp)
+target_include_directories(hand_gate_test PRIVATE ../main)
+target_compile_features(hand_gate_test PRIVATE cxx_std_17)
+add_test(NAME hand_gate_test COMMAND $<TARGET_FILE:hand_gate_test>)

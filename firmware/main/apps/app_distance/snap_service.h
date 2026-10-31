@@ -1,6 +1,7 @@
 #pragma once
 
 #include "snap_detector.h"
+#include "hand_gate.h"
 #include <esp_err.h>
 #include <cstdint>
 
@@ -24,6 +25,11 @@ struct Snapshot {
     std::uint32_t last_audio_event_ms = 0;
     bool has_audio_event = false;
     VisualEvidence visual;
+    HandGateState hand;
+    HandBox hand_box;
+    bool hand_in_zone = false;
+    std::uint32_t hand_inference_ms = 0;
+    esp_err_t camera_error = ESP_OK;
     bool active = false;
     bool audio_open = false;
     bool playback_paused = false;
@@ -60,6 +66,7 @@ Snapshot snapshot();
 
 const char* status_text(Status status);
 const char* camera_status_text(CameraStatus status);
+const char* hand_phase_text(HandPhase phase);
 const char* decision_text(Decision decision);
 const char* reason_text(AudioReason reason);
 
