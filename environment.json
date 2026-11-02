@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-11-02T09:58:03.908649+08:00",
+  "RecordedAt": "2026-11-02T11:48:38.575674+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "e3f8cdd613a1dca15d88a1a642c6fd4bbb5327ba"
+    "LocalImplementationCommit": "7bc54b943df7289dabd6fb15d2eb7b3df4bc4b9c"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,9 +15,9 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "Protected NFC update and sequence 33/VALID readback completed; original sector1 and factory slot preserved.",
+    "ConnectionStatus": "Protected idle programme/countdown update; sequence43/VALID independently read back; original sector1 and factory image preserved.",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 33,
+    "CurrentOtaSequence": 43,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,15 +73,20 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest 10/10 passed; logs/nfc-no-distance-host.log. Synthetic tests do not establish physical NFC performance.",
-  "FirmwareBuild": "OTA33/VALID; NFC has no ToF trigger or playback restrictions. User confirms near-distance taps and uninterrupted playback during distance changes. Two full error0/cancelled0 playbacks were accepted after124mm and72mm Alert readings; second playback includes Alert-to-Safe telemetry. Eight transient reader errors remain observed and are not fixed by this change. Image4025600 bytes; unchanged slot5177344 bytes; free1151744 bytes.",
+  "HostTest": "CTest12/12, including idle17 and wire7 groups; PC77/77; actual LVGL4171 assertions. Device results remain separately scoped.",
+  "FirmwareBuild": "Idle countdown + Codex weekly; image4037136 bytes, slot5177344 bytes, free1140208 bytes; seq43/VALID.",
   "FirmwareBinary": {
-    "Path": ".tools/device-backups/20261102-095058-nfc-unrestricted/nfc-unrestricted-deployed.bin",
-    "Bytes": 4025600,
-    "SHA256": "ca75828fbe9505db0d546d4511a0ab9faf0d0bfd8e6deff2f369a5465626923e",
-    "SourceCommit": "e3f8cdd613a1dca15d88a1a642c6fd4bbb5327ba",
-    "BuildLog": "logs/nfc-no-distance-build.log",
-    "Flashed": true
+    "Path": ".tools/device-backups/20261102-idle-carousel43/idle-program-deployed.bin",
+    "Bytes": 4037136,
+    "SHA256": "e92b90ab428b5e5ca9d60e54d58714f6f9626cb547f9d61b4894a06f9d7188f7",
+    "SourceCommit": "7bc54b943df7289dabd6fb15d2eb7b3df4bc4b9c",
+    "BuildLog": "logs/idle-carousel-build-final.log",
+    "Flashed": true,
+    "OtaSequence": 43,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-idle-carousel43/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-idle-carousel43/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-idle-carousel43.log"
   },
   "LastDeployedPetFirmwareBinary": {
     "Path": ".tools/device-backups/20261030-182853-pet-face/distance-pet-working.bin",
@@ -3181,5 +3186,270 @@
     "OtaReadback": ".tools/device-backups/20261102-093531-nfc-trigger/ota-confirmation.json",
     "DeploymentLog": "logs/device-update-nfc.log",
     "Note": "OTA31/VALID; bundled card read and3 complete uncancelled KURO playbacks observed. User confirms one playback per presentation, held-card suppression and removal/re-presentation. Capture also records9 reader errors, with ready state restored; root cause and long-run stability remain unverified."
+  },
+  "PreviousDeployedFirmwareBinary": {
+    "Path": ".tools/device-backups/20261102-idle-countdown41/idle-program-deployed.bin",
+    "Bytes": 4036480,
+    "SHA256": "c269f17f17d05069c16ccbdcebafcd1ad81ad40436ac98c44d56ee0a74b41f2c",
+    "SourceCommit": "372eba8dae2328494d745538b3057b1c4c051d0c",
+    "BuildLog": "logs/idle-countdown-build-final.log",
+    "Flashed": true,
+    "OtaSequence": 41,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-idle-countdown41/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-idle-countdown41/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-idle-countdown41.log"
+  },
+  "IdleProgramFirmwareBinary": {
+    "Path": ".tools/device-backups/20261102-idle-carousel43/idle-program-deployed.bin",
+    "Bytes": 4037136,
+    "SHA256": "e92b90ab428b5e5ca9d60e54d58714f6f9626cb547f9d61b4894a06f9d7188f7",
+    "SourceCommit": "7bc54b943df7289dabd6fb15d2eb7b3df4bc4b9c",
+    "BuildLog": "logs/idle-carousel-build-final.log",
+    "Flashed": true,
+    "OtaSequence": 43,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-idle-carousel43/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-idle-carousel43/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-idle-carousel43.log"
+  },
+  "IdlePrograms": {
+    "Defaults": {
+      "enabled": true,
+      "eye_interval_ms": 1200000,
+      "rest_duration_ms": 20000,
+      "idle_grace_ms": 10000,
+      "pet_gap_ms": 3000,
+      "weekly_duration_ms": 12000,
+      "weekly_interval_ms": 30000
+    },
+    "LocalParameters": "DISTANCE -> TUNE -> NFC -> IDLE; explicit SAVE only",
+    "PcLauncher": "Start-CodexWeekly.cmd",
+    "ApiMethod": "account/rateLimits/read",
+    "ApiWindowMinutes": 10080,
+    "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
+    "Snapshot": {
+      "available": true,
+      "remaining_percent": 74,
+      "reset_at": 1793871052,
+      "observed_at": 1793591070
+    },
+    "FirmwareTests": "logs/idle-carousel-host-tests.log",
+    "PcTests": "logs/idle-pc-tests-final.log",
+    "UiManifest": ".tools/idle-program-ui-probe/manifest-card-countdown.json",
+    "UiVerdict": ".tools/idle-program-ui-probe/visual-verdict-card-countdown.json",
+    "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
+    "PhysicalProbe": "logs/device-idle-carousel-probe-report.json",
+    "PhysicalProbeData": {
+      "scope": "Sanitized polling/markers only; no automatic assertions or physical visual acceptance",
+      "requested_seconds": 100,
+      "quota": {
+        "available": true,
+        "remaining_percent": 74,
+        "reset_at": 1793871052,
+        "observed_at": 1793591070
+      },
+      "programs": {
+        "pet": 37,
+        "eye_countdown": 34,
+        "weekly": 33
+      },
+      "blocked": {
+        "True": 1,
+        "False": 103
+      },
+      "weekly_left": {
+        "-1": 3,
+        "74": 101
+      },
+      "weekly_status": {
+        "waiting": 3,
+        "fresh": 101
+      },
+      "completed_rests_min": 0,
+      "completed_rests_max": 0,
+      "idle_snapshots": 104,
+      "distance_snapshots": 1048,
+      "distance_valid": 1046,
+      "distance_alert_snapshots": 2,
+      "nfc_snapshots": 0,
+      "nfc_errors": {},
+      "intro_accepted": 0,
+      "intro_finished": 0,
+      "intro_errors": {},
+      "intro_cancelled": 0,
+      "malformed_allowed_frames": 0,
+      "command_updates_sent": 0,
+      "command_errors": 0,
+      "quota_packets_sent": 7,
+      "restore_write_succeeded": true,
+      "interrupted": false,
+      "serial_error": false,
+      "runtime_failure_markers": 0,
+      "elapsed_seconds": 104.203,
+      "restored_config_requested": {
+        "enabled": true,
+        "eye_interval_ms": 1200000,
+        "rest_duration_ms": 20000,
+        "idle_grace_ms": 10000,
+        "pet_gap_ms": 3000,
+        "weekly_duration_ms": 12000,
+        "weekly_interval_ms": 30000
+      },
+      "restore_scope": "Serial write success only; no device application or visual acceptance asserted; save=false"
+    },
+    "PhysicalAcceptance": "User waived repeat manual confirmation; device telemetry and desktop LVGL remain separate evidence.",
+    "HistoricalAttempts": [
+      {
+        "sequence": 35,
+        "state": "ABORTED",
+        "evidence": ".tools/device-backups/20261102-1050-idle-program/ota-observation.json",
+        "note": "Initial attempt rolled back before confirmation; first-boot cause not captured and remains unverified."
+      },
+      {
+        "sequence": 37,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-retry37/ota-confirmation.json",
+        "note": "Same image booted and confirmed during same-port early capture; its separate USB RX defect was then fixed."
+      },
+      {
+        "sequence": 39,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-rx39/ota-confirmation.json",
+        "probe": "logs/device-idle-rx39-probe-report.json",
+        "note": "Real75% quota delivered; 825 valid distance frames; Alert interrupted rest without recording completion."
+      }
+    ],
+    "Limits": [
+      "Quota feed currently needs this PC and USB; no Wi-Fi feed or OS startup task.",
+      "Rest completion is a timer, not verified gaze.",
+      "NFC RF transient errors from prior deployments are not fixed by this work.",
+      "Long-running stability and unobserved mode combinations are not certified."
+    ],
+    "CadenceEvidence": "logs/device-idle-carousel-cadence.json",
+    "PcHelperRuntime": {
+      "ProcessId": 134644,
+      "OsStartup": false,
+      "Status": "Process observed alive; connected status and real74% summary captured",
+      "PidFile": ".tools/codex-weekly-helper.pid",
+      "Port": "COM38",
+      "Log": "logs/codex-weekly-helper.log",
+      "ErrorLog": "logs/codex-weekly-helper.err.log",
+      "StartedAt": "2026-11-02T11:48:36.9329447+08:00"
+    }
+  },
+  "PreviousIdlePrograms": {
+    "Defaults": {
+      "enabled": true,
+      "eye_interval_ms": 1200000,
+      "rest_duration_ms": 20000,
+      "idle_grace_ms": 10000,
+      "pet_gap_ms": 30000,
+      "weekly_duration_ms": 6000,
+      "weekly_interval_ms": 60000
+    },
+    "LocalParameters": "DISTANCE -> TUNE -> NFC -> IDLE; explicit SAVE only",
+    "PcLauncher": "Start-CodexWeekly.cmd",
+    "ApiMethod": "account/rateLimits/read",
+    "ApiWindowMinutes": 10080,
+    "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
+    "Snapshot": {
+      "available": true,
+      "remaining_percent": 75,
+      "reset_at": 1793871052,
+      "observed_at": 1793589807
+    },
+    "FirmwareTests": "logs/idle-host-tests-final.log",
+    "PcTests": "logs/idle-pc-tests-final.log",
+    "UiManifest": ".tools/idle-program-ui-probe/manifest-live-eye.json",
+    "UiVerdict": ".tools/idle-program-ui-probe/visual-verdict-live-eye-final.json",
+    "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
+    "PhysicalProbe": "logs/device-idle-countdown-ready-probe-report.json",
+    "PhysicalProbeData": {
+      "scope": "Sanitized polling/markers only; no automatic assertions or physical visual acceptance",
+      "requested_seconds": 180,
+      "quota": {
+        "available": true,
+        "remaining_percent": 75,
+        "reset_at": 1793871052,
+        "observed_at": 1793589807
+      },
+      "programs": {
+        "pet": 73,
+        "weekly": 48,
+        "eye_rest": 59,
+        "rest_done": 4
+      },
+      "blocked": {
+        "False": 184
+      },
+      "weekly_left": {
+        "-1": 4,
+        "75": 180
+      },
+      "weekly_status": {
+        "waiting": 4,
+        "fresh": 180
+      },
+      "completed_rests_min": 0,
+      "completed_rests_max": 2,
+      "idle_snapshots": 184,
+      "distance_snapshots": 1859,
+      "distance_valid": 1853,
+      "distance_alert_snapshots": 0,
+      "nfc_snapshots": 0,
+      "nfc_errors": {},
+      "intro_accepted": 0,
+      "intro_finished": 0,
+      "intro_errors": {},
+      "intro_cancelled": 0,
+      "malformed_allowed_frames": 0,
+      "command_updates_sent": 0,
+      "command_errors": 0,
+      "quota_packets_sent": 12,
+      "restore_write_succeeded": true,
+      "interrupted": false,
+      "serial_error": false,
+      "runtime_failure_markers": 0,
+      "elapsed_seconds": 184.234,
+      "restored_config_requested": {
+        "enabled": true,
+        "eye_interval_ms": 1200000,
+        "rest_duration_ms": 20000,
+        "idle_grace_ms": 10000,
+        "pet_gap_ms": 30000,
+        "weekly_duration_ms": 6000,
+        "weekly_interval_ms": 60000
+      },
+      "restore_scope": "Serial write success only; no device application or visual acceptance asserted; save=false"
+    },
+    "PhysicalAcceptance": "Pending user observation; telemetry and desktop LVGL are separate evidence.",
+    "HistoricalAttempts": [
+      {
+        "sequence": 35,
+        "state": "ABORTED",
+        "evidence": ".tools/device-backups/20261102-1050-idle-program/ota-observation.json",
+        "note": "Initial attempt rolled back before confirmation; first-boot cause not captured and remains unverified."
+      },
+      {
+        "sequence": 37,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-retry37/ota-confirmation.json",
+        "note": "Same image booted and confirmed during same-port early capture; its separate USB RX defect was then fixed."
+      },
+      {
+        "sequence": 39,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-rx39/ota-confirmation.json",
+        "probe": "logs/device-idle-rx39-probe-report.json",
+        "note": "Real75% quota delivered; 825 valid distance frames; Alert interrupted rest without recording completion."
+      }
+    ],
+    "Limits": [
+      "Quota feed currently needs this PC and USB; no Wi-Fi feed or OS startup task.",
+      "Rest completion is a timer, not verified gaze.",
+      "NFC RF transient errors from prior deployments are not fixed by this work.",
+      "Long-running stability and unobserved mode combinations are not certified."
+    ]
   }
 }

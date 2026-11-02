@@ -308,3 +308,37 @@ LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日�
 用户随后确认“过近也能触发，距离变化不打断”。本版120秒窗口有 **2组完整播放，均error0/cancelled0**：第一组接受日志前最近测距为124mm/Alert，播放中34个测距样本全为Alert；第二组接受前为72mm/Alert，播放中12个Alert样本及23个Safe样本，仍正常结束。关联逐行证据见 `logs/device-nfc-unrestricted-distance-playback.json`，未对采样点之间距离插值。近距离启动和播放中距离变化已有实机与用户确认，invalid/stale/未接ToF的情形仍仅有合成界面回归与源码证据。
 
 `logs/device-nfc-unrestricted-audit.json` 记录98个SC_NFC轮询、accepted增2、读卡errors增8（3个快照保留ESP_FAIL）、最终恢复ready/error0。审计仍为attention_required，未隐去或宣称修复底层读卡错误。SC_DISTANCE seq414–1617，**1204/1204有效**，无缺帧、中值或规则不一致，未见panic/assert/watchdog。保留seq31所有历史采集与验收记录，不将不同版本轮询快照合并为刷卡成功率。
+
+## 空闲轮播、MM:SS 与 Codex 周额度（2026-11-02，seq41/VALID）
+
+该次源码 `StackChan` 提交 **372eba8dae2328494d745538b3057b1c4c051d0c**（前置功能d86d53d、USB RX纠正4d7b736）。镜像 **4,036,480字节**，SHA256 **c269f17f17d05069c16ccbdcebafcd1ad81ad40436ac98c44d56ee0a74b41f2c**，原0x4f0000槽剩余1,140,864字节（约22%）。归档`.tools/device-backups/20261102-idle-countdown41/idle-program-deployed.{bin,elf,map}`；构建`logs/idle-countdown-build-final.log`。
+
+HAL后启动独立空闲服务：默认每20分钟到期，自动计满20秒后短暂开心；NFC/操作菜单/AI非Idle/距离Alert及原有需确认ReminderView优先。DISTANCE LIVE顶部显示EYE MM:SS；设置入口TUNE→NFC→IDLE，ON/20min/20sec，显式SAVE。空闲普通周卡6秒/每60秒，普通节目间至少30秒宠物间隔，前台结束后空闲10秒才恢复。
+
+Codex周额度由PC只读`account/rateLimits/read`，按codex桶10080分钟窗口筛选，无模型推理。当前实测75%（查询epoch1793589807），设备已通过真实USB包变为Fresh/75并轮播。完整API响应/凭据不发送到设备；失败与过期均不显示旧百分比。PC默认300秒查询、15秒重发缩短TTL，当前需要USB与电脑助手运行，尚无Wi-Fi投递/系统自启。
+
+保护更新`logs/device-update-idle-countdown41.log`已校验新app与原厂槽、资源、bootloader、分区表、配置保护区。启动40秒全程同端口采集`logs/device-idle-countdown-early-boot.log`，HAL于20秒后标记有效；独立只读`ota-confirmation.json`确认seq41/state2、CRC正确、原始sector1 seq2/state2逐字节保留。读回后再次重启，后续遥测持续正常。
+
+验证证据分开记录：
+
+- CTest **12/12**，包含空闲策略13组、严格wire7组；PC **77/77**。日志`logs/idle-host-tests-final.log`、`logs/idle-pc-tests-final.log`。
+- 生产AppDistance/View/Pet与真实LVGL9.4/字体的桌面渲染 **3,775项断言**（1,219行为/2,556几何），0裁切/缺字；900帧各情绪没有侵入新计时行；100轮创建销毁LVGL可用内存前后相同，12 image frees/0借用中释放。桌面有限实验不等同实机LCD/无限运行保证。manifest`.tools/idle-program-ui-probe/manifest-live-eye.json`，actual截图`frames-live-eye-final/live-eye-contact.png`，视觉97/pass。旧69帧/2,534项证据完整保留。
+- 最终设备180秒短周期采集`logs/device-idle-countdown-ready-probe-report.json`：184个idle快照，两个完整20秒RestDone，真实75%持续Fresh，12次quota包写入成功；距离1,853/1,859有效（6次无效读数亦保留），0畸形允许帧、0采集串口错误、0观察到的panic/assert/watchdog标记。本段未产生NFC轮询/播放，不能以此宣称现场刷卡抢占通过；NFC/Alert抢占另有实际LVGL回归，seq33历史物理验收保留。
+- 前一seq39的80秒实机段收到真实75%，825/825距离有效，Alert确实中断EyeRest，completed保持0；见`logs/device-idle-rx39-probe-report.json`。最终测试只发save=false，未写入短周期NVS；默认恢复与后续只读观察另见`logs/device-idle-default-verify.log`。
+
+保留失败与纠正记录：首次seq35在确认前回退，读取为ABORTED（state4）；未采得第一次启动错误，原因待验证，不能归因于后续发现的USB RX缺陷。同一镜像在同端口采集下seq37/VALID，见`.tools/device-backups/20261102-idle-retry37/ota-confirmation.json`。另一个确定缺陷为IDF5.5.4/no-driver模式的O_NONBLOCK无法读FIFO，独立提取真实SDK函数实验与实机seq39投递均闭环；报告`logs/usb-secondary-vfs-source-probe.json`，修复与被证伪的旧审查结论见DEVELOPMENT.md。最终seq41后第一次采集助手在HAL初始化前写入、超时退出，失败报告`logs/device-idle-countdown-probe-report.json`保留；助手先排空启动日志后重试成功，不将失败记录合并进成功段。
+
+本轮没有修改NFC RF底层，seq33的8次瞬态读卡错误/现场验收记录继续有效；不据新增节目宣称改善读卡稳定性。20秒完成只表示计时未被前台打断，不验证视线或实际休息。跨AI所有真实交互组合与长期运行稳定性仍未全量实测。
+
+## 独立倒计时栏目与信息优先轮播（2026-11-02，seq43/VALID）
+
+用户要求倒计时独立成为栏目，并缩短纯表情占用时间；同时免除重复现场限时确认，有问题再反馈。最终`StackChan`提交 **7bc54b943df7289dabd6fb15d2eb7b3df4bc4b9c**，新增大号 **NEXT EYE BREAK / MM:SS** 栏目。普通轮播改为倒计时12秒→纯表情3秒→周额度12秒→纯表情3秒；周额度尚未到达时跳过，周卡暂未满足冷却时用倒计时补位。20分钟护眼时钟独立运行，换栏不重置；到期20秒休息优先于普通栏目，NFC和前台操作继续优先。已保存的v1设置仅迁移护眼开关/间隔/休息时长，栏目节奏采用新默认值；显式SAVE持久化v2。
+
+完整IDF5.5.4构建`logs/idle-carousel-build-final.log`通过。镜像 **4,037,136字节**，SHA256 **e92b90ab428b5e5ca9d60e54d58714f6f9626cb547f9d61b4894a06f9d7188f7**，原应用槽余 **1,140,208字节**。归档`.tools/device-backups/20261102-idle-carousel43/idle-program-deployed.{bin,elf,map}`，保护更新日志`logs/device-update-idle-carousel43.log`；同端口40秒启动采集`logs/device-idle-carousel-early-boot.log`后，独立只读OTA确认`ota-confirmation.json`为 **seq43/state2 VALID、CRC正确、原sector1逐字节保留**。原厂固件、配置、bootloader、分区与资源保护校验保留。
+
+- CTest **12/12**（空闲策略17组、wire7组），PC **77/77**；证据`logs/idle-carousel-host-tests.log`、`logs/idle-pc-tests-final.log`。
+- 实际生产View/Pet/AppDistance与真实LVGL桌面渲染 **4,171项断言**（1,232行为/2,939几何），0裁切/缺字；100次倒计时/周卡创建销毁LVGL可用内存前后均8,374,448字节，12次图像释放/0借用中释放。新增20:00、19:59、00:01、120:00与栏目互转截图；manifest`.tools/idle-program-ui-probe/manifest-card-countdown.json`，联系表`frames-card-countdown-v1/card-countdown-contact.png`，视觉97/pass。源码摘要均与最终工作树匹配。属于桌面实际渲染，非LCD实拍。
+- 最终默认20分钟周期实机窗口 **104.203秒**，104个idle快照、真实74%额度Fresh快照101个、7次额度包写入；距离 **1,046/1,048有效**，2个启动无效样本保留。0畸形允许帧、0串口采集错误、0观察到的panic/assert/watchdog标记。报告`logs/device-idle-carousel-probe-report.json`。
+- 前两个未受打断的完整轮播周期，在约1Hz遥测相邻边界上分别为 **12.050/3.000/12.120/3.000秒**、**12.000/3.000/12.120/3.000秒**；对应信息约 **80.1%**。该比例排除开机空闲等待、后续距离干扰与末尾配置恢复，不能将全窗口快照占比当作连续正常轮播比例。全部104个快照的`uptime_ms + eye_remaining_ms`均为1,201,928，未观察到栏目切换重置护眼时钟。证据`logs/device-idle-carousel-cadence.json`。
+
+本次未产生NFC刷卡/播放样本；此前seq33用户确认与物理日志、实际LVGL抢占回归继续分别留存，不冒充seq43现场验收。默认参数以save=false恢复，未写入测试周期。PC额度助手以隐藏进程启动，USB连接成功，真实查询摘要为74%（epoch1793591318）；日志仅含安全摘要/固定状态，`logs/codex-weekly-helper.log`及`.err.log`，PID记录`.tools/codex-weekly-helper.pid`。每5分钟刷新，无系统自启动；关闭助手或断开USB后额度会过期，机器人护眼计时独立运行。长期稳定性与所有AI交互组合仍未全量实测。

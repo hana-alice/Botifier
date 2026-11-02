@@ -119,7 +119,7 @@ python .\scripts\Capture-DeviceLog.py --port COM38 --seconds 120 --log .\logs\de
   SAVE 在 LVGL 锁外显式写入 NVS `sc_distance/config` 单个版本化 blob；开机校验版本、尺寸和边界后恢复，缺失或错误用默认。电脑命令仍只改独立的电脑规则。
 - `SC_DISTANCE` v1 单行 JSON 通过现有 stdout 发布，并追加可选 `robot_alert` 布尔值。
   旧电脑帧兼容，电脑显示本机告警 on/off/unknown。主控制台 UART0、次级 USB Serial/JTAG，
-  已在默认配置中固定次级 USB 输出；USB 输入不作为控制通道。
+  已在默认配置中固定次级 USB 输出；新增空闲节目使用该接口的 `/dev/secondary` 非阻塞输入接收 `SC_IDLE`，原测距协议和主 UART 控制台保持原样。
 - 电脑端另有独立的三样本中值、持续过近计时、迟滞、冷却、暂停、设置保存和可选 Windows 中文通知。
   默认阈值 40 cm、持续 5 秒、恢复 48 cm、提醒间隔至少 60 秒；默认静音。
 - 上一版已部署电子宠物固件构建通过，二进制 SHA256：
@@ -222,3 +222,29 @@ LIVE 显示 MOVE HAND OUT／SHOW HAND／HOLD HAND／READY，SNAP 页显示手置
 官方依据：[固件构建说明](https://github.com/m5stack/StackChan/blob/f901cc2969189f3f0e96af1442c0f96e77e1e2c1/firmware/README.md)、
 [StackChan 硬件文档](https://docs.m5stack.com/zh_CN/StackChan)、
 [ESP-IDF Windows 工具说明](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/get-started/windows-setup-update.html)。
+
+## 空闲节目与 Codex 周额度（2026-11-02）
+
+`apps/common/idle_program` 复用现有 FreeRTOS、NVS、USB Serial/JTAG 与 LVGL，不增加组件。`Policy` 接收单调毫秒时钟；服务每40ms推进，主菜单、DISTANCE LIVE、AI待机发布可展示上下文，超过500ms未更新即阻止显示。触摸持续刷新活动时间；NFC、设置、距离Alert、真实AI非Idle状态和原有待确认ReminderView均优先。节目图层以稳定的`lv_layer_top()`为父，更换屏幕不会保留悬空父指针；退出只删自有控件与宠物，不重设共享avatar。活跃动画最多约30Hz，抢占不受节流限制。
+
+护眼默认20分钟/20秒，完成短暂显示RestDone；中断不记完成，到期仅保留一次。用户追加要求信息主导，常规栏目按EyeCountdown12秒→Pet3秒→Weekly12秒→Pet3秒交替（正常约80%信息），到期休息可抢占普通栏目。EyeCountdown只读eye_remaining_ms，不把12秒卡片时长当工作计时。NVS v2保存新节奏，v1只迁移原开关/护眼间隔/休息时长。当前精简字库缺少护眼中文用字，经实际glyph查询与画面确认，采用已有英文文案，避免引入完整大字库。
+
+`SC_IDLE` v1输入为至多512字节ASCII单行，未知/重复字段、错误类型、非整数/溢出、超长帧被拒绝，且不回显输入。secondary VFS使用现有basic RX立即读取，每轮最多512字节，不安装新USB驱动或切换UART控制台。固定IDF5.5.4中basic模式不能使用`O_NONBLOCK`，具体实验证据见下文。`SC_IDLE_STATE`约1Hz发布只读节目与额度状态。可用以下临时参数缩短验收周期；`save:false`不写NVS：
+
+```text
+SC_IDLE {"v":1,"type":"config","eye_interval_ms":20000,"rest_duration_ms":20000,"save":false}
+```
+
+本机三行调参仅暴露PROGRAMS/EYE min/REST sec，SAVE在LVGL与状态锁外写`sc_idle/config`版本化blob。调试协议可修改Config已知计时字段；测试完应恢复默认或重启，避免留下短周期。
+
+PC `pc.codex_weekly`通过现有Codex native app-server只读握手与`account/rateLimits/read`，严格选择`codex`桶的10080分钟窗口，不假设primary/secondary位置。独立子进程stdio、总超时、仅清理自身子进程；助手不直接读取凭据文件，不调用thread/turn、额度重置或购买方法。查询失败立即发布unavailable；只向设备发送percent/reset/observed/sequence/ttl，原始API响应及设备普通日志不存储、不打印。额度按真实查询时间标记，过期不再显示旧百分比。API资料：[官方App Server文档](https://learn.chatgpt.com/docs/app-server)。
+
+串口单owner持续drain；默认每300秒查询、每15秒重发。序号阻止同运行周期重放延长有效期；PC重发缩短TTL，防止无RTC设备重启后重新给旧数据15分钟。该保守策略可能提前失效，不会延长缓存有效期。设备端以TTL与reset先到者为准，不把查询失败或无数据显示成100%。USB断开后护眼保持独立；本轮未实现Wi-Fi quota投递或系统开机自启。
+
+### USB接收实机联调纠正
+
+首轮使用O_NONBLOCK的输入实现存在缺陷：主机首次配置写超时，设备读数持续但未接收额度。此前仅根据“非阻塞”分支就认为接收可工作的审查结论错误。回到固定SDK源码闭环发现：`usb_serial_jtag_vfs.c`在O_NONBLOCK时跳过唯一FIFO预读，随后以`usb_serial_jtag_get_read_bytes_available()`计算fetch_size；该函数在未安装driver时恒返回0。因此basic模式的新字节无法被读取，并非stdout被O_NONBLOCK关闭。
+
+独立实验从SDK自动提取7个真实函数、只替换硬件FIFO/无driver状态和锁，在主机编译运行：O_NONBLOCK下待收16字节、读取0、FIFO尝试0；O_RDONLY完整收16字节，空FIFO一次尝试立即返回EWOULDBLOCK；512字节预算读512并留下88。证据`logs/usb-secondary-vfs-source-probe.json`、`.log`，可复现`.tools/usb-secondary-vfs-probe/run.py`。该实验不替代USB硬件验证。
+
+修正保留VFS锁、peek与换行处理，basic模式以O_RDONLY启用立即FIFO预读，短read继续、每40ms总计最多512字节。若未来安装USB driver则停止本输入路径，避免进入blocking read；不混用另一条LL输入、不改变TX或主UART。seq39实际USB采集已收到真实75%周额度并进入Weekly、EyeRest；Alert抢占时完成计数保持0，具体当前版本与后续倒计时界面验收见部署记录。
