@@ -36,6 +36,8 @@ public:
     {
         if (_cancelled || _skipped || _ownership_lost || _limits_unavailable) return;
         if (_owns_lock && !check_ownership(motion)) return;
+        // The first 120 ms belong to the anticipatory gaze, with no servo goal.
+        if (elapsed_ms < idle_program::kMotionBeats.front().start_ms) return;
         if (!_started) {
             if (!_owns_lock) {
                 if (_attempted) return;
@@ -58,8 +60,8 @@ public:
 
         const bool finished = elapsed_ms >= idle_program::kMotionDurationMs;
         const auto beat = finished ? idle_program::kMotionBeats.size() - 1u
-                                   : elapsed_ms / idle_program::kMotionBeatMs;
-        if (_last_beat == static_cast<int>(beat)) return;
+                                   : idle_program::motion_index(elapsed_ms);
+        if (_last_beat >= static_cast<int>(beat)) return;
         // An expired phase still sends its final centre target if the frame at
         // its scheduled frame was missed. Earlier beats are never replayed.
         int yaw = 0, pitch = 0;
@@ -77,7 +79,7 @@ public:
         // finish before the next beat, so every fresh target must re-enable it.
         // Reservation and duplicate ticks deliberately leave torque untouched.
         motion.setTorqueEnabled(true);
-        motion.moveWithDuration(yaw, pitch, idle_program::kMotionMoveMs);
+        motion.moveWithDuration(yaw, pitch, idle_program::kMotionBeats[beat].move_ms);
         _target_yaw = yaw;
         _target_pitch = pitch;
         _started = true;

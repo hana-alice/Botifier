@@ -195,17 +195,19 @@ void DistancePetAvatar::setMood(distance_pet::Mood mood, std::uint32_t now_ms)
     _started = false;
 }
 
-void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react)
+void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react,
+                             distance_pet::EyeCue eye_cue, bool hold_mood)
 {
     if (!react && _started && signal == _last_signal && now_ms - _last_tick < 33) return;
     _started = true;
     _last_tick = now_ms;
     _last_signal = signal;
-    auto frame = _controller.update(now_ms, signal);
+    auto frame = _controller.update(now_ms, signal, hold_mood);
     if (react && signal == distance_pet::Signal::Ready) {
         _controller.react(now_ms);
-        frame = _controller.update(now_ms, signal);
+        frame = _controller.update(now_ms, signal, hold_mood);
     }
+    if (signal == distance_pet::Signal::Ready) frame = distance_pet::with_eye_cue(frame, eye_cue);
     const auto color = lv_color_hex(frame.mood == distance_pet::Mood::Alert ? kSerious : kEyes);
     static_cast<PetEye*>(_key_elements.leftEye.get())->render(frame.left_eye, color);
     static_cast<PetEye*>(_key_elements.rightEye.get())->render(frame.right_eye, color);

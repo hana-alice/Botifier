@@ -9,9 +9,13 @@
 
 namespace {
 
-constexpr auto kBeatMs = idle_program::kMotionBeatMs;
 constexpr auto kDurationMs = idle_program::kMotionDurationMs;
 constexpr auto kBeatCount = idle_program::kMotionBeats.size();
+
+constexpr std::uint32_t at(std::size_t index)
+{
+    return idle_program::kMotionBeats[index].start_ms;
+}
 
 void check(bool condition, const char* message)
 {
@@ -63,14 +67,15 @@ void normal_beats_and_centre_hold()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    for (std::uint32_t elapsed = 0; elapsed <= kDurationMs + kBeatMs; elapsed += 10) head.tick(motion, elapsed);
+    for (std::uint32_t elapsed = 0; elapsed <= kDurationMs + 1000u; elapsed += 10) head.tick(motion, elapsed);
     check(head.started() && !head.skipped() && head.owns_lock(), "normal scene did not retain its lock");
     check(motion.commands.size() == kBeatCount, "normal scene must send exactly the scheduled beats");
     check(motion.current_reads == 1 && motion.lock_writes == 1, "scene re-read its origin or reacquired its lock");
     for (std::size_t i = 0; i < motion.commands.size(); ++i) {
         const auto& command = motion.commands[i];
         check(command.yaw == motion.current.x + idle_program::kMotionBeats[i].yaw_delta &&
-              command.pitch == motion.current.y + idle_program::kMotionBeats[i].pitch_delta && command.duration_ms == 350,
+              command.pitch == motion.current.y + idle_program::kMotionBeats[i].pitch_delta &&
+              command.duration_ms == idle_program::kMotionBeats[i].move_ms,
               "normal beat disagreed with the shared relative choreography");
     }
     check(motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150, "final beat failed to centre");
@@ -84,11 +89,13 @@ void skipped_frames_do_not_replay()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, 0);
-    head.tick(motion, 3 * kBeatMs + 150);
-    head.tick(motion, 3 * kBeatMs + 150);
-    head.tick(motion, 4 * kBeatMs - 1);
-    check(motion.commands.size() == 2 && motion.commands.back().yaw == 55, "jump replayed an old beat");
+    head.tick(motion, at(0));
+    head.tick(motion, at(4) + 150u);
+    head.tick(motion, at(4) + 150u);
+    head.tick(motion, at(5) - 1u);
+    head.tick(motion, at(0));
+    check(motion.commands.size() == 2 && motion.commands.back().yaw == 75 &&
+              motion.commands.back().duration_ms == 360, "jump or backdated tick replayed an old beat or changed the current duration");
     head.tick(motion, kDurationMs);
     head.tick(motion, 2 * kDurationMs);
     check(motion.commands.size() == 3 && motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150,
@@ -100,7 +107,7 @@ void delayed_first_tick_uses_current_beat()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, 7 * kBeatMs + 100);
+    head.tick(motion, at(10) + 100u);
     check(motion.commands.size() == 1 && motion.commands[0].pitch == 110, "late start replayed the beginning");
     head.cancel(motion);
     distance_pet::RestHeadMotion expired;
@@ -111,15 +118,16 @@ void delayed_first_tick_uses_current_beat()
 
 void explicit_exit_is_idempotent_and_terminal()
 {
-    for (const auto elapsed : {0u, kBeatMs, kDurationMs - 200u, kDurationMs + 20000u}) {
+    for (const auto elapsed : {0u, at(0), at(1), kDurationMs - 200u, kDurationMs + 20000u}) {
         distance_pet::RestHeadMotion head;
         FakeMotion motion;
         head.tick(motion, elapsed);
         const auto count = motion.commands.size();
         head.cancel(motion); // HOME, TUNE and PROGRAMS OFF share this exit.
         head.cancel(motion);
-        head.tick(motion, elapsed + kBeatMs);
-        check(motion.stops == 1 && motion.lock_writes == 2 && !motion.locked && motion.commands.size() == count,
+        head.tick(motion, elapsed + 1000u);
+        check(motion.stops == (count ? 1 : 0) && motion.lock_writes == (count ? 2 : 0) &&
+                  !motion.locked && motion.commands.size() == count,
               "explicit exit changed hardware twice or restarted a cancelled scene");
     }
     distance_pet::RestHeadMotion never_started;
@@ -137,11 +145,11 @@ void busy_or_locked_first_attempt_is_skipped()
         FakeMotion motion;
         motion.locked = locked;
         motion.moving = !locked;
-        head.tick(motion, 0);
+        head.tick(motion, at(0));
         check(head.skipped() && !head.started(), "occupied hardware must skip the whole motion phase");
         motion.locked = false;
         motion.moving = false;
-        head.tick(motion, 2 * kBeatMs);
+        head.tick(motion, at(2));
         motion.locked = true; // A different owner may acquire it before cancel.
         head.cancel(motion);
         check(motion.current_reads == 0 && motion.lock_writes == 0 && motion.commands.empty() &&
@@ -153,16 +161,16 @@ void dynamic_limits_are_read_on_each_new_beat()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     motion.yaw.limits = {-30, 25};
     motion.pitch.limits = {140, 160};
-    head.tick(motion, kBeatMs);
+    head.tick(motion, at(2));
     check(motion.commands.back().yaw == -30, "new yaw minimum was not applied");
-    head.tick(motion, 4 * kBeatMs);
+    head.tick(motion, at(6));
     check(motion.commands.back().yaw == 25, "new yaw maximum was not applied");
-    head.tick(motion, 7 * kBeatMs);
+    head.tick(motion, at(10));
     check(motion.commands.back().pitch == 140, "new pitch minimum was not applied");
-    head.tick(motion, 10 * kBeatMs);
+    head.tick(motion, at(14));
     check(motion.commands.back().pitch == 160, "new pitch maximum was not applied");
     motion.yaw.limits = {-30, 10};
     motion.pitch.limits = {140, 145};
@@ -176,19 +184,19 @@ void ownership_loss_is_not_reacquired_or_stopped()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     motion.locked = false;
-    head.tick(motion, kBeatMs);
+    head.tick(motion, at(1));
     check(head.ownership_lost() && !head.owns_lock(), "external unlock was not detected");
     motion.locked = true;
-    head.tick(motion, 2 * kBeatMs);
+    head.tick(motion, at(2));
     head.cancel(motion);
     check(motion.commands.size() == 1 && motion.lock_writes == 1 && motion.stops == 0 && motion.locked,
           "lost owner reclaimed the lock or stopped a new owner");
 
     distance_pet::RestHeadMotion cancelled_after_unlock;
     FakeMotion other;
-    cancelled_after_unlock.tick(other, 0);
+    cancelled_after_unlock.tick(other, at(0));
     other.locked = false;
     cancelled_after_unlock.cancel(other);
     check(cancelled_after_unlock.ownership_lost() && other.stops == 0 && other.lock_writes == 1,
@@ -201,20 +209,20 @@ void unsatisfiable_limits_fail_without_larger_movement()
         distance_pet::RestHeadMotion head;
         FakeMotion motion;
         motion.yaw.limits = bad_limit;
-        head.tick(motion, 0);
+        head.tick(motion, at(0));
         head.cancel(motion);
         check(head.skipped() && head.limits_unavailable() && !head.started() && motion.commands.empty() &&
               motion.lock_writes == 0 && motion.stops == 0, "invalid initial limits caused hardware activity");
     }
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     motion.pitch.limits = {300, 400};
-    head.tick(motion, kBeatMs);
+    head.tick(motion, at(1));
     check(head.limits_unavailable() && !head.owns_lock() && motion.commands.size() == 1 &&
           motion.stops == 1 && !motion.locked, "shifted limits escaped the small relative motion window");
     motion.pitch.limits = {30, 870};
-    head.tick(motion, 2 * kBeatMs);
+    head.tick(motion, at(2));
     head.cancel(motion);
     check(motion.commands.size() == 1 && motion.stops == 1, "limit failure retried or stopped twice");
 }
@@ -226,9 +234,9 @@ void boundary_arithmetic_is_defined()
     motion.current = {std::numeric_limits<int>::max(), std::numeric_limits<int>::min()};
     motion.yaw.limits = {std::numeric_limits<int>::max() - 10, std::numeric_limits<int>::max()};
     motion.pitch.limits = {std::numeric_limits<int>::min(), std::numeric_limits<int>::min() + 10};
-    head.tick(motion, 0);
-    head.tick(motion, 4 * kBeatMs);
-    head.tick(motion, 7 * kBeatMs);
+    head.tick(motion, at(0));
+    head.tick(motion, at(6));
+    head.tick(motion, at(10));
     check(motion.commands.size() == 3 && motion.commands[1].yaw == std::numeric_limits<int>::max() &&
           motion.commands[2].pitch == std::numeric_limits<int>::min(), "boundary arithmetic overflowed");
     head.cancel(motion);
@@ -246,11 +254,11 @@ void reservation_leaves_previous_motion_running_and_captures_late_base()
           "intro reservation moved, stopped or captured the previous motion");
     motion.current = {40, 250}; // The previous movement finishes during the intro.
     motion.moving = false;
-    head.tick(motion, 0);
-    head.tick(motion, kBeatMs);
+    head.tick(motion, at(0));
+    head.tick(motion, at(2));
     head.reserve(motion);
     check(head.started() && !head.skipped() && motion.lock_writes == 1 && motion.current_reads == 1 &&
-          motion.commands.size() == 2 && motion.commands[0].yaw == 0 && motion.commands[0].pitch == 250 &&
+          motion.commands.size() == 2 && motion.commands[0].yaw == -20 && motion.commands[0].pitch == 250 &&
           motion.commands[1].yaw == -40 && motion.commands[1].pitch == 250,
           "reserved scene rejected its own lock or used the pre-intro origin");
     head.cancel(motion);
@@ -267,7 +275,7 @@ void reservation_does_not_steal_other_lock_or_retry()
     motion.locked = false;
     motion.moving = false;
     head.reserve(motion);
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     head.cancel(motion);
     check(head.skipped() && !head.started() && !head.owns_lock() && motion.lock_writes == 0 &&
           motion.current_reads == 0 && motion.commands.empty() && motion.stops == 0,
@@ -280,13 +288,13 @@ void reserved_but_still_moving_skips_without_stopping_previous_motion()
     FakeMotion motion;
     motion.moving = true;
     head.reserve(motion);
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     check(head.skipped() && !head.started() && !head.owns_lock() && !motion.locked && motion.lock_writes == 2 &&
           motion.current_reads == 0 && motion.commands.empty() && motion.stops == 0,
           "reserved scene interrupted an unfinished prior movement");
     motion.moving = false;
     head.reserve(motion);
-    head.tick(motion, kBeatMs);
+    head.tick(motion, at(1));
     head.cancel(motion);
     check(motion.lock_writes == 2 && motion.commands.empty() && motion.stops == 0,
           "unfinished prior movement caused a later retry or stop");
@@ -302,7 +310,7 @@ void reserve_only_cancel_or_bad_limits_never_stops_other_motion()
         if (invalid_limits) {
             motion.moving = false;
             motion.yaw.limits = {500, 800};
-            head.tick(motion, 0);
+            head.tick(motion, at(0));
             check(head.skipped() && head.limits_unavailable(), "reserved invalid limits were not rejected");
         }
         head.cancel(motion);
@@ -326,7 +334,7 @@ void reservation_ownership_loss_is_terminal()
         else head.tick(motion, 0);
         motion.locked = true;
         head.reserve(motion);
-        head.tick(motion, kBeatMs);
+        head.tick(motion, at(1));
         head.cancel(motion);
         check(head.ownership_lost() && !head.started() && !head.owns_lock() && motion.locked &&
               motion.lock_writes == 1 && motion.current_reads == 0 && motion.commands.empty() && motion.stops == 0,
@@ -349,12 +357,12 @@ void each_new_beat_reenables_torque_before_its_target()
     check(motion.torque_enables == 0, "intro reservation enabled torque");
     for (std::uint32_t beat = 0; beat < idle_program::kMotionBeats.size(); ++beat) {
         motion.torque_enabled = false; // Auto-release may occur between beats.
-        head.tick(motion, beat * idle_program::kMotionBeatMs);
+        head.tick(motion, at(beat));
         check(motion.torque_enables == static_cast<int>(beat + 1) &&
               motion.effective_commands.size() == beat + 1,
               "new beat did not enable torque before sending its goal");
         motion.torque_enabled = false;
-        head.tick(motion, beat * idle_program::kMotionBeatMs + 10);
+        head.tick(motion, at(beat) + 10u);
         check(motion.torque_enables == static_cast<int>(beat + 1) &&
               motion.effective_commands.size() == beat + 1,
               "duplicate beat unexpectedly enabled torque or resent its goal");
@@ -374,7 +382,7 @@ void rejected_or_cancelled_reservations_never_enable_torque()
         FakeMotion motion;
         motion.locked = locked;
         motion.moving = !locked;
-        busy.tick(motion, 0);
+        busy.tick(motion, at(0));
         busy.cancel(motion);
         check(motion.torque_enables == 0 && motion.torque_disables == 0,
               "rejected direct scene changed another movement's torque");
@@ -387,7 +395,7 @@ void rejected_or_cancelled_reservations_never_enable_torque()
     distance_pet::RestHeadMotion still_moving;
     still_moving.reserve(motion);
     motion.moving = true;
-    still_moving.tick(motion, 0);
+    still_moving.tick(motion, at(0));
     still_moving.cancel(motion);
     check(motion.torque_enables == 0 && motion.torque_disables == 0, "unfinished prior movement changed torque");
 }
@@ -396,11 +404,11 @@ void lost_ownership_or_limits_never_reenable_torque()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     check(motion.torque_enables == 1 && motion.effective_commands.size() == 1, "initial beat did not enable torque");
     motion.locked = false;
     motion.torque_enabled = false;
-    head.tick(motion, kBeatMs);
+    head.tick(motion, at(1));
     head.cancel(motion);
     check(motion.torque_enables == 1 && !motion.torque_enabled, "lost owner reenabled torque");
 
@@ -408,30 +416,36 @@ void lost_ownership_or_limits_never_reenable_torque()
     FakeMotion invalid;
     bad_limits.reserve(invalid);
     invalid.yaw.limits = {500, 800};
-    bad_limits.tick(invalid, 0);
+    bad_limits.tick(invalid, at(0));
     bad_limits.cancel(invalid);
     check(invalid.torque_enables == 0 && invalid.torque_disables == 0,
           "invalid initial limits enabled torque without a safe target");
 }
 
-void four_directions_use_two_slow_beats_and_a_centre()
+void four_directions_repeat_two_complete_excursions()
 {
-    check(kBeatMs == 1000 && kDurationMs == 12000 && kBeatCount == 12,
-          "head sequence must have twelve one-second beats");
-    constexpr std::array<Angles, 12> expected{{
-        {-40, 0}, {-80, 0}, {0, 0}, {40, 0}, {80, 0}, {0, 0},
-        {0, -20}, {0, -40}, {0, 0}, {0, 20}, {0, 40}, {0, 0},
+    check(kDurationMs == 12000 && kBeatCount == 16,
+          "head sequence must have sixteen targets in twelve seconds");
+    constexpr std::array<Angles, 16> expected{{
+        {-60, 0}, {0, 0}, {-80, 0}, {0, 0}, {60, 0}, {0, 0}, {80, 0}, {0, 0},
+        {0, -30}, {0, 0}, {0, -40}, {0, 0}, {0, 30}, {0, 0}, {0, 40}, {0, 0},
     }};
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
     for (std::uint32_t i = 0; i < expected.size(); ++i) {
-        head.tick(motion, i * kBeatMs);
+        head.tick(motion, at(i) - 1u);
+        check(motion.commands.size() == i, "a head target began before its actual start boundary");
+        head.tick(motion, at(i));
         check(motion.commands.back().yaw == 15 + expected[i].x && motion.commands.back().pitch == 150 + expected[i].y,
-              "a direction did not use two increasing small offsets followed by centre");
+              "a direction did not return to centre between its two excursions");
+        check(motion.commands.back().duration_ms == idle_program::kMotionBeats[i].move_ms,
+              "a target did not use its own specified travel duration");
+        head.tick(motion, at(i) + 1u);
+        check(motion.commands.size() == i + 1u, "duplicate frame resent a head target");
     }
     head.tick(motion, kDurationMs - 1);
-    check(motion.commands.size() == 12 && motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150,
-          "final centre did not hold for the last full second");
+    check(motion.commands.size() == 16 && motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150,
+          "final centre did not retain its complete pause");
     head.cancel(motion);
 }
 
@@ -441,15 +455,15 @@ void starting_at_pitch_edge_uses_both_directions_inside_original_window()
     FakeMotion motion;
     motion.current = {1270, 31};
     for (std::uint32_t i = 0; i < kBeatCount; ++i) {
-        head.tick(motion, i * kBeatMs);
+        head.tick(motion, at(i));
         const auto& command = motion.commands.back();
         check(command.yaw >= 1190 && command.yaw <= 1280 && command.pitch >= 30 && command.pitch <= 71,
               "edge neutral escaped the original actual-angle envelope or physical limits");
     }
-    check(motion.commands[6].pitch == 40 && motion.commands[7].pitch == 30 &&
-          motion.commands[9].pitch == 60 && motion.commands[10].pitch == 71 && motion.commands[11].pitch == 50,
+    check(motion.commands[8].pitch == 35 && motion.commands[10].pitch == 30 &&
+          motion.commands[12].pitch == 65 && motion.commands[14].pitch == 71 && motion.commands[15].pitch == 50,
           "pitch near its stop did not have two visible beats in both directions and a bounded centre");
-    check(motion.commands[1].yaw == 1190 && motion.commands[4].yaw == 1280 && motion.commands[11].yaw == 1235,
+    check(motion.commands[2].yaw == 1190 && motion.commands[6].yaw == 1280 && motion.commands[15].yaw == 1235,
           "yaw near its stop did not use the bounded window centre");
     head.cancel(motion);
 }
@@ -459,19 +473,47 @@ void shrinking_limits_recentre_without_expanding_original_window()
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
     motion.current.y = 31;
-    head.tick(motion, 0);
+    head.tick(motion, at(0));
     motion.pitch.limits = {45, 65};
-    head.tick(motion, 7 * kBeatMs);
+    head.tick(motion, at(10));
     check(motion.commands.back().pitch == 45, "tightened pitch minimum was not honoured");
-    head.tick(motion, 8 * kBeatMs);
+    head.tick(motion, at(11));
     check(motion.commands.back().pitch == 55, "tightened pitch window did not retain a bounded neutral");
-    head.tick(motion, 10 * kBeatMs);
+    head.tick(motion, at(14));
     check(motion.commands.back().pitch == 65, "tightened pitch maximum was not honoured");
     motion.pitch.limits = {100, 110};
-    head.tick(motion, 11 * kBeatMs);
+    head.tick(motion, at(15));
     check(head.limits_unavailable() && !head.owns_lock() && motion.stops == 1,
           "shifted physical limits caused an expanded movement envelope");
     head.cancel(motion);
+}
+
+void anticipation_sends_no_servo_goal_and_can_be_cancelled()
+{
+    for (const bool reserve : {false, true}) {
+        distance_pet::RestHeadMotion head;
+        FakeMotion motion;
+        motion.moving = true;
+        if (reserve) head.reserve(motion);
+        for (std::uint32_t elapsed = 0; elapsed < at(0); ++elapsed) head.tick(motion, elapsed);
+        check(!head.started() && !head.skipped() && motion.current_reads == 0 && motion.commands.empty() &&
+                  motion.lock_writes == (reserve ? 1 : 0) && motion.torque_enables == 0 && motion.stops == 0,
+              "eye anticipation touched the servo or captured an unfinished prior position");
+        motion.moving = false;
+        head.tick(motion, at(0));
+        check(head.started() && motion.commands.size() == 1 && motion.commands.front().duration_ms == 360,
+              "first actual head start did not begin its own movement");
+        head.cancel(motion);
+    }
+    distance_pet::RestHeadMotion cancelled;
+    FakeMotion motion;
+    cancelled.reserve(motion);
+    cancelled.tick(motion, at(0) - 1u);
+    cancelled.cancel(motion);
+    cancelled.tick(motion, at(0));
+    check(motion.commands.empty() && motion.stops == 0 && motion.torque_enables == 0 && !motion.locked &&
+              motion.lock_writes == 2,
+          "cancelling anticipation moved the head or leaked its reservation");
 }
 
 } // namespace
@@ -496,10 +538,11 @@ int main()
         each_new_beat_reenables_torque_before_its_target();
         rejected_or_cancelled_reservations_never_enable_torque();
         lost_ownership_or_limits_never_reenable_torque();
-        four_directions_use_two_slow_beats_and_a_centre();
+        four_directions_repeat_two_complete_excursions();
         starting_at_pitch_edge_uses_both_directions_inside_original_window();
         shrinking_limits_recentre_without_expanding_original_window();
-        std::cout << "rest head motion: 20 groups passed\n";
+        anticipation_sends_no_servo_goal_and_can_be_cancelled();
+        std::cout << "rest head motion: 21 groups passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

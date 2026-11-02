@@ -350,6 +350,59 @@ void sound_reaction_handles_timestamp_wrap()
     }
 }
 
+void performance_eye_cues_leave_ordinary_frames_and_alerts_unchanged()
+{
+    for (const auto mood : actions) {
+        const auto frame = settled(mood);
+        check_same(frame, distance_pet::with_eye_cue(frame, {}));
+        const auto directed = distance_pet::with_eye_cue(frame, {100, -100, 0});
+        check(directed.left_eye.x == frame.left_eye.x + 12 &&
+              directed.right_eye.x == frame.right_eye.x + 12, "gaze must be bounded and binocular");
+        check(directed.left_eye.y == frame.left_eye.y - 8 &&
+              directed.right_eye.y == frame.right_eye.y - 8, "vertical gaze must be bounded");
+        check(directed.left_eye.height == 2 && directed.right_eye.height == 2,
+              "performance blink must close both eyes");
+        check(directed.mood == frame.mood && directed.mouth_x == frame.mouth_x &&
+              directed.mouth_open == frame.mouth_open && directed.cheek == frame.cheek,
+              "eye cues must preserve the underlying expression");
+        check_same(frame, distance_pet::with_eye_cue(frame, {0, 0, 2}));
+    }
+    Controller controller(19);
+    const auto alert = controller.update(0, Signal::Alert);
+    check_same(alert, distance_pet::with_eye_cue(alert, {12, 8, 0}));
+}
+
+void performed_mood_survives_two_excursions_without_restarting_its_blend()
+{
+    for (const auto mood : {Mood::Curious, Mood::Happy, Mood::Surprise, Mood::Affection}) {
+        Controller controller(5);
+        controller.update(0, Signal::Ready);
+        controller.play(mood, 0);
+        for (std::uint32_t now = 0; now < 3000; now += 20) {
+            const auto frame = controller.update(now, Signal::Ready, true);
+            check(frame.mood == mood, "performed group expired or selected an unrelated random mood");
+            check_bounds(frame);
+            if (mood == Mood::Surprise && now >= 280)
+                check(frame.mouth_open == 1, "holding an emotion must not restart its blend or lose its settled geometry");
+        }
+        check(controller.update(3000, Signal::Ready).mood == Mood::Idle,
+              "ordinary mood lifetime did not resume when performance released it");
+    }
+}
+
+void performed_mood_cannot_override_alert_or_unavailable()
+{
+    Controller controller(9);
+    controller.update(0, Signal::Ready);
+    controller.play(Mood::Surprise, 0);
+    check(controller.update(3000, Signal::Ready, true).mood == Mood::Surprise,
+          "fixture did not hold the requested emotion");
+    check(controller.update(3000, Signal::Alert, true).mood == Mood::Alert,
+          "performance blocked an immediate sensor alert");
+    check(controller.update(3020, Signal::Unavailable, true).mood == Mood::Idle,
+          "performance kept a celebratory emotion on unavailable distance");
+}
+
 } // namespace
 
 int main()
@@ -370,6 +423,9 @@ int main()
         {"one_hundred_thousand_frames_remain_finite_and_bounded", one_hundred_thousand_frames_remain_finite_and_bounded},
         {"sound_reaction_is_sequenced_and_distance_preempts_it", sound_reaction_is_sequenced_and_distance_preempts_it},
         {"sound_reaction_handles_timestamp_wrap", sound_reaction_handles_timestamp_wrap},
+        {"performance_eye_cues_leave_ordinary_frames_and_alerts_unchanged", performance_eye_cues_leave_ordinary_frames_and_alerts_unchanged},
+        {"performed_mood_survives_two_excursions_without_restarting_its_blend", performed_mood_survives_two_excursions_without_restarting_its_blend},
+        {"performed_mood_cannot_override_alert_or_unavailable", performed_mood_cannot_override_alert_or_unavailable},
     };
     unsigned passed = 0;
     for (const auto& test : tests) {

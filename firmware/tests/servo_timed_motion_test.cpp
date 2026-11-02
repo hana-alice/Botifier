@@ -3,6 +3,7 @@
 #include <core/hal/hal.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -292,7 +293,43 @@ void ordinary_spring_still_uses_its_existing_fixed_delta()
     check(servo.physical == 3 && !servo.timedMotionActive(), "ordinary fixed-delta spring behavior changed");
 }
 
-void actual_controller_and_motion_keep_twelve_beats_at_two_hz()
+void actual_controller_and_motion_keep_nonuniform_targets_at_two_hz()
+{
+  for (const auto cadence : {20u, 500u}) {
+    clock_ms = 0;
+    auto yaw = std::make_unique<HardwareServo>(87);
+    auto pitch = std::make_unique<HardwareServo>(31, uitk::Vector2i{30, 870});
+    auto* y = yaw.get();
+    auto* p = pitch.get();
+    stackchan::motion::Motion motion(std::move(yaw), std::move(pitch));
+    motion.init();
+    clock_ms = 20;
+    motion.update();
+    y->writes.clear();
+    p->writes.clear();
+    distance_pet::RestHeadMotion head;
+    head.reserve(motion);
+    const auto start = clock_ms;
+    for (std::uint32_t elapsed = 0; elapsed <= idle_program::kMotionDurationMs; elapsed += cadence) {
+        clock_ms = start + elapsed;
+        head.tick(motion, elapsed);
+        motion.update();
+    }
+    check(y->writes.size() == 16 && p->writes.size() == 16, "real controller/motion did not issue sixteen timed targets");
+    for (const auto* servo : {y, p}) {
+        for (std::size_t i = 0; i < servo->writes.size(); ++i)
+            check(servo->writes[i].duration == idle_program::kMotionBeats[i].move_ms,
+                  "a software spring overwrote the target's own hardware duration");
+    }
+    check(y->writes[2].angle == 7 && y->writes[6].angle == 167 && p->writes[10].angle == 30 && p->writes[14].angle == 71,
+          "sparse production choreography failed to reach bounded endpoints in both directions");
+    check(y->physical == 87 && p->physical == 50, "sparse choreography did not finish at its bounded neutral");
+    head.cancel(motion);
+    check(!motion.isModifyLocked(), "controller completion retained its cooperative lock");
+  }
+}
+
+void actual_controller_skips_expired_targets_instead_of_replaying()
 {
     clock_ms = 0;
     auto yaw = std::make_unique<HardwareServo>(87);
@@ -308,20 +345,27 @@ void actual_controller_and_motion_keep_twelve_beats_at_two_hz()
     distance_pet::RestHeadMotion head;
     head.reserve(motion);
     const auto start = clock_ms;
-    for (std::uint32_t elapsed = 0; elapsed <= idle_program::kMotionDurationMs; elapsed += 500) {
+    constexpr std::array<std::size_t, 12> selected{{1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15}};
+    for (std::uint32_t elapsed = 1000; elapsed <= idle_program::kMotionDurationMs; elapsed += 1000) {
         clock_ms = start + elapsed;
+        head.tick(motion, elapsed);
         head.tick(motion, elapsed);
         motion.update();
     }
-    check(y->writes.size() == 12 && p->writes.size() == 12, "real controller/motion did not issue twelve timed beats");
-    for (const auto* servo : {y, p}) {
-        for (const auto& write : servo->writes) check(write.duration == 350, "a software spring overwrote the hardware plan");
+    check(y->writes.size() == selected.size() && p->writes.size() == selected.size(),
+          "slow production updates replayed expired goals or resent a duplicate frame");
+    for (std::size_t i = 0; i < selected.size(); ++i) {
+        const auto target = idle_program::kMotionBeats[selected[i]];
+        check(y->writes[i].duration == target.move_ms && p->writes[i].duration == target.move_ms &&
+                  y->writes[i].angle == 87 + target.yaw_delta,
+              "slow production updates changed the current goal or its own travel duration");
     }
-    check(y->writes[1].angle == 7 && y->writes[4].angle == 167 && p->writes[7].angle == 30 && p->writes[10].angle == 71,
-          "sparse production choreography failed to reach bounded endpoints in both directions");
-    check(y->physical == 87 && p->physical == 50, "sparse choreography did not finish at its bounded neutral");
+    clock_ms = start + idle_program::kMotionDurationMs + idle_program::kMotionBeats.back().move_ms;
+    head.tick(motion, idle_program::kMotionDurationMs + idle_program::kMotionBeats.back().move_ms);
+    motion.update();
+    check(y->physical == 87 && p->physical == 50 && y->writes.size() == selected.size() &&
+              p->writes.size() == selected.size(), "expired final centre did not finish once while retaining REST ownership");
     head.cancel(motion);
-    check(!motion.isModifyLocked(), "controller completion retained its cooperative lock");
 }
 
 } // namespace
@@ -343,8 +387,9 @@ int main()
         minimum_duration_and_clock_wrap_are_honoured();
         unsupported_duration_driver_has_documented_immediate_fallback();
         ordinary_spring_still_uses_its_existing_fixed_delta();
-        actual_controller_and_motion_keep_twelve_beats_at_two_hz();
-        std::cout << "servo timed motion: 11 groups passed (production Servo/Motion/UITK, simulated hardware clock)\n";
+        actual_controller_and_motion_keep_nonuniform_targets_at_two_hz();
+        actual_controller_skips_expired_targets_instead_of_replaying();
+        std::cout << "servo timed motion: 12 groups passed (production Servo/Motion/UITK, simulated hardware clock)\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

@@ -154,7 +154,7 @@ void only_current_eligible_intro_acknowledgement_advances_the_sequence()
     run(policy, now, kMotionDurationMs - 1u);
     state = policy.snapshot(now);
     check(state.eye_phase == EyePhase::Motion && state.remaining_ms == 1 && state.phase_elapsed_ms == kMotionDurationMs - 1u,
-          "motion finished before all twelve rhythm beats");
+          "motion finished before all sixteen rhythm targets");
     const auto readonly = policy.snapshot(now + 1u);
     check(readonly.eye_phase == EyePhase::Motion && readonly.remaining_ms == 0 &&
               readonly.generation == intro_generation + 1u && readonly.completed_rests == 0,
@@ -213,21 +213,38 @@ void delayed_worker_tick_never_borrows_time_from_rest()
 
 void motion_timeline_is_bounded_and_returns_to_centre()
 {
-    static_assert(kMotionBeatMs == 1000 && kMotionDurationMs == 12000 && kMotionBeats.size() == 12);
-    constexpr std::array<std::int16_t, 12> yaw{{-40, -80, 0, 40, 80, 0, 0, 0, 0, 0, 0, 0}};
-    constexpr std::array<std::int16_t, 12> pitch{{0, 0, 0, 0, 0, 0, -20, -40, 0, 20, 40, 0}};
+    static_assert(kMotionDurationMs == 12000 && kMotionBeats.size() == 16 && kMotionCueLeadMs == 120);
+    constexpr std::array<std::int16_t, 16> yaw{{-60, 0, -80, 0, 60, 0, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+    constexpr std::array<std::int16_t, 16> pitch{{0, 0, 0, 0, 0, 0, 0, 0, -30, 0, -40, 0, 30, 0, 40, 0}};
+    constexpr std::array<std::uint32_t, 4> starts{{120, 720, 1400, 2100}};
+    constexpr std::array<std::uint16_t, 4> moves{{360, 300, 420, 340}};
+    for (const auto elapsed : {0u, 119u}) {
+        check(motion_index(elapsed) == 0 && motion_beat(elapsed).yaw_delta == 0 &&
+                  motion_beat(elapsed).pitch_delta == 0,
+              "head anticipation exposed an early servo target or invalid index");
+    }
     for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
-        for (const auto edge : {0u, kMotionBeatMs - 1u}) {
-            const auto elapsed = beat * kMotionBeatMs + edge;
+        const auto frame = kMotionBeats[beat];
+        const auto next = beat + 1u < kMotionBeats.size() ? kMotionBeats[beat + 1u].start_ms : kMotionDurationMs;
+        check(frame.start_ms == (beat / 4u) * 3000u + starts[beat % 4u] && frame.move_ms == moves[beat % 4u] &&
+                  frame.start_ms + frame.move_ms <= next,
+              "target schedule lost its nonuniform start, travel duration, or settle interval");
+        check(motion_index(frame.start_ms - 1u) == (beat ? beat - 1u : 0u),
+              "head index crossed a target boundary early");
+        for (const auto elapsed : {frame.start_ms, next - 1u}) {
             const auto pose = motion_beat(elapsed);
-            check(pose.yaw_delta == yaw[beat] && pose.pitch_delta == pitch[beat],
-                  "motion timeline did not preserve the complete one-second beat");
-            check(motion_group(elapsed) == beat / 3u + 1u &&
-                      motion_step(elapsed) == (beat + 1u) % 3u &&
-                      motion_is_center(elapsed) == (beat % 3u == 2u),
-                  "motion display ordinals disagreed with the one-two-centre groups");
-            check((pose.yaw_delta == 0 && pose.pitch_delta == 0) == motion_is_center(elapsed),
-                  "a group's third beat did not hold the head at centre");
+            check(motion_index(elapsed) == beat && pose.yaw_delta == yaw[beat] && pose.pitch_delta == pitch[beat] &&
+                      pose.start_ms == frame.start_ms && pose.move_ms == frame.move_ms,
+                  "head target or index changed before the next real target start");
+        }
+        const auto cue_start = frame.start_ms - kMotionCueLeadMs;
+        const auto cue_end = beat + 1u < kMotionBeats.size() ? next - kMotionCueLeadMs : kMotionDurationMs;
+        if (beat) check(motion_cue_index(cue_start - 1u) == beat - 1u, "eye cue began earlier than the 120 ms lead");
+        for (const auto elapsed : {cue_start, cue_end - 1u}) {
+            const auto expected_step = beat % 4u == 0 ? 1u : beat % 4u == 2 ? 2u : 0u;
+            check(motion_cue_index(elapsed) == beat && motion_group(elapsed) == beat / 4u + 1u &&
+                      motion_step(elapsed) == expected_step && motion_is_center(elapsed) == (beat % 2u == 1u),
+                  "eye cue ordinals disagreed with two complete out-and-back excursions");
         }
     }
     for (const auto elapsed : {kMotionDurationMs, kMotionDurationMs + 1u, std::numeric_limits<std::uint32_t>::max()}) {
@@ -235,7 +252,31 @@ void motion_timeline_is_bounded_and_returns_to_centre()
         check(pose.yaw_delta == 0 && pose.pitch_delta == 0, "completed motion did not remain at centre");
         check(motion_group(elapsed) == 0 && motion_step(elapsed) == 0 && motion_is_center(elapsed),
               "completed motion exposed a current group or movement step");
+        check(motion_index(elapsed) == 15 && motion_cue_index(elapsed) == 15 && !motion_is_pause(elapsed),
+              "oversized time exposed an invalid target index or an active pause");
     }
+}
+
+void motion_pause_and_blink_have_explicit_group_boundaries()
+{
+    for (std::uint32_t group = 0; group < 4; ++group) {
+        const auto start = group * 3000u;
+        check(!motion_is_pause(start + 2439u) && motion_is_pause(start + 2440u) &&
+                  motion_is_pause(start + 2999u) && !motion_is_pause(start + 3000u),
+              "centre pause did not retain exactly its designed 560 ms interval");
+        check(motion_blink_open(start + 2559u) == 1 && motion_blink_open(start + 2560u) == 1 &&
+                  motion_blink_open(start + 2670u) == 0 && motion_blink_open(start + 2780u) == 1,
+              "pause blink did not close then reopen at its designed boundaries");
+        float previous = 1;
+        for (std::uint32_t within = 2560; within <= 2780; ++within) {
+            const auto open = motion_blink_open(start + within);
+            check(open >= 0 && open <= 1 && (within <= 2670 ? open <= previous : open >= previous),
+                  "pause blink overshot or changed direction while closing or reopening");
+            previous = open;
+        }
+    }
+    check(motion_blink_open(kMotionDurationMs) == 1 && motion_blink_open(UINT32_MAX) == 1,
+          "completed sequence left the eyes shut");
 }
 
 void intro_and_motion_boundaries_survive_uint32_wrap()
@@ -762,28 +803,68 @@ void stored_config_v1_migrates_cadence_and_v2_preserves_settings()
 
 void visual_motion_is_continuous_and_holds_each_completed_target()
 {
-    check(kMotionMoveMs < kMotionBeatMs, "motion must retain the between-beat hold");
     auto previous = motion_visual_offset(0);
+    auto previous_gaze = motion_gaze_offset(0);
     check(previous.yaw_delta == 0 && previous.pitch_delta == 0, "visual motion must begin at neutral");
     for (std::uint32_t time = 1; time <= kMotionDurationMs; ++time) {
         const auto current = motion_visual_offset(time);
-        check(std::abs(current.yaw_delta - previous.yaw_delta) < 0.35f &&
-                  std::abs(current.pitch_delta - previous.pitch_delta) < 0.35f,
+        const auto gaze = motion_gaze_offset(time);
+        check(std::abs(current.yaw_delta - previous.yaw_delta) < 0.41f &&
+                  std::abs(current.pitch_delta - previous.pitch_delta) < 0.41f,
               "visual motion jumps between adjacent milliseconds or beat boundaries");
         check(std::abs(current.yaw_delta) <= 80 && std::abs(current.pitch_delta) <= 40,
               "visual easing overshot the original motion envelope");
+        check(std::abs(gaze.yaw_delta - previous_gaze.yaw_delta) < 1.01f &&
+                  std::abs(gaze.pitch_delta - previous_gaze.pitch_delta) < 1.01f &&
+                  std::abs(gaze.yaw_delta) <= 80 && std::abs(gaze.pitch_delta) <= 40,
+              "anticipatory gaze jumped at a cue boundary or left the original envelope");
         previous = current;
+        previous_gaze = gaze;
     }
     for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
         const auto target = kMotionBeats[beat];
-        for (const auto offset : {static_cast<std::uint32_t>(kMotionMoveMs), kMotionBeatMs - 1}) {
-            const auto settled = motion_visual_offset(beat * kMotionBeatMs + offset);
+        const auto next = beat + 1u < kMotionBeats.size() ? kMotionBeats[beat + 1u].start_ms : kMotionDurationMs;
+        const auto from = beat ? kMotionBeats[beat - 1u] : MotionBeat{0, 0, 0, 0};
+        const auto cue_start = target.start_ms - kMotionCueLeadMs;
+        const auto cue_begin = motion_gaze_offset(cue_start);
+        const auto gaze_settled = motion_gaze_offset(target.start_ms);
+        const auto head_begin = motion_visual_offset(target.start_ms);
+        check(cue_begin.yaw_delta == from.yaw_delta && cue_begin.pitch_delta == from.pitch_delta &&
+                  gaze_settled.yaw_delta == target.yaw_delta && gaze_settled.pitch_delta == target.pitch_delta &&
+                  head_begin.yaw_delta == from.yaw_delta && head_begin.pitch_delta == from.pitch_delta,
+              "eyes did not lead the actual head movement by exactly 120 ms");
+        // A linear tween would pass the continuity/bounds checks above, but it
+        // would not provide the requested soft take-off and landing.
+        const bool yaw_axis = target.yaw_delta != from.yaw_delta;
+        const float initial = yaw_axis ? from.yaw_delta : from.pitch_delta;
+        const float total = static_cast<float>(yaw_axis ? target.yaw_delta - from.yaw_delta :
+                                                         target.pitch_delta - from.pitch_delta);
+        for (const bool gaze : {false, true}) {
+            const auto start = gaze ? cue_start : target.start_ms;
+            const auto duration = gaze ? kMotionCueLeadMs : target.move_ms;
+            const auto quarter = gaze ? motion_gaze_offset(start + duration / 4u) :
+                                        motion_visual_offset(start + duration / 4u);
+            const auto middle = gaze ? motion_gaze_offset(start + duration / 2u) :
+                                       motion_visual_offset(start + duration / 2u);
+            const auto late = gaze ? motion_gaze_offset(start + 3u * duration / 4u) :
+                                     motion_visual_offset(start + 3u * duration / 4u);
+            const auto early_distance = (yaw_axis ? quarter.yaw_delta : quarter.pitch_delta) - initial;
+            const auto middle_distance = (yaw_axis ? middle.yaw_delta : middle.pitch_delta) - initial;
+            const auto late_distance = (yaw_axis ? late.yaw_delta : late.pitch_delta) - initial;
+            check(std::abs(early_distance) < std::abs(total) * 0.2f &&
+                      std::abs(middle_distance - total * 0.5f) < 0.001f &&
+                      std::abs(total - late_distance) < std::abs(total) * 0.2f,
+                  "performance motion lost its eased start or eased finish");
+        }
+        for (const auto elapsed : {target.start_ms + target.move_ms, next - 1u}) {
+            const auto settled = motion_visual_offset(elapsed);
             check(settled.yaw_delta == target.yaw_delta && settled.pitch_delta == target.pitch_delta,
                   "visual movement failed to settle and hold the same hardware target");
         }
     }
     check(motion_visual_offset(UINT32_MAX).yaw_delta == 0 &&
-              motion_visual_offset(UINT32_MAX).pitch_delta == 0,
+              motion_visual_offset(UINT32_MAX).pitch_delta == 0 &&
+              motion_gaze_offset(UINT32_MAX).yaw_delta == 0 && motion_gaze_offset(UINT32_MAX).pitch_delta == 0,
           "completed or oversized phase must remain at neutral");
 }
 
@@ -819,6 +900,7 @@ int main()
         full_twenty_second_rest_and_two_second_completion, ordinary_activity_preserves_started_animation_and_holds_idle_cards,
         only_current_eligible_intro_acknowledgement_advances_the_sequence,
         delayed_worker_tick_never_borrows_time_from_rest, motion_timeline_is_bounded_and_returns_to_centre,
+        motion_pause_and_blink_have_explicit_group_boundaries,
         intro_and_motion_boundaries_survive_uint32_wrap,
         blocked_context_and_asynchronous_staleness_cancel, overdue_intervals_never_form_a_backlog,
         persistent_distance_alert_allows_and_cannot_interrupt_due_rest,

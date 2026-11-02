@@ -24,11 +24,9 @@ constexpr std::uint32_t kMint = 0x74E4B5;
 constexpr std::uint32_t kAmber = 0xFFD37A;
 constexpr std::uint32_t kRose = 0xFF91AE;
 constexpr auto kNoBeat = std::numeric_limits<std::uint32_t>::max();
-constexpr std::array<distance_pet::Mood, kMotionBeats.size()> kBeatMoods{
-    distance_pet::Mood::Curious, distance_pet::Mood::Happy, distance_pet::Mood::Relief,
-    distance_pet::Mood::Wink, distance_pet::Mood::Happy, distance_pet::Mood::Relief,
-    distance_pet::Mood::Surprise, distance_pet::Mood::Affection, distance_pet::Mood::Relief,
-    distance_pet::Mood::Shy, distance_pet::Mood::Affection, distance_pet::Mood::Happy};
+constexpr std::array<distance_pet::Mood, 4> kGroupMoods{
+    distance_pet::Mood::Curious, distance_pet::Mood::Happy,
+    distance_pet::Mood::Surprise, distance_pet::Mood::Affection};
 
 lv_obj_t* plain(lv_obj_t* parent, int width, int height)
 {
@@ -154,7 +152,7 @@ struct View {
         }
         for (std::size_t i = 0; i < beat_dots.size(); ++i) {
             beat_dots[i] = plain(root, 8, 6);
-            lv_obj_set_pos(beat_dots[i], 74 + static_cast<int>(i) * 15, 203);
+            lv_obj_set_pos(beat_dots[i], 44 + static_cast<int>(i) * 15, 203);
             lv_obj_set_style_radius(beat_dots[i], 3, 0);
             lv_obj_set_style_bg_opa(beat_dots[i], LV_OPA_COVER, 0);
         }
@@ -191,19 +189,18 @@ struct View {
         const bool rest = eye && value.eye_phase == EyePhase::Rest;
         const bool countdown = value.program == Program::EyeCountdown;
         const bool weekly = value.program == Program::Weekly;
-        const auto beat = motion ? std::min<std::uint32_t>(value.phase_elapsed_ms / kMotionBeatMs,
-                                                       kMotionBeats.size() - 1) : kNoBeat;
+        const auto beat = motion ? motion_cue_index(value.phase_elapsed_ms) : kNoBeat;
         if (rendered && value.program == previous_program && value.generation == previous_generation &&
             value.eye_phase == previous_phase && beat == previous_beat && now - last_render_ms < 33) return;
         rendered = true;
         last_render_ms = now;
-        const auto mood = motion ? kBeatMoods[beat] : value.program == Program::RestDone ? distance_pet::Mood::Happy :
+        const auto mood = motion ? kGroupMoods[std::min<std::uint32_t>(3, beat / 4)] : value.program == Program::RestDone ? distance_pet::Mood::Happy :
                           eye ? distance_pet::Mood::Affection : countdown ? distance_pet::Mood::Curious :
                           value.weekly_status != WeeklyStatus::Fresh || value.weekly_left < 0 ? distance_pet::Mood::Sad :
                           value.weekly_left <= 20 ? distance_pet::Mood::Sad :
                           value.weekly_left >= 60 ? distance_pet::Mood::Happy : distance_pet::Mood::Curious;
         if (value.program != previous_program || value.eye_phase != previous_phase || value.weekly_status != previous_status ||
-            value.generation != previous_generation || mood != previous_mood || beat != previous_beat) {
+            value.generation != previous_generation || mood != previous_mood) {
             pet->setMood(mood, now);
         }
         previous_program = value.program;
@@ -212,7 +209,13 @@ struct View {
         previous_generation = value.generation;
         previous_mood = mood;
         previous_beat = beat;
-        pet->tick(now, distance_pet::Signal::Ready);
+        distance_pet::EyeCue eye_cue;
+        if (motion) {
+            const auto gaze = motion_gaze_offset(value.phase_elapsed_ms);
+            eye_cue = {gaze.yaw_delta * 0.15f, gaze.pitch_delta * 0.2f,
+                       motion_blink_open(value.phase_elapsed_ms)};
+        }
+        pet->tick(now, distance_pet::Signal::Ready, false, eye_cue, motion);
         show(face_host, weekly || motion || value.program == Program::RestDone);
         show(clock_ring, countdown);
         show(clock_hands, countdown);
@@ -289,8 +292,10 @@ struct View {
                   10 + static_cast<int>(std::lround(target.pitch_delta / 10)), 320, 232);
             const auto group = motion_group(value.phase_elapsed_ms);
             const auto step = motion_step(value.phase_elapsed_ms);
-            const char* direction = group == 1 ? "LEFT" : group == 2 ? "RIGHT" : group == 3 ? "NOD A" : "NOD B";
-            if (motion_is_center(value.phase_elapsed_ms))
+            const char* direction = group == 1 ? "LEFT" : group == 2 ? "RIGHT" : group == 3 ? "UP" : "DOWN";
+            if (motion_is_pause(value.phase_elapsed_ms))
+                std::snprintf(text, sizeof(text), "%lu / 4  BREATHE", static_cast<unsigned long>(group));
+            else if (motion_is_center(value.phase_elapsed_ms))
                 std::snprintf(text, sizeof(text), "%lu / 4  CENTER", static_cast<unsigned long>(group));
             else
                 std::snprintf(text, sizeof(text), "%lu / 4  %s %lu / 2", static_cast<unsigned long>(group),

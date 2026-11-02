@@ -32,6 +32,28 @@ struct Frame {
     Mood mood = Mood::Idle;
 };
 
+// A caller-owned performance can direct the eyes without restarting the pet's
+// mood or changing its ordinary animation history. The default cue is neutral.
+struct EyeCue {
+    float x = 0;
+    float y = 0;
+    float openness = 1;
+};
+
+inline Frame with_eye_cue(Frame frame, EyeCue cue) noexcept
+{
+    if (frame.mood == Mood::Alert) return frame;
+    const auto x = std::clamp(cue.x, -12.0f, 12.0f);
+    const auto y = std::clamp(cue.y, -8.0f, 8.0f);
+    const auto openness = std::clamp(cue.openness, 0.0f, 1.0f);
+    for (auto* eye : {&frame.left_eye, &frame.right_eye}) {
+        eye->x += x;
+        eye->y += y;
+        eye->height = std::max(2.0f, eye->height * openness);
+    }
+    return frame;
+}
+
 // Absolute pixel geometry only. The caller supplies the sensor's verdict and
 // owns rendering; animation never decides whether the measured distance is safe.
 class Controller {
@@ -61,7 +83,7 @@ public:
         pending_play_ = true;
     }
 
-    Frame update(std::uint32_t now_ms, Signal signal) noexcept
+    Frame update(std::uint32_t now_ms, Signal signal, bool hold_mood = false) noexcept
     {
         initialize(now_ms);
         const auto delta = now_ms - last_ms_;
@@ -108,10 +130,13 @@ public:
             }
         }
 
-        if (mood_ != Mood::Idle && now_ms - mood_start_ >= duration(mood_)) {
+        // A caller-owned performance keeps its emotion without replaying the
+        // blend each frame. Sensor verdicts above always retain their priority.
+        const bool performing = hold_mood && signal == Signal::Ready;
+        if (!performing && mood_ != Mood::Idle && now_ms - mood_start_ >= duration(mood_)) {
             begin(Mood::Idle, now_ms);
         }
-        if (signal == Signal::Ready && mood_ == Mood::Idle && now_ms - auto_start_ >= auto_delay_) {
+        if (!performing && signal == Signal::Ready && mood_ == Mood::Idle && now_ms - auto_start_ >= auto_delay_) {
             constexpr Mood actions[] = {Mood::Curious, Mood::Happy, Mood::Affection, Mood::Shy,
                                         Mood::Sad, Mood::Sleepy, Mood::Surprise, Mood::Wink};
             auto index = random(0, 7);
