@@ -1,5 +1,5 @@
 #include "view.h"
-#include "shorekeeper_art.h"
+#include "eye_sequence.h"
 #include "../../app_distance/pet_avatar.h"
 
 #include <assets/assets.h>
@@ -7,9 +7,9 @@
 #include <lvgl.h>
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <limits>
 #include <memory>
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
@@ -18,10 +18,15 @@ namespace idle_program {
 namespace {
 
 constexpr std::uint32_t kText = 0xF7F2FF;
-constexpr std::uint32_t kMuted = 0xB8B1C3;
+constexpr std::uint32_t kMuted = 0xADC4D2;
 constexpr std::uint32_t kMint = 0x74E4B5;
 constexpr std::uint32_t kAmber = 0xFFD37A;
 constexpr std::uint32_t kRose = 0xFF91AE;
+constexpr auto kNoBeat = std::numeric_limits<std::uint32_t>::max();
+constexpr std::array<distance_pet::Mood, 9> kBeatMoods{
+    distance_pet::Mood::Happy, distance_pet::Mood::Curious, distance_pet::Mood::Happy,
+    distance_pet::Mood::Wink, distance_pet::Mood::Affection, distance_pet::Mood::Surprise,
+    distance_pet::Mood::Happy, distance_pet::Mood::Shy, distance_pet::Mood::Relief};
 
 lv_obj_t* plain(lv_obj_t* parent, int width, int height)
 {
@@ -32,31 +37,28 @@ lv_obj_t* plain(lv_obj_t* parent, int width, int height)
     return object;
 }
 
-lv_obj_t* label(lv_obj_t* parent, int x, int y, int width, const lv_font_t* font, std::uint32_t color)
+lv_obj_t* label(lv_obj_t* parent, const lv_font_t* font, std::uint32_t color)
 {
     auto* object = lv_label_create(parent);
-    lv_obj_set_pos(object, x, y);
-    lv_obj_set_width(object, width);
+    lv_obj_remove_flag(object, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
     lv_label_set_long_mode(object, LV_LABEL_LONG_MODE_CLIP);
     lv_obj_set_style_text_font(object, font, 0);
     lv_obj_set_style_text_color(object, lv_color_hex(color), 0);
     return object;
 }
 
+void place(lv_obj_t* object, int x, int y, int width, int scale = 256)
+{
+    lv_obj_set_pos(object, x, y);
+    lv_obj_set_width(object, width);
+    lv_obj_set_style_transform_scale_x(object, scale, 0);
+    lv_obj_set_style_transform_scale_y(object, scale, 0);
+}
+
 void show(lv_obj_t* object, bool visible)
 {
     if (visible) lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
-}
-
-distance_pet::Mood mood_for(const Snapshot& value)
-{
-    if (value.program == Program::RestDone) return distance_pet::Mood::Happy;
-    if (value.program == Program::EyeRest) return distance_pet::Mood::Affection;
-    if (value.program == Program::EyeCountdown) return distance_pet::Mood::Curious;
-    if (value.weekly_status == WeeklyStatus::Unavailable || value.weekly_left < 0) return distance_pet::Mood::Sad;
-    return value.weekly_left <= 20 ? distance_pet::Mood::Sad :
-           value.weekly_left >= 60 ? distance_pet::Mood::Happy : distance_pet::Mood::Curious;
 }
 
 void format_time(char* text, std::size_t size, std::uint32_t timestamp_seconds, const char* prefix)
@@ -66,15 +68,15 @@ void format_time(char* text, std::size_t size, std::uint32_t timestamp_seconds, 
         return;
     }
     const auto timestamp = static_cast<std::time_t>(timestamp_seconds) + 8 * 60 * 60;
-    std::tm reset{};
+    std::tm result{};
 #ifdef _WIN32
-    const bool valid = gmtime_s(&reset, &timestamp) == 0;
+    const bool valid = gmtime_s(&result, &timestamp) == 0;
 #else
-    const bool valid = gmtime_r(&timestamp, &reset) != nullptr;
+    const bool valid = gmtime_r(&timestamp, &result) != nullptr;
 #endif
     if (valid) {
-        std::snprintf(text, size, "%s %02d-%02d %02d:%02d UTC+8", prefix, reset.tm_mon + 1, reset.tm_mday,
-                      reset.tm_hour, reset.tm_min);
+        std::snprintf(text, size, "%s %02d-%02d %02d:%02d UTC+8", prefix, result.tm_mon + 1, result.tm_mday,
+                      result.tm_hour, result.tm_min);
     } else {
         std::snprintf(text, size, "%s --", prefix);
     }
@@ -88,61 +90,86 @@ struct View {
     lv_obj_t* unit = nullptr;
     lv_obj_t* detail = nullptr;
     lv_obj_t* progress = nullptr;
-    lv_obj_t* rest_glow = nullptr;
-    lv_obj_t* rest_character = nullptr;
-    std::array<lv_obj_t*, 4> rest_stars{};
+    lv_obj_t* clock_ring = nullptr;
+    lv_obj_t* clock_hands = nullptr;
+    lv_obj_t* codex_mark = nullptr;
+    std::array<lv_obj_t*, 10> quota_cells{};
+    std::array<lv_obj_t*, 10> quota_fill{};
+    std::array<lv_obj_t*, 9> beat_dots{};
     std::unique_ptr<DistancePetAvatar> pet;
     Program previous_program = Program::Pet;
+    EyePhase previous_phase = EyePhase::Intro;
     WeeklyStatus previous_status = WeeklyStatus::Waiting;
     distance_pet::Mood previous_mood = distance_pet::Mood::Idle;
     std::uint32_t previous_generation = 0;
+    std::uint32_t previous_beat = kNoBeat;
     std::uint32_t last_render_ms = 0;
     bool rendered = false;
-    std::uint32_t rest_started_ms = 0;
 
     View()
     {
         root = plain(lv_layer_top(), 320, 184);
-        lv_obj_set_pos(root, 0, 0);
-        lv_obj_set_style_bg_color(root, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
         face_host = plain(root, 320, 240);
-        lv_obj_set_pos(face_host, 180, 39);
         lv_obj_set_style_transform_pivot_x(face_host, 0, 0);
         lv_obj_set_style_transform_pivot_y(face_host, 0, 0);
-        lv_obj_set_style_transform_scale_x(face_host, 104, 0);
-        lv_obj_set_style_transform_scale_y(face_host, 104, 0);
         pet = std::make_unique<DistancePetAvatar>();
         pet->init(face_host);
-        rest_glow = plain(root, 140, 140);
-        lv_obj_set_pos(rest_glow, 166, 27);
-        lv_obj_set_style_radius(rest_glow, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_color(rest_glow, lv_color_hex(0xA7BEFF), 0);
-        lv_obj_set_style_bg_opa(rest_glow, 44, 0);
-        rest_character = lv_image_create(root);
-        lv_obj_remove_flag(rest_character, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-        lv_obj_set_pos(rest_character, 154, 12);
-        for (std::size_t i = 0; i < rest_stars.size(); ++i) {
-            rest_stars[i] = label(root, 0, 0, 12, &lv_font_montserrat_14, i % 2 ? 0xFFF0A8 : 0x88FFEC);
-            lv_label_set_text(rest_stars[i], "+");
-            show(rest_stars[i], false);
+
+        clock_ring = lv_arc_create(root);
+        lv_obj_remove_flag(clock_ring, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
+        lv_obj_remove_style(clock_ring, nullptr, LV_PART_KNOB);
+        lv_obj_set_size(clock_ring, 58, 58);
+        lv_obj_set_pos(clock_ring, 20, 54);
+        lv_arc_set_bg_angles(clock_ring, 0, 360);
+        lv_arc_set_rotation(clock_ring, 270);
+        lv_arc_set_range(clock_ring, 0, 1000);
+        lv_obj_set_style_arc_width(clock_ring, 4, LV_PART_MAIN);
+        lv_obj_set_style_arc_width(clock_ring, 4, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(clock_ring, lv_color_hex(0x5D3B16), LV_PART_MAIN);
+        lv_obj_set_style_arc_color(clock_ring, lv_color_hex(kAmber), LV_PART_INDICATOR);
+        clock_hands = lv_line_create(root);
+        lv_obj_remove_style_all(clock_hands);
+        lv_obj_remove_flag(clock_hands, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
+        lv_obj_set_pos(clock_hands, 20, 54);
+        lv_obj_set_size(clock_hands, 58, 58);
+        static constexpr std::array<lv_point_precise_t, 3> hands{{{29, 12}, {29, 29}, {41, 36}}};
+        lv_line_set_points(clock_hands, hands.data(), hands.size());
+        lv_obj_set_style_line_color(clock_hands, lv_color_hex(kAmber), 0);
+        lv_obj_set_style_line_width(clock_hands, 2, 0);
+        lv_obj_set_style_line_rounded(clock_hands, true, 0);
+
+        for (std::size_t i = 0; i < quota_cells.size(); ++i) {
+            quota_cells[i] = plain(root, 26, 14);
+            lv_obj_set_pos(quota_cells[i], 16 + static_cast<int>(i) * 29, 113);
+            lv_obj_set_style_border_width(quota_cells[i], 1, 0);
+            lv_obj_set_style_border_color(quota_cells[i], lv_color_hex(0x355365), 0);
+            lv_obj_set_style_radius(quota_cells[i], 3, 0);
+            quota_fill[i] = plain(quota_cells[i], 24, 10);
+            lv_obj_set_pos(quota_fill[i], 1, 2);
+            lv_obj_set_style_bg_opa(quota_fill[i], LV_OPA_COVER, 0);
+            lv_obj_set_style_radius(quota_fill[i], 1, 0);
         }
-        show(rest_glow, false);
-        show(rest_character, false);
-        title = label(root, 16, 8, 288, &BUILTIN_TEXT_FONT, kText);
-        number = label(root, 16, 49, 82, &MontserratSemiBold26, kText);
+        for (std::size_t i = 0; i < beat_dots.size(); ++i) {
+            beat_dots[i] = plain(root, 8, 6);
+            lv_obj_set_pos(beat_dots[i], 96 + static_cast<int>(i) * 15, 150);
+            lv_obj_set_style_radius(beat_dots[i], 3, 0);
+            lv_obj_set_style_bg_opa(beat_dots[i], LV_OPA_COVER, 0);
+        }
+        codex_mark = label(root, &MontserratSemiBold26, kMint);
+        lv_label_set_text(codex_mark, ">_");
+        place(codex_mark, 16, 7, 46);
+        title = label(root, &BUILTIN_TEXT_FONT, kText);
+        number = label(root, &MontserratSemiBold26, kText);
         lv_obj_set_style_transform_pivot_x(number, 0, 0);
         lv_obj_set_style_transform_pivot_y(number, 0, 0);
-        lv_obj_set_style_transform_scale_x(number, 512, 0);
-        lv_obj_set_style_transform_scale_y(number, 512, 0);
-        unit = label(root, 16, 111, 288, &lv_font_montserrat_14, kMuted);
-        detail = label(root, 16, 153, 288, &BUILTIN_TEXT_FONT, kMuted);
+        unit = label(root, &lv_font_montserrat_14, kMuted);
+        detail = label(root, &lv_font_montserrat_14, kMuted);
         progress = lv_bar_create(root);
         lv_obj_remove_flag(progress, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
         lv_obj_set_size(progress, 288, 6);
-        lv_obj_set_pos(progress, 16, 140);
-        lv_obj_set_style_bg_color(progress, lv_color_hex(0x242330), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(progress, lv_color_hex(kMint), LV_PART_INDICATOR);
+        lv_obj_set_pos(progress, 16, 177);
+        lv_obj_set_style_bg_color(progress, lv_color_hex(0x343B78), LV_PART_MAIN);
         lv_obj_set_style_radius(progress, 3, LV_PART_MAIN);
         lv_obj_set_style_radius(progress, 3, LV_PART_INDICATOR);
         lv_bar_set_range(progress, 0, 1000);
@@ -157,137 +184,136 @@ struct View {
     void render(const Snapshot& value)
     {
         const auto now = GetHAL().millis();
+        const bool eye = value.program == Program::EyeRest;
+        const bool motion = eye && value.eye_phase == EyePhase::Motion;
+        const bool rest = eye && value.eye_phase == EyePhase::Rest;
+        const bool countdown = value.program == Program::EyeCountdown;
+        const bool weekly = value.program == Program::Weekly;
+        const auto beat = motion ? std::min<std::uint32_t>(value.phase_elapsed_ms / kMotionBeatMs, 8) : kNoBeat;
         if (rendered && value.program == previous_program && value.generation == previous_generation &&
-            now - last_render_ms < 33) return;
+            value.eye_phase == previous_phase && beat == previous_beat && now - last_render_ms < 33) return;
         rendered = true;
         last_render_ms = now;
-        const bool resting = value.program == Program::EyeRest;
-        if (resting && (previous_program != Program::EyeRest || previous_generation != value.generation)) {
-            rest_started_ms = now;
-        }
-        const auto mood = mood_for(value);
-        if (value.program != previous_program || value.weekly_status != previous_status ||
-            value.generation != previous_generation || mood != previous_mood) {
+        const auto mood = motion ? kBeatMoods[beat] : value.program == Program::RestDone ? distance_pet::Mood::Happy :
+                          eye ? distance_pet::Mood::Affection : countdown ? distance_pet::Mood::Curious :
+                          value.weekly_status != WeeklyStatus::Fresh || value.weekly_left < 0 ? distance_pet::Mood::Sad :
+                          value.weekly_left <= 20 ? distance_pet::Mood::Sad :
+                          value.weekly_left >= 60 ? distance_pet::Mood::Happy : distance_pet::Mood::Curious;
+        if (value.program != previous_program || value.eye_phase != previous_phase || value.weekly_status != previous_status ||
+            value.generation != previous_generation || mood != previous_mood || beat != previous_beat) {
             pet->setMood(mood, now);
-            previous_program = value.program;
-            previous_status = value.weekly_status;
-            previous_generation = value.generation;
-            previous_mood = mood;
         }
-        if (!resting) pet->tick(now, distance_pet::Signal::Ready);
-        show(face_host, !resting);
-        show(rest_glow, resting);
-        show(rest_character, resting);
-        for (auto* star : rest_stars) show(star, resting);
-        lv_obj_set_style_bg_color(root, lv_color_hex(resting ? 0x172D96 : 0x000000), 0);
+        previous_program = value.program;
+        previous_phase = value.eye_phase;
+        previous_status = value.weekly_status;
+        previous_generation = value.generation;
+        previous_mood = mood;
+        previous_beat = beat;
+        pet->tick(now, distance_pet::Signal::Ready);
+        show(face_host, weekly || motion || value.program == Program::RestDone);
+        show(clock_ring, countdown);
+        show(clock_hands, countdown);
+        show(codex_mark, weekly);
+        for (auto* cell : quota_cells) show(cell, weekly);
+        for (auto* dot : beat_dots) show(dot, motion);
+        show(number, countdown || weekly || rest);
+        show(unit, !motion && value.program != Program::RestDone);
+        show(progress, rest || motion || value.program == Program::RestDone);
+        lv_obj_set_style_bg_color(root, lv_color_hex(countdown ? 0x291B0D : weekly ? 0x0B1F2A : rest ? 0x172D96 : 0), 0);
         lv_obj_set_style_bg_grad_color(root, lv_color_hex(0x6E35CB), 0);
-        lv_obj_set_style_bg_grad_dir(root, resting ? LV_GRAD_DIR_VER : LV_GRAD_DIR_NONE, 0);
-        lv_obj_set_style_bg_color(progress, lv_color_hex(resting ? 0x3B3B9E : 0x242330), LV_PART_MAIN);
-        lv_obj_set_width(detail, resting ? 140 : 288);
-        lv_obj_set_style_text_color(detail, lv_color_hex(resting ? 0xFFFFFF : kMuted), 0);
-        show(number, value.program != Program::RestDone);
-        show(unit, value.program != Program::RestDone);
-        const bool countdown = value.program == Program::EyeCountdown;
-        lv_obj_set_width(number, countdown ? 110 : 82);
-        lv_obj_set_style_transform_scale_x(number, countdown ? 384 : 512, 0);
-        lv_obj_set_style_transform_scale_y(number, countdown ? 384 : 512, 0);
+        lv_obj_set_style_bg_grad_dir(root, rest ? LV_GRAD_DIR_VER : LV_GRAD_DIR_NONE, 0);
+        lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
+        lv_obj_set_style_text_color(title, lv_color_hex(countdown ? kAmber : kText), 0);
+        lv_obj_set_style_text_align(title, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(number, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(unit, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(detail, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(detail, lv_color_hex(kMuted), 0);
+        place(title, weekly ? 66 : 16, 8, weekly ? 238 : 288);
+        place(number, 78, 49, 82, 512);
+        place(unit, 16, 112, 288);
+        place(detail, 16, 153, 288);
+        place(face_host, weekly ? 200 : 50, weekly ? 35 : 9, 320, weekly ? 80 : 176);
         char text[64];
         if (countdown) {
             lv_label_set_text(title, "NEXT EYE BREAK");
-            lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
             const auto seconds = value.eye_remaining_ms / 1000 + (value.eye_remaining_ms % 1000 != 0);
             std::snprintf(text, sizeof(text), "%02lu:%02lu", static_cast<unsigned long>(seconds / 60),
                           static_cast<unsigned long>(seconds % 60));
             lv_label_set_text(number, text);
-            lv_obj_set_style_text_color(number, lv_color_hex(kMint), 0);
+            place(number, 78, 57, 110, 384);
+            lv_obj_set_style_text_color(number, lv_color_hex(kAmber), 0);
             lv_label_set_text(unit, "UNTIL REST");
-            lv_obj_set_pos(unit, 16, 111);
-            lv_obj_set_style_text_color(unit, lv_color_hex(kMuted), 0);
-            const auto rest_seconds = value.config.rest_duration_ms / 1000 + (value.config.rest_duration_ms % 1000 != 0);
-            std::snprintf(text, sizeof(text), "REST %lus - Look about 6m away", static_cast<unsigned long>(rest_seconds));
+            lv_obj_set_style_text_color(unit, lv_color_hex(0xE6C8A0), 0);
+            std::snprintf(text, sizeof(text), "REST %lus  /  LOOK 6m AWAY", static_cast<unsigned long>(
+                          value.config.rest_duration_ms / 1000 + (value.config.rest_duration_ms % 1000 != 0)));
             lv_label_set_text(detail, text);
-            lv_obj_set_style_text_font(detail, &lv_font_montserrat_14, 0);
-            lv_obj_set_pos(detail, 16, 153);
-            lv_obj_set_pos(progress, 16, 140);
             const auto duration = std::max<std::uint32_t>(1, value.config.eye_interval_ms);
-            lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,
-                             static_cast<std::uint64_t>(value.eye_remaining_ms) * 1000 / duration)), LV_ANIM_OFF);
-            lv_obj_set_style_bg_color(progress, lv_color_hex(kMint), LV_PART_INDICATOR);
-        } else if (value.program == Program::EyeRest) {
-            lv_label_set_text(title, "EYE BREAK");
-            lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
-            std::snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(value.remaining_ms / 1000 +
-                          (value.remaining_ms % 1000 != 0)));
-            lv_label_set_text(number, text);
-            lv_obj_set_style_text_color(number, lv_color_hex(0xFFF0A8), 0);
-            lv_label_set_text(unit, "SECONDS LEFT");
-            lv_obj_set_pos(unit, 16, 111);
-            lv_obj_set_style_text_color(unit, lv_color_hex(0xD5E9FF), 0);
-            lv_obj_set_style_text_font(detail, &lv_font_montserrat_14, 0);
-            lv_label_set_text(detail, "LOOK 6m AWAY");
-            lv_obj_set_pos(detail, 16, 153);
-            lv_obj_set_pos(progress, 16, 177);
-            const auto duration = std::max<std::uint32_t>(1, value.config.rest_duration_ms);
-            lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,
-                             static_cast<std::uint64_t>(value.remaining_ms) * 1000 / duration)), LV_ANIM_OFF);
-            lv_obj_set_style_bg_color(progress, lv_color_hex(0x88FFEC), LV_PART_INDICATOR);
-            const auto elapsed = now - rest_started_ms;
-            const auto* frame = art::shorekeeper_frame(art::frame_index(elapsed));
-            if (frame) {
-                if (lv_image_get_src(rest_character) != frame) lv_image_set_src(rest_character, frame);
-            } else {
-                show(rest_character, false);
-                show(face_host, true);
-                pet->tick(now, distance_pet::Signal::Ready);
-            }
-            constexpr float tau = 6.283185307f;
-            const auto phase = static_cast<float>(elapsed % 3600u) * tau / 3600.0f;
-            lv_obj_set_y(rest_character, 12 + static_cast<int>(std::sin(phase) * 3.0f));
-            constexpr std::array<int, 4> star_x{151, 291, 173, 299};
-            constexpr std::array<int, 4> star_y{25, 36, 136, 121};
-            for (std::size_t i = 0; i < rest_stars.size(); ++i) {
-                const auto drift = std::sin(phase + static_cast<float>(i) * 1.4f);
-                lv_obj_set_pos(rest_stars[i], star_x[i], star_y[i] + static_cast<int>(drift * 3.0f));
-                lv_obj_set_style_opa(rest_stars[i], static_cast<lv_opa_t>(190 + drift * 55), 0);
-            }
-        } else if (value.program == Program::Weekly) {
-            lv_label_set_text(title, "CODEX / WEEKLY LEFT");
-            lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
-            const bool available = value.weekly_left >= 0 && value.weekly_left <= 100 &&
-                                   value.weekly_status == WeeklyStatus::Fresh;
+            lv_arc_set_value(clock_ring, static_cast<int>(std::min<std::uint64_t>(1000,
+                             static_cast<std::uint64_t>(value.eye_remaining_ms) * 1000 / duration)));
+        } else if (weekly) {
+            lv_label_set_text(title, "CODEX WEEKLY");
+            place(number, 16, 47, 82, 512);
+            const bool available = value.weekly_left >= 0 && value.weekly_left <= 100 && value.weekly_status == WeeklyStatus::Fresh;
             const auto color = value.weekly_status == WeeklyStatus::Stale ? kAmber : !available ? kMuted :
                                value.weekly_left <= 20 ? kRose : kMint;
             if (available) std::snprintf(text, sizeof(text), "%d%%", value.weekly_left);
             else std::snprintf(text, sizeof(text), "--");
             lv_label_set_text(number, text);
             lv_obj_set_style_text_color(number, lv_color_hex(color), 0);
-            if (value.weekly_status == WeeklyStatus::Waiting) {
-                std::snprintf(text, sizeof(text), "WAITING FOR CODEX");
-            } else if (value.weekly_status == WeeklyStatus::Stale) {
-                format_time(text, sizeof(text), value.weekly_observed_at, "STALE");
-            } else if (!available) {
-                std::snprintf(text, sizeof(text), "UNAVAILABLE");
-            } else {
-                format_time(text, sizeof(text), value.weekly_observed_at,
-                            value.weekly_status == WeeklyStatus::Fresh ? "FRESH" : "STALE");
-            }
+            if (value.weekly_status == WeeklyStatus::Waiting) std::snprintf(text, sizeof(text), "WAITING FOR CODEX");
+            else if (value.weekly_status == WeeklyStatus::Stale) format_time(text, sizeof(text), value.weekly_observed_at, "STALE");
+            else if (!available) std::snprintf(text, sizeof(text), "UNAVAILABLE");
+            else format_time(text, sizeof(text), value.weekly_observed_at, "FRESH");
             lv_label_set_text(unit, text);
-            lv_obj_set_pos(unit, 16, 128);
             lv_obj_set_style_text_color(unit, lv_color_hex(color), 0);
+            place(unit, 16, 136, 288);
             format_time(text, sizeof(text), value.weekly_reset_at, "RESET");
             lv_label_set_text(detail, text);
-            lv_obj_set_style_text_font(detail, &lv_font_montserrat_14, 0);
-            lv_obj_set_pos(detail, 16, 153);
-            lv_obj_set_pos(progress, 16, 177);
-            lv_bar_set_value(progress, available ? value.weekly_left * 10 : 0, LV_ANIM_OFF);
-            lv_obj_set_style_bg_color(progress, lv_color_hex(color), LV_PART_INDICATOR);
+            place(detail, 16, 159, 288);
+            for (std::size_t i = 0; i < quota_fill.size(); ++i) {
+                const int fill = available ? std::clamp(value.weekly_left - static_cast<int>(i) * 10, 0, 10) : 0;
+                show(quota_fill[i], fill > 0);
+                lv_obj_set_width(quota_fill[i], std::max(1, fill * 24 / 10));
+                lv_obj_set_style_bg_color(quota_fill[i], lv_color_hex(color), 0);
+            }
+        } else if (motion) {
+            lv_label_set_text(title, "FOLLOW THE BEAT");
+            lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
+            const auto target = motion_beat(value.phase_elapsed_ms);
+            place(face_host, 50 + target.yaw_delta / 10, 9 + target.pitch_delta / 10, 320, 176);
+            lv_label_set_text(detail, target.yaw_delta < 0 ? "LEFT" : target.yaw_delta > 0 ? "RIGHT" :
+                                      target.pitch_delta != 0 ? "NOD" : "WITH ME");
+            place(detail, 16, 163, 288);
+            for (std::size_t i = 0; i < beat_dots.size(); ++i)
+                lv_obj_set_style_bg_color(beat_dots[i], lv_color_hex(i == beat ? kMint : 0x283A3A), 0);
+            lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,
+                             static_cast<std::uint64_t>(value.phase_elapsed_ms) * 1000 / kMotionDurationMs)), LV_ANIM_OFF);
+            lv_obj_set_style_bg_color(progress, lv_color_hex(kMint), LV_PART_INDICATOR);
+        } else if (rest) {
+            lv_label_set_text(title, "REST");
+            std::snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(value.remaining_ms / 1000 +
+                          (value.remaining_ms % 1000 != 0)));
+            lv_label_set_text(number, text);
+            lv_obj_set_style_text_color(number, lv_color_hex(0xFFF0A8), 0);
+            lv_label_set_text(unit, "SECONDS LEFT");
+            lv_obj_set_style_text_color(unit, lv_color_hex(0xD5E9FF), 0);
+            lv_label_set_text(detail, "LOOK 6m AWAY");
+            lv_obj_set_style_text_color(detail, lv_color_white(), 0);
+            const auto duration = std::max<std::uint32_t>(1, value.config.rest_duration_ms);
+            lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,
+                             static_cast<std::uint64_t>(value.remaining_ms) * 1000 / duration)), LV_ANIM_OFF);
+            lv_obj_set_style_bg_color(progress, lv_color_hex(0x88FFEC), LV_PART_INDICATOR);
+        } else if (eye) {
+            lv_label_set_text(title, "GET READY");
+            place(title, 16, 48, 288);
+            lv_label_set_text(unit, "SHOREKEEPER");
+            place(unit, 16, 90, 288);
+            lv_obj_set_style_text_color(unit, lv_color_hex(kMint), 0);
+            lv_label_set_text(detail, "Starting eye break...");
         } else {
             lv_label_set_text(title, "REST COMPLETE");
-            lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
-            lv_obj_set_style_text_font(detail, &BUILTIN_TEXT_FONT, 0);
             lv_label_set_text(detail, "Nice! Back to your day");
-            lv_obj_set_pos(detail, 16, 153);
-            lv_obj_set_pos(progress, 16, 140);
             lv_bar_set_value(progress, 1000, LV_ANIM_OFF);
             lv_obj_set_style_bg_color(progress, lv_color_hex(kMint), LV_PART_INDICATOR);
         }

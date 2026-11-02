@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "eye_sequence.h"
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -123,6 +124,15 @@ public:
         return true;
     }
 
+    bool finish_eye_intro(std::uint32_t generation, std::uint32_t now_ms) noexcept
+    {
+        if (!advance_clock(now_ms) || program_ != Program::EyeRest ||
+            eye_phase_ != EyePhase::Intro || generation != generation_ ||
+            foreground_blocked(now_ms)) return false;
+        change_eye_phase(EyePhase::Motion, now_ms);
+        return true;
+    }
+
     bool update_weekly(const WeeklyUpdate& value, std::uint32_t now_ms, std::uint32_t unix_seconds = 0) noexcept
     {
         if (!valid_weekly(value) || !advance_clock(now_ms, unix_seconds)) return false;
@@ -162,18 +172,23 @@ public:
             change_program(Program::Pet, now_ms);
             return;
         }
-        if (program_ == Program::EyeRest && now_ms - program_since_ms_ >= config_.rest_duration_ms) {
-            ++completed_rests_;
-            eye_due_ = false;
-            eye_since_ms_ = now_ms;
-            change_program(Program::RestDone, now_ms);
+        if (program_ == Program::EyeRest) {
+            // Intro follows the actual clip completion acknowledgement. A late
+            // tick starts Rest now, preserving its entire independent duration.
+            if (eye_phase_ == EyePhase::Motion && now_ms - phase_since_ms_ >= kMotionDurationMs) {
+                change_eye_phase(EyePhase::Rest, now_ms);
+            } else if (eye_phase_ == EyePhase::Rest && now_ms - phase_since_ms_ >= config_.rest_duration_ms) {
+                ++completed_rests_;
+                eye_due_ = false;
+                eye_since_ms_ = now_ms;
+                change_program(Program::RestDone, now_ms);
+            }
             return;
         }
         if (program_ == Program::RestDone) {
             if (context_.distance_alert || now_ms - program_since_ms_ >= 2000u) change_program(Program::Pet, now_ms);
             return;
         }
-        if (program_ == Program::EyeRest) return;
         const bool idle = now_ms - activity_ms_ >= config_.idle_grace_ms;
         // A due rest can replace either information card and bypass the pet gap.
         if (eye_due_ && idle) {
@@ -217,7 +232,15 @@ public:
         result.generation = generation_;
         result.completed_rests = completed_rests_;
         result.eye_remaining_ms = eye_due_ ? 0u : remaining(config_.eye_interval_ms, now_ms - eye_since_ms_);
-        if (result.program == Program::EyeRest) result.remaining_ms = remaining(config_.rest_duration_ms, now_ms - program_since_ms_);
+        if (result.program == Program::EyeRest) {
+            result.eye_phase = eye_phase_;
+            result.phase_elapsed_ms = now_ms - phase_since_ms_;
+            if (eye_phase_ == EyePhase::Motion)
+                result.remaining_ms = remaining(kMotionDurationMs, result.phase_elapsed_ms);
+            else if (eye_phase_ == EyePhase::Rest)
+                result.remaining_ms = remaining(config_.rest_duration_ms, result.phase_elapsed_ms);
+            // Intro has no predicted deadline: only the real player can finish it.
+        }
         else if (result.program == Program::Weekly || result.program == Program::EyeCountdown)
             result.remaining_ms = remaining(config_.weekly_duration_ms, now_ms - program_since_ms_);
         else if (result.program == Program::RestDone) result.remaining_ms = remaining(2000u, now_ms - program_since_ms_);
@@ -279,7 +302,18 @@ private:
         if (program_ == value) return;
         program_ = value;
         program_since_ms_ = now_ms;
+        if (value == Program::EyeRest) {
+            eye_phase_ = EyePhase::Intro;
+            phase_since_ms_ = now_ms;
+        }
         if (value == Program::Pet) pet_since_ms_ = now_ms;
+        ++generation_;
+    }
+
+    void change_eye_phase(EyePhase value, std::uint32_t now_ms) noexcept
+    {
+        eye_phase_ = value;
+        phase_since_ms_ = now_ms;
         ++generation_;
     }
 
@@ -287,6 +321,7 @@ private:
     Context context_;
     WeeklyUpdate weekly_;
     Program program_ = Program::Pet;
+    EyePhase eye_phase_ = EyePhase::Intro;
     WeeklyStatus weekly_status_ = WeeklyStatus::Waiting;
     bool active_ = false;
     bool have_context_ = false;
@@ -296,7 +331,7 @@ private:
     bool have_wall_ = false;
     bool next_weekly_ = false;
     std::uint32_t clock_ms_ = 0, context_ms_ = 0, eye_since_ms_ = 0, activity_ms_ = 0;
-    std::uint32_t program_since_ms_ = 0, pet_since_ms_ = 0, weekly_since_ms_ = 0;
+    std::uint32_t program_since_ms_ = 0, phase_since_ms_ = 0, pet_since_ms_ = 0, weekly_since_ms_ = 0;
     std::uint32_t generation_ = 0, completed_rests_ = 0, sequence_ = 0;
     std::uint64_t wall_ms_ = 0, weekly_expiry_ms_ = 0;
 };

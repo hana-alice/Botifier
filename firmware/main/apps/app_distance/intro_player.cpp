@@ -16,6 +16,8 @@
 
 extern const std::uint8_t kuro_intro_start[] asm("_binary_kuro_intro_bin_start");
 extern const std::uint8_t kuro_intro_end[] asm("_binary_kuro_intro_bin_end");
+extern const std::uint8_t shorekeeper_intro_start[] asm("_binary_shorekeeper_intro_bin_start");
+extern const std::uint8_t shorekeeper_intro_end[] asm("_binary_shorekeeper_intro_bin_end");
 
 namespace intro_player {
 namespace {
@@ -85,17 +87,19 @@ bool publish_frame(const intro_clip::Clip& clip, std::uint32_t index, std::uint3
     return true;
 }
 
-esp_err_t play(std::uint32_t request, bool& sensing_paused)
+esp_err_t play(std::uint32_t request, ClipId clip_id, bool& sensing_paused)
 {
     // Consume presentations during every accepted playback, including invalid
     // media or cancellation before the worker first runs.
     nfc_sense::pause_for_playback();
     sensing_paused = true;
     if (cancelled(request)) return ESP_OK;
-    const auto begin_address = reinterpret_cast<std::uintptr_t>(kuro_intro_start);
-    const auto end_address = reinterpret_cast<std::uintptr_t>(kuro_intro_end);
+    const auto* begin = clip_id == ClipId::Shorekeeper ? shorekeeper_intro_start : kuro_intro_start;
+    const auto* end = clip_id == ClipId::Shorekeeper ? shorekeeper_intro_end : kuro_intro_end;
+    const auto begin_address = reinterpret_cast<std::uintptr_t>(begin);
+    const auto end_address = reinterpret_cast<std::uintptr_t>(end);
     intro_clip::Clip clip;
-    if (end_address < begin_address || !clip.parse(kuro_intro_start, end_address - begin_address)) {
+    if (end_address < begin_address || !clip.parse(begin, end_address - begin_address)) {
         ESP_LOGE(tag, "embedded intro pack rejected");
         return ESP_ERR_INVALID_SIZE;
     }
@@ -144,15 +148,17 @@ void worker(void*)
     while (true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         std::uint32_t request;
+        ClipId clip_id;
         {
             std::lock_guard<std::mutex> lock(state_mutex);
             if (!latest.busy) continue;
             request = request_id;
+            clip_id = latest.clip;
         }
         bool sensing_paused = false;
         esp_err_t error = ESP_OK;
         try {
-            error = play(request, sensing_paused);
+            error = play(request, clip_id, sensing_paused);
         } catch (const std::bad_alloc&) {
             error = ESP_ERR_NO_MEM;
         } catch (...) {
@@ -183,8 +189,9 @@ void worker(void*)
 
 }  // namespace
 
-esp_err_t start()
+esp_err_t start(ClipId clip)
 {
+    if (clip != ClipId::Kuro && clip != ClipId::Shorekeeper) return ESP_ERR_INVALID_ARG;
     std::lock_guard<std::mutex> lifecycle(lifecycle_mutex);
     TaskHandle_t task;
     {
@@ -211,9 +218,11 @@ esp_err_t start()
         latest.duration_ms = 0;
         latest.error = ESP_OK;
         latest.state = State::Starting;
+        latest.clip = clip;
         latest.busy = true;
     }
-    ESP_LOGI(tag, "accepted request=%" PRIu32, request_id);
+    ESP_LOGI(tag, "accepted request=%" PRIu32 " clip=%s", request_id,
+             clip == ClipId::Shorekeeper ? "shorekeeper" : "kuro");
     xTaskNotifyGive(task);
     return ESP_OK;
 }

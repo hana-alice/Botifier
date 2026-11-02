@@ -1,0 +1,39 @@
+{
+  "format": "KINTRO1",
+  "width": 320,
+  "height": 240,
+  "fps": 10,
+  "duration_ms": 3800,
+  "frames": 38,
+  "bytes": 324546,
+  "sha256": "fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af",
+  "max_frame_bytes": 10889,
+  "source": "official-profile-03.gif",
+  "source_sha256": "43a9d89d15d8c5e8b9b65287c02cf3cfad146e7a0c196d5bde1de2505691df2b",
+  "crop": {
+    "x": 68,
+    "y": 208,
+    "width": 664,
+    "height": 374
+  },
+  "scaled_video": {
+    "width": 320,
+    "height": 184
+  },
+  "pad": {
+    "width": 320,
+    "height": 240,
+    "x": 0,
+    "y": 0,
+    "color": "black"
+  },
+  "time_range_seconds": [
+    0.0,
+    3.8
+  ],
+  "jpeg_quality_scale": 5,
+  "jpeg_sampling": "yuvj420p",
+  "jpeg_baseline_validated": true,
+  "audio": false,
+  "reuse": "Imported existing scripts/Prepare-KuroIntro.py make_pack and validate_jpeg; globals adjusted only for 10fps/3800ms/500000-byte ceiling"
+}

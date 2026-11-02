@@ -20,4 +20,7 @@ private:
     std::uint32_t _last_refresh_ms = 0;
     std::uint32_t _last_nfc_event = 0;
     std::uint32_t _intro_completed_count = 0;
+    std::uint32_t _eye_intro_generation = 0;
+    std::uint32_t _eye_intro_completion_baseline = 0;
+    bool _eye_intro_started = false;
 };

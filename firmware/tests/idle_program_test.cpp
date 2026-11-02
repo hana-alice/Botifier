@@ -32,6 +32,23 @@ void run(Policy& policy, std::uint32_t& now, std::uint32_t duration, Context con
     }
 }
 
+void enter_rest(Policy& policy, std::uint32_t& now, Context context = eligible)
+{
+    const auto intro = policy.snapshot(now);
+    check(intro.program == Program::EyeRest && intro.eye_phase == EyePhase::Intro,
+          "rest helper did not begin at the real intro");
+    check(policy.finish_eye_intro(intro.generation, now), "current real intro acknowledgement rejected");
+    const auto motion = policy.snapshot(now);
+    check(motion.eye_phase == EyePhase::Motion && motion.remaining_ms == kMotionDurationMs &&
+              motion.phase_elapsed_ms == 0 && motion.generation == intro.generation + 1u,
+          "intro acknowledgement did not begin a full motion phase");
+    run(policy, now, kMotionDurationMs, context);
+    const auto rest = policy.snapshot(now);
+    check(rest.eye_phase == EyePhase::Rest && rest.remaining_ms == rest.config.rest_duration_ms &&
+              rest.phase_elapsed_ms == 0 && rest.generation == motion.generation + 1u,
+          "motion did not begin an independent full rest phase");
+}
+
 WeeklyUpdate quota(std::uint32_t sequence = 1, std::uint32_t observed = 1700000000u)
 {
     return {true, sequence, 37, observed + 3600u, observed, 900000};
@@ -79,7 +96,17 @@ void full_twenty_second_rest_and_two_second_completion()
     std::uint32_t now = 0;
     run(policy, now, 20000);
     auto state = policy.snapshot(now);
-    check(state.program == Program::EyeRest && state.remaining_ms == 20000, "rest did not start at full 20 seconds");
+    check(state.program == Program::EyeRest && state.eye_phase == EyePhase::Intro && state.remaining_ms == 0 &&
+              state.phase_elapsed_ms == 0 && state.completed_rests == 0,
+          "due reminder did not begin with its unpredicted intro");
+    run(policy, now, 60000);
+    state = policy.snapshot(now);
+    check(state.eye_phase == EyePhase::Intro && state.phase_elapsed_ms == 60000 &&
+              state.remaining_ms == 0 && state.completed_rests == 0 && state.eye_remaining_ms == 0,
+          "intro auto-finished or reset the work clock without real playback acknowledgement");
+    enter_rest(policy, now);
+    state = policy.snapshot(now);
+    check(state.remaining_ms == 20000 && state.completed_rests == 0, "rest did not start at full 20 seconds");
     run(policy, now, 19999);
     state = policy.snapshot(now);
     check(state.program == Program::EyeRest && state.remaining_ms == 1 && state.completed_rests == 0,
@@ -95,6 +122,143 @@ void full_twenty_second_rest_and_two_second_completion()
     check(policy.snapshot(now).completed_rests == 1, "reading snapshots added completions");
 }
 
+void only_current_eligible_intro_acknowledgement_advances_the_sequence()
+{
+    Config config;
+    config.eye_interval_ms = 20000;
+    auto policy = make_policy(config);
+    std::uint32_t now = 0;
+    run(policy, now, 20000);
+    const auto intro_generation = policy.snapshot(now).generation;
+    check(!policy.finish_eye_intro(intro_generation - 1u, now) &&
+              !policy.finish_eye_intro(intro_generation + 1u, now),
+          "wrong generation finished an intro");
+    run(policy, now, 700);
+    const auto intro = policy.snapshot(now);
+    check(intro.eye_phase == EyePhase::Intro && intro.generation == intro_generation && intro.phase_elapsed_ms == 700,
+          "rejected acknowledgement changed the real intro phase");
+    auto fresh = policy;
+    check(fresh.finish_eye_intro(intro_generation, now + 499u), "499 ms context rejected a current intro acknowledgement");
+    auto stale = policy;
+    check(!stale.finish_eye_intro(intro_generation, now + 500u), "stale context accepted an intro acknowledgement");
+    auto backwards = policy;
+    check(!backwards.finish_eye_intro(intro_generation, now - 1u), "backdated intro acknowledgement rewound time");
+    check(policy.finish_eye_intro(intro_generation, now), "eligible current intro acknowledgement failed");
+    auto state = policy.snapshot(now);
+    check(state.eye_phase == EyePhase::Motion && state.generation == intro_generation + 1u &&
+              state.phase_elapsed_ms == 0 && state.remaining_ms == 4500,
+          "real intro acknowledgement did not start motion exactly once");
+    check(!policy.finish_eye_intro(intro_generation, now) && !policy.finish_eye_intro(state.generation, now),
+          "duplicate or motion-generation acknowledgement restarted motion");
+    run(policy, now, 4499);
+    state = policy.snapshot(now);
+    check(state.eye_phase == EyePhase::Motion && state.remaining_ms == 1 && state.phase_elapsed_ms == 4499,
+          "motion finished before all nine rhythm beats");
+    const auto readonly = policy.snapshot(now + 1u);
+    check(readonly.eye_phase == EyePhase::Motion && readonly.remaining_ms == 0 &&
+              readonly.generation == intro_generation + 1u && readonly.completed_rests == 0,
+          "read-only snapshot advanced motion into rest");
+    run(policy, now, 1);
+    state = policy.snapshot(now);
+    check(state.eye_phase == EyePhase::Rest && state.remaining_ms == 20000 && state.phase_elapsed_ms == 0 &&
+              state.generation == intro_generation + 2u && state.completed_rests == 0 && state.eye_remaining_ms == 0,
+          "rest did not begin as a new complete phase after motion");
+    check(!policy.finish_eye_intro(intro_generation, now) && !policy.finish_eye_intro(state.generation, now),
+          "old acknowledgement changed a running rest");
+
+    policy.set_context({false, false, false}, now);
+    policy.set_context(eligible, now);
+    run(policy, now, 10000);
+    const auto next = policy.snapshot(now);
+    check(next.eye_phase == EyePhase::Intro && next.generation != intro_generation &&
+              !policy.finish_eye_intro(intro_generation, now),
+          "cancelled prior intro acknowledgement finished a replacement intro");
+    check(policy.finish_eye_intro(next.generation, now), "replacement intro could not acknowledge real playback");
+}
+
+void delayed_worker_tick_never_borrows_time_from_rest()
+{
+    Config config;
+    config.eye_interval_ms = 20000;
+    auto policy = make_policy(config);
+    std::uint32_t now = 0;
+    run(policy, now, 20000);
+    run(policy, now, 60000);
+    check(policy.snapshot(now).eye_phase == EyePhase::Intro && policy.snapshot(now).completed_rests == 0,
+          "long real intro implicitly counted as a rest");
+    check(policy.finish_eye_intro(policy.snapshot(now).generation, now), "delayed-worker intro acknowledgement failed");
+    const auto motion_generation = policy.snapshot(now).generation;
+    // UI contexts remain healthy while the lower-priority worker misses ticks.
+    for (unsigned frame = 0; frame < 600; ++frame) {
+        now += 100;
+        policy.set_context(eligible, now);
+    }
+    auto state = policy.snapshot(now);
+    check(state.eye_phase == EyePhase::Motion && state.phase_elapsed_ms == 60000 && state.remaining_ms == 0 &&
+              state.completed_rests == 0, "snapshot consumed delayed motion time as rest");
+    policy.tick(now);
+    state = policy.snapshot(now);
+    check(state.eye_phase == EyePhase::Rest && state.phase_elapsed_ms == 0 && state.remaining_ms == 20000 &&
+              state.generation == motion_generation + 1u && state.completed_rests == 0 && state.eye_remaining_ms == 0,
+          "large worker tick shortened or skipped the independent rest");
+    run(policy, now, 19999);
+    check(policy.snapshot(now).remaining_ms == 1 && policy.snapshot(now).completed_rests == 0,
+          "large motion overrun shortened the rest deadline");
+    run(policy, now, 1);
+    check(policy.snapshot(now).program == Program::RestDone && policy.snapshot(now).completed_rests == 1 &&
+              policy.snapshot(now).eye_remaining_ms == 20000,
+          "full delayed rest did not reset the work clock at its own completion");
+}
+
+void motion_timeline_is_bounded_and_returns_to_centre()
+{
+    static_assert(kMotionBeatMs == 500 && kMotionDurationMs == 4500 && kMotionBeats.size() == 9);
+    constexpr std::array<std::int16_t, 9> yaw{{0, -80, 80, -60, 60, 0, 0, 0, 0}};
+    constexpr std::array<std::int16_t, 9> pitch{{0, 0, 0, 0, 0, -40, 40, -25, 0}};
+    for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
+        for (const auto edge : {0u, 499u}) {
+            const auto pose = motion_beat(beat * 500u + edge);
+            check(pose.yaw_delta == yaw[beat] && pose.pitch_delta == pitch[beat],
+                  "motion timeline did not preserve the complete half-second beat");
+        }
+    }
+    for (const auto elapsed : {4500u, 4501u, std::numeric_limits<std::uint32_t>::max()}) {
+        const auto pose = motion_beat(elapsed);
+        check(pose.yaw_delta == 0 && pose.pitch_delta == 0, "completed motion did not remain at centre");
+    }
+}
+
+void intro_and_motion_boundaries_survive_uint32_wrap()
+{
+    for (const auto lead : {22500u, 24500u}) {
+        Config config;
+        config.eye_interval_ms = 20000;
+        std::uint32_t now = std::numeric_limits<std::uint32_t>::max() - lead;
+        auto policy = make_policy(config, now);
+        run(policy, now, 20000);
+        const auto intro_generation = policy.snapshot(now).generation;
+        const auto intro_delay = lead == 22500u ? 3000u : 1000u;
+        run(policy, now, intro_delay);
+        check(policy.snapshot(now).eye_phase == EyePhase::Intro &&
+                  policy.snapshot(now).phase_elapsed_ms == intro_delay &&
+                  policy.snapshot(now).generation == intro_generation,
+              "intro elapsed time or generation failed across uint32 wrap");
+        check(policy.finish_eye_intro(intro_generation, now), "wrapped intro acknowledgement rejected");
+        run(policy, now, 4499);
+        auto state = policy.snapshot(now);
+        check(state.eye_phase == EyePhase::Motion && state.phase_elapsed_ms == 4499 && state.remaining_ms == 1,
+              "motion beat timing failed across uint32 wrap");
+        run(policy, now, 1);
+        state = policy.snapshot(now);
+        check(state.eye_phase == EyePhase::Rest && state.phase_elapsed_ms == 0 && state.remaining_ms == 20000 &&
+                  state.completed_rests == 0 && state.generation == intro_generation + 2u,
+              "wrapped motion boundary did not preserve the complete rest");
+        run(policy, now, 20000);
+        check(policy.snapshot(now).program == Program::RestDone && policy.snapshot(now).completed_rests == 1,
+              "wrapped intro/motion sequence failed to complete once");
+    }
+}
+
 void ordinary_activity_preserves_started_animation_and_holds_idle_cards()
 {
     Config config;
@@ -102,7 +266,34 @@ void ordinary_activity_preserves_started_animation_and_holds_idle_cards()
     auto policy = make_policy(config);
     std::uint32_t now = 0;
     run(policy, now, 20000);
-    const auto generation = policy.snapshot(now).generation;
+    // Continuous ordinary touch must not cancel, restart, or prolong any phase.
+    auto generation = policy.snapshot(now).generation;
+    for (unsigned touch = 0; touch < 50; ++touch) {
+        now += 20;
+        policy.note_activity(now);
+        policy.set_context(eligible, now);
+        policy.tick(now);
+        const auto state = policy.snapshot(now);
+        check(state.program == Program::EyeRest && state.eye_phase == EyePhase::Intro &&
+                  state.generation == generation && state.phase_elapsed_ms == (touch + 1u) * 20u,
+              "ordinary touch restarted or interrupted the intro");
+    }
+    check(policy.finish_eye_intro(generation, now), "touch test intro acknowledgement rejected");
+    generation = policy.snapshot(now).generation;
+    for (unsigned touch = 0; touch < 225; ++touch) {
+        now += 20;
+        policy.note_activity(now);
+        policy.set_context(eligible, now);
+        policy.tick(now);
+        const auto state = policy.snapshot(now);
+        if (touch < 224) {
+            check(state.eye_phase == EyePhase::Motion && state.generation == generation &&
+                      state.remaining_ms == kMotionDurationMs - (touch + 1u) * 20u,
+                  "ordinary touch interrupted or prolonged the motion");
+        }
+    }
+    const auto rest_started = now;
+    generation = policy.snapshot(now).generation;
     for (unsigned touch = 0; touch < 1000; ++touch) {
         now += 20;
         policy.note_activity(now);
@@ -110,7 +301,8 @@ void ordinary_activity_preserves_started_animation_and_holds_idle_cards()
         policy.tick(now);
         const auto state = policy.snapshot(now);
         if (touch < 999) {
-            check(state.program == Program::EyeRest && state.remaining_ms == 40000u - now && state.completed_rests == 0,
+            check(state.program == Program::EyeRest && state.eye_phase == EyePhase::Rest &&
+                      state.remaining_ms == 20000u - (now - rest_started) && state.completed_rests == 0,
                   "ordinary touch interrupted the highest-priority animation");
             check(state.generation == generation, "ordinary touch restarted animation generation");
         }
@@ -139,19 +331,28 @@ void ordinary_activity_preserves_started_animation_and_holds_idle_cards()
 void blocked_context_and_asynchronous_staleness_cancel()
 {
     for (const auto blocked : {Context{false, false, false}, Context{true, true, false}}) {
+      for (const auto phase : {EyePhase::Intro, EyePhase::Motion, EyePhase::Rest}) {
         Config config;
         config.eye_interval_ms = 20000;
         auto policy = make_policy(config);
         std::uint32_t now = 0;
         run(policy, now, 20000);
+        if (phase == EyePhase::Rest) enter_rest(policy, now);
+        else if (phase == EyePhase::Motion)
+            check(policy.finish_eye_intro(policy.snapshot(now).generation, now), "exit test intro acknowledgement rejected");
+        const auto cancelled_generation = policy.snapshot(now).generation;
         policy.set_context(blocked, now);
         check(policy.snapshot(now).blocked && policy.snapshot(now).program == Program::Pet &&
                   policy.snapshot(now).completed_rests == 0, "explicit exit/foreground did not cancel rest");
+        check(!policy.finish_eye_intro(cancelled_generation, now), "cancelled sequence accepted an obsolete intro acknowledgement");
         run(policy, now, 20000, blocked);
         run(policy, now, 100);
         check(policy.snapshot(now).program == Program::Pet, "unblock reused time spent in a foreground task");
         run(policy, now, 10000);
-        check(policy.snapshot(now).program == Program::EyeRest, "due was lost after foreground cancellation");
+        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).eye_phase == EyePhase::Intro &&
+                  policy.snapshot(now).phase_elapsed_ms == 0,
+              "due was lost or resumed a partial phase after foreground cancellation");
+      }
     }
     Config config;
     config.eye_interval_ms = 20000;
@@ -182,8 +383,12 @@ void persistent_distance_alert_allows_and_cannot_interrupt_due_rest()
           "distance warning did not suppress ordinary cards");
     run(policy, now, 1, alert);
     auto state = policy.snapshot(now);
-    check(!state.blocked && state.program == Program::EyeRest && state.remaining_ms == 20000,
+    check(!state.blocked && state.program == Program::EyeRest && state.eye_phase == EyePhase::Intro && state.remaining_ms == 0,
           "distance alert reset idle activity forever or prevented a due animation");
+    run(policy, now, 5000, alert);
+    check(!policy.snapshot(now).blocked && policy.snapshot(now).eye_phase == EyePhase::Intro,
+          "distance alert cancelled the ongoing intro");
+    enter_rest(policy, now, alert);
     run(policy, now, 19999, alert);
     state = policy.snapshot(now);
     check(!state.blocked && state.program == Program::EyeRest && state.remaining_ms == 1 && state.completed_rests == 0,
@@ -196,20 +401,29 @@ void persistent_distance_alert_allows_and_cannot_interrupt_due_rest()
 
 void eye_rest_rejects_foreground_claim_without_changing_playback()
 {
+  for (const auto phase : {EyePhase::Intro, EyePhase::Motion, EyePhase::Rest}) {
     Config config;
     config.eye_interval_ms = 20000;
     auto policy = make_policy(config);
     std::uint32_t now = 0;
-    run(policy, now, 25000);
+    run(policy, now, 20000);
+    if (phase == EyePhase::Rest) enter_rest(policy, now);
+    else if (phase == EyePhase::Motion)
+        check(policy.finish_eye_intro(policy.snapshot(now).generation, now), "claim test intro acknowledgement rejected");
+    run(policy, now, phase == EyePhase::Rest ? 5000u : 1000u);
     const auto before = policy.snapshot(now);
-    check(before.program == Program::EyeRest && before.remaining_ms == 15000, "claim test did not enter eye rest");
+    check(before.program == Program::EyeRest && before.eye_phase == phase, "claim test did not enter intended eye phase");
     check(!policy.try_begin_foreground_animation(now), "foreground claim interrupted an already started eye rest");
     const auto after = policy.snapshot(now);
     check(after.program == before.program && after.remaining_ms == before.remaining_ms &&
-              after.generation == before.generation && !after.blocked,
+              after.generation == before.generation && after.eye_phase == before.eye_phase &&
+              after.phase_elapsed_ms == before.phase_elapsed_ms && !after.blocked,
           "rejected foreground claim modified remaining animation time or ownership");
-    run(policy, now, 15000);
+    if (phase == EyePhase::Intro) enter_rest(policy, now);
+    else if (phase == EyePhase::Motion) run(policy, now, kMotionDurationMs - 1000u);
+    run(policy, now, phase == EyePhase::Rest ? 15000u : 20000u);
     check(policy.snapshot(now).completed_rests == 1, "rejected claim prevented completion at the original deadline");
+  }
 }
 
 void foreground_claim_wins_tick_race_and_preserves_one_due()
@@ -233,7 +447,8 @@ void foreground_claim_wins_tick_race_and_preserves_one_due()
         check(policy.snapshot(now).program == Program::Pet && policy.snapshot(now).completed_rests == 0,
               "foreground playback or failed start queued multiple rests or reused busy time as idle");
         run(policy, now, 1);
-        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000 &&
+        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).eye_phase == EyePhase::Intro &&
+                  policy.snapshot(now).remaining_ms == 0 && policy.snapshot(now).phase_elapsed_ms == 0 &&
                   policy.snapshot(now).completed_rests == 0,
               "foreground completion/failure lost the single pending due");
     }
@@ -241,11 +456,15 @@ void foreground_claim_wins_tick_race_and_preserves_one_due()
 
 void explicit_program_disable_can_stop_animation()
 {
+  for (const auto phase : {EyePhase::Intro, EyePhase::Motion, EyePhase::Rest}) {
     Config config;
     config.eye_interval_ms = 20000;
     auto policy = make_policy(config);
     std::uint32_t now = 0;
     run(policy, now, 25000);
+    if (phase == EyePhase::Rest) enter_rest(policy, now);
+    else if (phase == EyePhase::Motion)
+        check(policy.finish_eye_intro(policy.snapshot(now).generation, now), "disable test intro acknowledgement rejected");
     config.enabled = false;
     check(policy.set_config(config, now), "explicit program disable rejected");
     check(policy.snapshot(now).blocked && policy.snapshot(now).program == Program::Pet &&
@@ -256,8 +475,10 @@ void explicit_program_disable_can_stop_animation()
     check(policy.set_config(config, now), "program reenable rejected");
     policy.set_context(eligible, now);
     run(policy, now, 10000);
-    check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000,
+    check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).eye_phase == EyePhase::Intro &&
+              policy.snapshot(now).remaining_ms == 0 && policy.snapshot(now).phase_elapsed_ms == 0,
           "explicitly cancelled eye due did not restart completely after reenable and fresh idle");
+  }
 }
 
 void overdue_intervals_never_form_a_backlog()
@@ -269,6 +490,7 @@ void overdue_intervals_never_form_a_backlog()
     run(policy, now, 180000, {true, true, false});
     run(policy, now, 10100);
     check(policy.snapshot(now).program == Program::EyeRest, "overdue single rest did not start");
+    enter_rest(policy, now);
     run(policy, now, 20000);
     check(policy.snapshot(now).completed_rests == 1, "one due generated multiple completions");
     run(policy, now, 19999);
@@ -356,9 +578,10 @@ void eye_due_preempts_each_information_card_and_pet_gap()
         check(policy.snapshot(now).program == (deadline == 15000 ? Program::EyeCountdown : Program::Weekly),
               "preemption test did not enter the intended information card");
         run(policy, now, 1000);
-        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000 &&
+        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).eye_phase == EyePhase::Intro &&
+                  policy.snapshot(now).remaining_ms == 0 && policy.snapshot(now).phase_elapsed_ms == 0 &&
                   policy.snapshot(now).completed_rests == 0,
-              "due eye rest did not replace the information card with a complete 20-second rest");
+              "due eye sequence did not replace the information card with a complete intro");
     }
     Config config;
     config.eye_interval_ms = 20000;
@@ -537,6 +760,7 @@ void clock_wrap_and_read_only_snapshots()
     value.ttl_ms = 60000;
     policy.update_weekly(value, now);
     run(policy, now, 20000);
+    enter_rest(policy, now);
     run(policy, now, 20000);
     check(now < started && policy.snapshot(now).program == Program::RestDone && policy.snapshot(now).completed_rests == 1,
           "countdown/completion failed across uint32 wrap");
@@ -555,6 +779,9 @@ int main()
 {
     const std::array tests{defaults_and_configuration_bounds, twenty_minute_due_waits_for_idle_eligibility,
         full_twenty_second_rest_and_two_second_completion, ordinary_activity_preserves_started_animation_and_holds_idle_cards,
+        only_current_eligible_intro_acknowledgement_advances_the_sequence,
+        delayed_worker_tick_never_borrows_time_from_rest, motion_timeline_is_bounded_and_returns_to_centre,
+        intro_and_motion_boundaries_survive_uint32_wrap,
         blocked_context_and_asynchronous_staleness_cancel, overdue_intervals_never_form_a_backlog,
         persistent_distance_alert_allows_and_cannot_interrupt_due_rest,
         eye_rest_rejects_foreground_claim_without_changing_playback,

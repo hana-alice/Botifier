@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -232,7 +233,7 @@ void missing_extra_or_reordered_frame_data_is_rejected()
 
 }  // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     try {
         valid_pack_exposes_flash_views();
@@ -241,6 +242,22 @@ int main()
         index_overflow_overlap_and_gaps_are_rejected();
         jpeg_markers_baseline_dimensions_and_entropy_are_checked();
         missing_extra_or_reordered_frame_data_is_rejected();
+        for (int i = 1; i < argc; ++i) {
+            std::ifstream file(argv[i], std::ios::binary | std::ios::ate);
+            check(static_cast<bool>(file), "real embedded pack unavailable");
+            const auto size = file.tellg();
+            check(size > 0 && size <= static_cast<std::streamoff>(intro_clip::Clip::max_pack_bytes),
+                  "real embedded pack has invalid length");
+            Buffer bytes(static_cast<std::size_t>(size));
+            file.seekg(0);
+            file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            check(static_cast<bool>(file), "real embedded pack truncated on read");
+            intro_clip::Clip clip;
+            check(clip.parse(bytes.data(), bytes.size()), "real embedded pack rejected by production parser");
+            for (std::uint32_t frame = 0; frame < clip.frame_count(); ++frame)
+                check(clip.frame(frame).size > 0, "real embedded frame unavailable");
+            std::cout << "real clip: " << clip.frame_count() << " frames / " << clip.duration_ms() << "ms\n";
+        }
         std::cout << "intro_clip: 6 groups passed\n";
     } catch (const std::exception& error) {
         std::cerr << "intro_clip: " << error.what() << '\n';

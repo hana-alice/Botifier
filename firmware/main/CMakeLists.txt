@@ -330,7 +330,7 @@ idf_component_register(SRCS ${SOURCES}
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/apps/app_distance/media/kuro_intro.bin" BINARY)
 target_add_binary_data(${COMPONENT_LIB}
-    "${CMAKE_CURRENT_SOURCE_DIR}/apps/common/idle_program/media/shorekeeper.bin" BINARY)
+    "${CMAKE_CURRENT_SOURCE_DIR}/apps/common/idle_program/media/shorekeeper_intro.bin" BINARY)
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
 # If BOARD_NAME is empty, use BOARD_TYPE

@@ -2,6 +2,7 @@
 #include "pet_avatar.h"
 #include "nfc_service.h"
 #include "intro_player.h"
+#include "rest_head_motion.h"
 
 #include <assets/assets.h>
 #include <apps/common/idle_program/service.h>
@@ -11,6 +12,7 @@
 #include <smooth_lvgl.hpp>
 #include <stackchan/stackchan.h>
 #include <lvgl_image.h>
+#include <esp_log.h>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -161,6 +163,9 @@ struct AppDistance::View {
     std::uint32_t edit_revision = 0;
     std::uint32_t idle_edit_revision = 0;
     bool intro_visible = false;
+    distance_pet::RestHeadMotion rest_head;
+    bool rest_head_active = false;
+    std::uint32_t rest_head_intro_generation = 0;
 
     explicit View(AppDistance& app)
     {
@@ -252,6 +257,8 @@ struct AppDistance::View {
     void stop_live()
     {
         auto& stackchan = GetStackChan();
+        rest_head.cancel(stackchan.motion());
+        rest_head_active = false;
         if (live_avatar && stackchan.hasAvatar() && &stackchan.avatar() == live_avatar) {
             stackchan.resetAvatar();
         }
@@ -322,6 +329,7 @@ struct AppDistance::View {
     void show_intro(const intro_player::Snapshot& playback)
     {
         intro_visible = playback.busy;
+        intro_status->setText(playback.clip == intro_player::ClipId::Shorekeeper ? "EYE BREAK" : "KURO GAMES");
         if (intro_visible) live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
         if (!intro_visible) {
             lv_image_set_src(intro_image, nullptr);
@@ -338,6 +346,37 @@ struct AppDistance::View {
         else intro_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
         intro_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(intro_page->get());
+    }
+
+    void update_rest_head(const idle_program::Snapshot& idle)
+    {
+        const bool eligible = mode == Mode::Live && idle.active && !idle.blocked &&
+                              idle.program == idle_program::Program::EyeRest;
+        if (!eligible) {
+            if (rest_head_active) rest_head.cancel(GetStackChan().motion());
+            rest_head_active = false;
+            return;
+        }
+        if (rest_head_active && idle.eye_phase == idle_program::EyePhase::Intro &&
+            rest_head_intro_generation != idle.generation) {
+            // OFF/ON can replace a session between app frames. A new intro
+            // must not inherit the old controller's beat, lock or centre.
+            rest_head.cancel(GetStackChan().motion());
+            rest_head_active = false;
+        }
+        if (!rest_head_active) {
+            rest_head = distance_pet::RestHeadMotion{};
+            rest_head_active = true;
+            rest_head_intro_generation = idle.generation;
+        }
+        if (idle.eye_phase == idle_program::EyePhase::Intro) {
+            // Reserve against ordinary idle motion while the video plays; any
+            // already-moving idle target can finish before the rhythm starts.
+            rest_head.reserve(GetStackChan().motion());
+            return;
+        }
+        rest_head.tick(GetStackChan().motion(), idle.eye_phase == idle_program::EyePhase::Motion ?
+                       idle.phase_elapsed_ms : idle_program::kMotionDurationMs);
     }
 
     void raise_controls()
@@ -604,6 +643,7 @@ AppDistance::~AppDistance()
 
 void AppDistance::onOpen()
 {
+    _eye_intro_started = false;
     nfc_sense::start(); // An unavailable reader must not prevent ranging or UI.
     const auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
@@ -624,10 +664,38 @@ void AppDistance::onRunning()
     auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
     auto scanned = nfc_sense::snapshot();
-    const auto now = GetHAL().millis();
+    auto now = GetHAL().millis();
     if (playback.completed_count != _intro_completed_count) {
+        if (_eye_intro_started && !playback.busy && playback.clip == intro_player::ClipId::Shorekeeper &&
+            playback.completed_count != _eye_intro_completion_baseline) {
+            // The codec worker has actually finished; its opening/decode time
+            // never consumes the later head sequence or REST timer.
+            idle_program::finish_eye_intro(_eye_intro_generation);
+            _eye_intro_started = false;
+        }
         _intro_completed_count = playback.completed_count;
         _last_nfc_event = playback.sensing_baseline;
+    }
+    auto pending_eye = idle_program::snapshot();
+    const bool eye_intro_owned = pending_eye.active && !pending_eye.blocked &&
+        pending_eye.program == idle_program::Program::EyeRest &&
+        pending_eye.eye_phase == idle_program::EyePhase::Intro;
+    bool live_requested = false;
+    {
+        LvglLockGuard lock;
+        live_requested = _view && _view->mode == View::Mode::Live &&
+                         _view->requested_mode == View::Mode::Live;
+    }
+    if (_eye_intro_started && (!eye_intro_owned || !live_requested ||
+        pending_eye.generation != _eye_intro_generation)) {
+        // Explicit exit/OFF must not leave a self-owned clip blocking the app.
+        intro_player::stop();
+        playback = intro_player::snapshot();
+        _intro_completed_count = playback.completed_count;
+        _last_nfc_event = playback.sensing_baseline;
+        scanned = nfc_sense::snapshot();
+        now = GetHAL().millis();
+        _eye_intro_started = false;
     }
     const bool new_event = scanned.accepted != _last_nfc_event;
     _last_nfc_event = scanned.accepted; // Busy events are consumed, never queued.
@@ -637,6 +705,19 @@ void AppDistance::onRunning()
                               idle_program::try_begin_foreground_animation();
     if (nfc_activity) {
         if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
+    }
+    if (!playback.busy && eye_intro_owned && live_requested && !_eye_intro_started) {
+        _eye_intro_generation = pending_eye.generation;
+        _eye_intro_completion_baseline = playback.completed_count;
+        const auto error = intro_player::start(intro_player::ClipId::Shorekeeper);
+        if (error == ESP_OK) {
+            _eye_intro_started = true;
+            playback = intro_player::snapshot();
+        } else {
+            ESP_LOGW("botifier", "eye intro unavailable error=%d", static_cast<int>(error));
+            // Fail forward once; never spin/retry a missing clip indefinitely.
+            idle_program::finish_eye_intro(_eye_intro_generation);
+        }
     }
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
     if (refresh) {
@@ -654,6 +735,7 @@ void AppDistance::onRunning()
         const auto previous_mode = _view->mode;
         _view->apply_mode();
         _view->update_pet(now, current);
+        _view->update_rest_head(idle_program::snapshot());
         GetStackChan().update();
         // The sampler can enter Alert after the snapshot above. Match the
         // global warning before allowing a top-layer information card.
@@ -663,9 +745,11 @@ void AppDistance::onRunning()
         _view->raise_controls();
         idle_program::set_context({
             _view->mode == View::Mode::Live,
-            playback.busy || _view->mode != View::Mode::Live,
+            (playback.busy && playback.clip != intro_player::ClipId::Shorekeeper) ||
+                _view->mode != View::Mode::Live,
             distance_alert});
         const auto idle = idle_program::snapshot();
+        _view->update_rest_head(idle);
         const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
         // Keep the whole warning behind the animation, including the bottom
         // control area outside its top-layer card. Controls remain usable.
@@ -707,6 +791,7 @@ void AppDistance::onRunning()
 
 void AppDistance::onClose()
 {
+    _eye_intro_started = false;
     idle_program::set_context({false, false, false});
     // Never hold the display lock while waiting for input or playback workers.
     nfc_sense::stop();

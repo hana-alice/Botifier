@@ -1,0 +1,88 @@
+{
+  "recorded_at": "2026-11-02T13:47:26.756399+08:00",
+  "type": "official game-rendered 3D character footage, converted from official animated GIF to baseline JPEG frames; playback is pre-rendered video, not native 3D rendering on StackChan",
+  "character": "The Shorekeeper / 守岸人",
+  "official_source_page": "https://wutheringwaves.kurogames.com/en/main/",
+  "official_source_article_page": "https://wutheringwaves.kurogames.com/en/main/news/detail/1419",
+  "official_source_article_title": "Profile Reveal | Euphonic Chrysalis — The Shorekeeper",
+  "official_source_article_json": "https://hw-media-cdn-mingchao.kurogame.com/akiwebsite/website2.0/json/G152/en/article/1419.json",
+  "discovery_chain": [
+    "official-main.html references official-index.js",
+    "official-index.js defines the CDN G152/en MainMenu.json and article/${id}.json",
+    "MainMenu.json lists articleId 1419 and the exact official article title",
+    "article/1419.json articleContent links original GIF below"
+  ],
+  "original_url": "https://hw-media-cdn-mingchao.kurogame.com/object/1727366400000/i3h37xv61wxlu49nxy-1727430153729.gif",
+  "original_local_file": "official-profile-03.gif",
+  "original_bytes": 7597976,
+  "original_sha256": "43a9d89d15d8c5e8b9b65287c02cf3cfad146e7a0c196d5bde1de2505691df2b",
+  "original_container": "GIF",
+  "original_width": 800,
+  "original_height": 1387,
+  "original_duration_seconds": 13.5,
+  "original_fps": 10,
+  "selected_time_range_seconds": [
+    0.0,
+    3.8
+  ],
+  "crop": {
+    "x": 68,
+    "y": 208,
+    "width": 664,
+    "height": 374
+  },
+  "resize": {
+    "width": 320,
+    "height": 184
+  },
+  "padding": {
+    "width": 320,
+    "height": 240,
+    "x": 0,
+    "y": 0,
+    "color": "black"
+  },
+  "output": {
+    "file": "shorekeeper_intro.bin",
+    "format": "KINTRO1",
+    "bytes": 324546,
+    "sha256": "fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af",
+    "frames": 38,
+    "fps": 10,
+    "duration_ms": 3800,
+    "baseline_jpeg": true,
+    "audio": false
+  },
+  "ffmpeg_filter": "crop=664:374:68:208,scale=320:184:flags=lanczos,fps=10,pad=320:240:0:0:black",
+  "conversion_flags": [
+    "-ss",
+    "0",
+    "-t",
+    "3.8",
+    "-an",
+    "-c:v",
+    "mjpeg",
+    "-q:v",
+    "5",
+    "-pix_fmt",
+    "yuvj420p"
+  ],
+  "packer": "scripts/Prepare-Shorekeeper3D.py reuses scripts/Prepare-KuroIntro.py make_pack and validate_jpeg; exact GIF SHA enforced, FPS10/DURATION3800/MAX_PACK500000",
+  "visual_verification": [
+    "profile-03-original.png shows original official branded card and animated gameplay window",
+    "profile-03-contact.png shows game-rendered animated 3D character, butterfly, facial close-up and 3D camera movement",
+    "shorekeeper-3d-320x240-contact.png shows final crop/scale/pad at 0.5-second sampling"
+  ],
+  "rights": "Copyright belongs to KURO GAMES and respective owners. Public access does not assert a Creative Commons or redistribution license. This is a short derivative crop for the user-requested personal device demonstration. No ownership or native 3D engine claim is made.",
+  "other_attempt": {
+    "official_youtube_url": "https://www.youtube.com/watch?v=FQEyNpQnK60",
+    "title": "Wuthering Waves | Resonator Showcase | The Shorekeeper — THE BEGINNING OF OUR STORY",
+    "author": "Wuthering Waves",
+    "channel_id": "UC0Bi5KMcECRVYis5Gb_ZYZQ",
+    "duration_seconds": 243,
+    "page_status": "playabilityStatus=OK",
+    "direct_stream_result": "HTTP 403 on muxed itag18 and adaptive itag134; not used in candidate",
+    "yt_dlp": "not present; no dependency installed"
+  },
+  "not_used": "The mistaken behind-the-scenes orchestra thumbnail rANvK8sxqho from previous work was neither used nor copied."
+}

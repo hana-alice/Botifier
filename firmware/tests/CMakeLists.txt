@@ -62,7 +62,9 @@ add_test(NAME snap_detector_test COMMAND $<TARGET_FILE:snap_detector_test>)
 add_executable(intro_clip_test intro_clip_test.cpp)
 target_include_directories(intro_clip_test PRIVATE ../main)
 target_compile_features(intro_clip_test PRIVATE cxx_std_17)
-add_test(NAME intro_clip_test COMMAND $<TARGET_FILE:intro_clip_test>)
+add_test(NAME intro_clip_test COMMAND $<TARGET_FILE:intro_clip_test>
+    "${CMAKE_CURRENT_SOURCE_DIR}/../main/apps/app_distance/media/kuro_intro.bin"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../main/apps/common/idle_program/media/shorekeeper_intro.bin")
 
 add_executable(camera_rgb_test camera_rgb_test.cpp)
 target_include_directories(camera_rgb_test PRIVATE ../main)
@@ -83,3 +85,8 @@ add_executable(idle_wire_test idle_wire_test.cpp)
 target_include_directories(idle_wire_test PRIVATE ../main)
 target_compile_features(idle_wire_test PRIVATE cxx_std_17)
 add_test(NAME idle_wire_test COMMAND $<TARGET_FILE:idle_wire_test>)
+
+add_executable(rest_head_motion_test rest_head_motion_test.cpp)
+target_include_directories(rest_head_motion_test PRIVATE ../main)
+target_compile_features(rest_head_motion_test PRIVATE cxx_std_17)
+add_test(NAME rest_head_motion_test COMMAND $<TARGET_FILE:rest_head_motion_test>)

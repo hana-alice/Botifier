@@ -4,6 +4,7 @@
 namespace idle_program {
 
 enum class Program { Pet, EyeRest, Weekly, RestDone, EyeCountdown };
+enum class EyePhase { Intro, Motion, Rest };
 enum class WeeklyStatus { Waiting, Fresh, Stale, Unavailable };
 
 struct Config {
@@ -28,6 +29,8 @@ struct Snapshot {
     Config config;
     Program program = Program::Pet;
     std::uint32_t generation = 0;
+    EyePhase eye_phase = EyePhase::Intro;
+    std::uint32_t phase_elapsed_ms = 0;
     std::uint32_t remaining_ms = 0;
     std::uint32_t eye_remaining_ms = 0;
     std::uint32_t completed_rests = 0;

@@ -80,10 +80,11 @@ void emit_telemetry(std::uint32_t& previous_ms)
     std::printf("SC_IDLE_STATE {\"v\":1,\"uptime_ms\":%" PRIu32 ",\"active\":%s,\"blocked\":%s,"
                 "\"program\":\"%s\",\"remaining_ms\":%" PRIu32 ",\"eye_remaining_ms\":%" PRIu32
                 ",\"completed_rests\":%" PRIu32 ",\"weekly_status\":\"%s\",\"weekly_left\":%d,"
-                "\"reset_at\":%" PRIu32 "}\n",
+                "\"reset_at\":%" PRIu32 ",\"eye_phase\":\"%s\",\"phase_elapsed_ms\":%" PRIu32 "}\n",
                 timestamp, current.active ? "true" : "false", current.blocked ? "true" : "false",
                 program_text(current.program), current.remaining_ms, current.eye_remaining_ms, current.completed_rests,
-                weekly_status_text(current.weekly_status), current.weekly_left, current.weekly_reset_at);
+                weekly_status_text(current.weekly_status), current.weekly_left, current.weekly_reset_at,
+                eye_phase_text(current.eye_phase), current.phase_elapsed_ms);
 }
 
 void worker(void*)
@@ -213,6 +214,12 @@ bool try_begin_foreground_animation()
     return policy.try_begin_foreground_animation(now_ms());
 }
 
+bool finish_eye_intro(std::uint32_t generation)
+{
+    std::lock_guard<std::mutex> lock(state_mutex);
+    return policy.finish_eye_intro(generation, now_ms());
+}
+
 Snapshot snapshot()
 {
     std::lock_guard<std::mutex> lock(state_mutex);
@@ -240,6 +247,16 @@ const char* weekly_status_text(WeeklyStatus value)
     case WeeklyStatus::Unavailable: return "unavailable";
     }
     return "unavailable";
+}
+
+const char* eye_phase_text(EyePhase value)
+{
+    switch (value) {
+    case EyePhase::Intro: return "intro";
+    case EyePhase::Motion: return "motion";
+    case EyePhase::Rest: return "rest";
+    }
+    return "intro";
 }
 
 } // namespace idle_program

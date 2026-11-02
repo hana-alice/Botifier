@@ -1,17 +1,19 @@
-# Shorekeeper eye-rest animation
+# Shorekeeper eye-break introduction
 
-`shorekeeper-sheet.png` is original AI-generated chibi fan art of **The Shorekeeper / 守岸人** from **Wuthering Waves**, selected by the user. Character design belongs to KURO GAMES. No other fan artist's animation, official game pixels, audio or video frames were copied into this asset.
+`shorekeeper_intro.bin` is a silent **3.8-second pre-rendered 3D character clip** from KURO GAMES' [official Shorekeeper profile](https://wutheringwaves.kurogames.com/en/main/news/detail/1419). The article's Resonance Liberation GIF contains game-rendered animation; its surrounding static information card is cropped out. The device plays those rendered frames locally.
 
-The built-in `image_gen` tool generated a transparent 1536×1024 sheet of six aligned wave/blink poses. The complete generation prompt and design references are in `source.json`. Generation is nondeterministic; the checked-in PNG is the source for reproducible conversion.
+The pack reuses the existing `KINTRO1` format and shared JPEG worker: 38 baseline 320×240 JPEG frames at 10 fps, 324,546 bytes total. The top 320×184 contains video; the bottom 56 pixels are black behind HOME. SHA256: `fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af`. Exact CDN URL, source GIF SHA, trim, crop and ownership information: `shorekeeper-3d-source.json`; frame metadata: `shorekeeper_intro.bin.json`.
 
-`shorekeeper.bin` contains six consecutive 160×160 BGRA frames (straight alpha, little endian `LV_COLOR_FORMAT_ARGB8888`), 102,400 bytes per frame and 614,400 bytes total. It has no header or executable data. `shorekeeper.bin.json` records the source, conversion flags, frame and pack hashes, alpha checks and limitations. Source pixels are only cropped and resized with the existing FFmpeg; there is no runtime decoder or per-frame RGB allocation.
-
-From the outer Botifier repository:
+From the outer Botifier repository, after downloading the original GIF from the source record:
 
 ```powershell
-python scripts/Prepare-Shorekeeper.py --input StackChan/firmware/main/apps/common/idle_program/media/shorekeeper-sheet.png --output StackChan/firmware/main/apps/common/idle_program/media/shorekeeper.bin --preview-dir .tools/shorekeeper/frames
+python scripts/Prepare-Shorekeeper3D.py --input path/to/official-profile-03.gif --output StackChan/firmware/main/apps/common/idle_program/media/shorekeeper_intro.bin
 ```
 
-Existing outputs are preserved unless `--force` is explicitly supplied for a deliberate regeneration. No additional Python packages are needed.
+The converter validates the exact original SHA and reuses `Prepare-KuroIntro.py`'s validation/packer. It needs only the standard library and existing FFmpeg, never downloads files, and refuses to overwrite outputs unless `--force` is supplied. The final pack was rebuilt byte for byte.
 
-Only the due **EyeRest** programme displays this artwork: six poses at 300ms per frame, followed by a still pose to complete a 3.6s loop, plus gentle floating and four star highlights. The original 20-minute work interval and configured rest duration remain independent of artwork timing. NFC and EyeRest share the highest automatic priority: the animation that starts first completes, taps during EyeRest are consumed without queuing, and an eye break that becomes due during NFC remains pending. Distance warnings wait below both animations; explicit HOME/TUNE/OFF still exits.
+After the clip actually finishes, a rhythmic pet face accompanies small relative head movements for 4.5 seconds. Only then does the configured REST countdown begin (20 seconds by default). NFC and the whole eye-break sequence share the highest automatic priority; first started completes, taps during EyeRest are consumed without queuing, and a break due during NFC remains pending. Distance warnings follow both; explicit HOME/TUNE/OFF still exits.
+
+Earlier AI-generated `shorekeeper-sheet.png`, `shorekeeper.bin`, `shorekeeper.bin.json` and `source.json` are retained as **historical seq47 assets**. The six-frame BGRA pack and its runtime code are no longer linked. They are not the source of the new 3D clip.
+
+Character design and original footage belong to KURO GAMES and respective owners. Public availability does not establish a redistribution license.

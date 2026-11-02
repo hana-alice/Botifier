@@ -9,10 +9,12 @@ class LvglAllocatedImage;
 namespace intro_player {
 
 enum class State { Idle, Starting, Playing, Stopping, Error };
+enum class ClipId { Kuro, Shorekeeper };
 
 struct Snapshot {
     bool busy = false;
     State state = State::Idle;
+    ClipId clip = ClipId::Kuro;
     esp_err_t error = ESP_OK;
     // Monotonic within this boot. The UI retains its image until a new frame
     // arrives; frame may be null while decoding or after playback ends.
@@ -29,7 +31,7 @@ struct Snapshot {
 
 // ESP_OK means accepted; a busy player rejects the request without queuing it.
 // start() contains no codec, camera, decoder, or LVGL operations.
-esp_err_t start();
+esp_err_t start(ClipId clip = ClipId::Kuro);
 // Call outside LVGL locks. Requests cancellation and waits for the worker.
 void stop();
 Snapshot snapshot();
