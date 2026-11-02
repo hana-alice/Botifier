@@ -62,11 +62,6 @@ extern "C" void app_main(void)
 
             GetMooncake().update();
 
-            {
-                LvglLockGuard lock;
-                idle_program::render_locked(idle_program::snapshot());
-            }
-
             if (GetHAL().isXiaozhiStartRequested()) {
                 break;
             }

@@ -590,7 +590,7 @@ struct AppDistance::View {
 
 AppDistance::AppDistance()
 {
-    setAppInfo().name = "DISTANCE";
+    setAppInfo().name = "BOTIFIER";
     static auto icon = assets::get_image("icon_sentinel.bin");
     setAppInfo().icon = static_cast<void*>(&icon);
     static std::uint32_t theme_color = 0xB77BFF;
@@ -653,20 +653,32 @@ void AppDistance::onRunning()
         _view->apply_mode();
         _view->update_pet(now, current);
         GetStackChan().update();
+        // The sampler can enter Alert after the snapshot above. Match the
+        // global warning before allowing a top-layer information card.
+        const bool distance_alert = distance_sensor::alert_active() ||
+            (current.valid && !current.stale && current.proximity_state == distance_sensor::ProximityState::Alert);
         _view->show_intro(playback);
         _view->raise_controls();
         idle_program::set_context({
             _view->mode == View::Mode::Live,
             playback.busy || _view->mode != View::Mode::Live,
-            current.valid && !current.stale && current.proximity_state == distance_sensor::ProximityState::Alert});
+            distance_alert});
         if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
-            (current.valid && !current.stale && current.proximity_state == distance_sensor::ProximityState::Alert)) {
+            distance_alert) {
             idle_program::clear_locked();
+        } else {
+            // This app exclusively owns programme display. Foreground playback
+            // and TOO CLOSE always take priority over information cards.
+            idle_program::render_locked(idle_program::snapshot());
         }
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), scanned);
             _view->show_reader_status(current, scanned);
             _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
+        }
+        if (distance_alert) {
+            _view->live_nfc_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+            _view->live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
         }
         save = _view->save_requested;
         save_idle = _view->save_idle_requested;
