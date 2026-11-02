@@ -140,6 +140,7 @@ struct AppDistance::View {
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
     std::unique_ptr<Label> live_nfc_status;
+    std::unique_ptr<Label> live_eye_status;
     std::unique_ptr<Button> tune_home;
     std::unique_ptr<Button> live_button;
     std::unique_ptr<Button> mode_button;
@@ -175,6 +176,9 @@ struct AppDistance::View {
         live_nfc_status = make_label(*live_controls, 8, 8, 304, &lv_font_montserrat_14, kMuted);
         live_nfc_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
         live_nfc_status->setText("NFC STARTING");
+        live_eye_status = make_label(*live_controls, 8, 28, 304, &lv_font_montserrat_14, kMuted);
+        live_eye_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        live_eye_status->setText("EYE OFF");
 
         tune_page = make_page();
         tune_home = make_button(*tune_page, 8, 4, 80, "HOME");
@@ -308,14 +312,17 @@ struct AppDistance::View {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
-        if (signal == distance_pet::Signal::Alert) live_nfc_status->addFlag(LV_OBJ_FLAG_HIDDEN);
-        else live_nfc_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        for (auto* label : {live_nfc_status.get(), live_eye_status.get()}) {
+            if (signal == distance_pet::Signal::Alert) label->addFlag(LV_OBJ_FLAG_HIDDEN);
+            else label->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        }
         live_avatar->tick(now, signal);
     }
 
     void show_intro(const intro_player::Snapshot& playback)
     {
         intro_visible = playback.busy;
+        if (intro_visible) live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
         if (!intro_visible) {
             lv_image_set_src(intro_image, nullptr);
             intro_frame.reset();
@@ -379,6 +386,32 @@ struct AppDistance::View {
         }
         live_nfc_status->setText(text);
         live_nfc_status->setTextColor(lv_color_hex(color));
+    }
+
+    void show_eye_status(const idle_program::Snapshot& idle, const distance_sensor::Snapshot& distance,
+                         bool playback_busy)
+    {
+        if (playback_busy || (distance.valid && !distance.stale &&
+            distance.proximity_state == distance_sensor::ProximityState::Alert)) {
+            live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
+            return;
+        }
+        live_eye_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        char text[32];
+        if (!idle.active) {
+            std::snprintf(text, sizeof(text), "EYE --");
+        } else if (!idle.config.enabled) {
+            std::snprintf(text, sizeof(text), "EYE OFF");
+        } else if (idle.eye_remaining_ms == 0) {
+            std::snprintf(text, sizeof(text), "EYE DUE");
+        } else {
+            const auto seconds = idle.eye_remaining_ms / 1000 + (idle.eye_remaining_ms % 1000 != 0);
+            std::snprintf(text, sizeof(text), "EYE %02lu:%02lu", static_cast<unsigned long>(seconds / 60),
+                          static_cast<unsigned long>(seconds % 60));
+        }
+        live_eye_status->setText(text);
+        live_eye_status->setTextColor(lv_color_hex(idle.active && idle.config.enabled &&
+                                                  idle.eye_remaining_ms == 0 ? kNear : kMuted));
     }
 
     void show_config(const distance_sensor::ProximityConfig& configuration)
@@ -582,6 +615,7 @@ void AppDistance::onOpen()
     _view = std::make_unique<View>(*this);
     _view->update(current, distance_sensor::config(), scanned);
     _view->show_reader_status(current, scanned);
+    _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
     _last_refresh_ms = GetHAL().millis();
 }
 
@@ -632,6 +666,7 @@ void AppDistance::onRunning()
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), scanned);
             _view->show_reader_status(current, scanned);
+            _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
         }
         save = _view->save_requested;
         save_idle = _view->save_idle_requested;
