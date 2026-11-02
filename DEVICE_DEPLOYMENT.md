@@ -427,3 +427,17 @@ CTest **14/14**，实际LVGL **176帧、8,105断言**（5,638几何、2,467行�
 从设备快照反推Motion开始至Rest开始 **12,032ms**；Rest入口至退出日志 **20,016ms**（含退出处理延迟），completed_rests从0→1。全窗口847/847距离有效、84个idle快照，0畸形允许帧、0故障标记。一次性探针恢复包写成功，随后实际读回 **eye_remaining_ms=1,199,440**，正常20分钟计时恢复，未SAVE。自动报告`logs/device-fullscreen53-motion-report.json`与根代理独立原始帧核对`logs/device-fullscreen53-independent-audit.json`均通过，物理位移判定true。
 
 额度助手已恢复为隐藏进程 **PID146112**，COM38连接标记和真实PC摘要 **67%** 已核对；安全日志`logs/codex-weekly-fullscreen-helper.log`及`.err.log`，运行记录`.tools/fullscreen-helper-runtime.json`，无系统自启动。PC摘要不替代本轮机器人额度画面验收。未重测物理NFC、LCD实际帧率/物理手势灵敏度、外部姿态精度或长期运行；此前RF瞬态错误与协作bool锁无owner token的限制保留。
+
+## seq57：护眼动作连续过渡，实机流畅度待验证（2026-11-02）
+
+用户明确问题是护眼摇头时表情与动作不连贯。seq53的位移和时长通过记录保留为历史证据，不代表流畅度通过。先部署仅增加被动计时的seq55（4,470,464字节，SHA256`11eca027c9e664c185e5258c8448f7c5d8ebe6922be5396e31dc3d557f80a912`），独立读回VALID；两次175秒采集均未进入LIVE、未发送短周期配置、没有SC_FRAME，报告`logs/device-motion-baseline55-report.json`及`device-motion-baseline55-retry-report.json`。没有形成有效实机性能基线。
+
+最终源码 **fdf44df81bfd0990ef96f3c91492c0e76a74b112**：仅Motion脸部位置由每秒直接跳位改为350ms连续过渡后保持650ms，沿用原情绪混合与12秒四组动作；两种SCS读取函数移除缓冲字节间多余调度，保留无数据让出CPU与超时/错误处理。`SC_FRAME`输出在显示锁外，统计内容提交而非LCD帧率。没有新增依赖或修改普通宠物/栏目节奏。
+
+`logs/motion-flow-host-final.log`记录CTest **17/17**，正式串口回归旧实现先失败、修改后通过；源码提取协议/调度模型63组比较通过。实际生产App/Pet/LVGL **8,105断言、五项负控**通过、0裁切/缺字，两组各100轮生命周期内存增量0；同样91帧/33ms采样最大相邻容器位移 **8→1px**，视觉95/pass。证据`.tools/motion-flow-probe/motion56-result.json`、`after/visual-verdict.json`和`logs/scserial-read-source-probe.json`。motion56仅是桌面迭代名称；没有OTA56。桌面时钟和硬件替身不能证明实机帧率或机械流畅度。
+
+完整IDF5.5.4构建`logs/motion-flow-build-final.log`通过。镜像 **4,470,704字节**、SHA256 **916e1c39b5469f15b11c979b79304d59242d91fce67950aeb1b96b19dd85364b**，应用槽余 **706,640字节**。匹配bin/ELF/map归档`.tools/device-backups/20261102-motion-flow57/motion-flow-deployed.*`。受保护更新`logs/device-update-motion-flow57.log`和独立`ota-confirmation.json`确认 **seq57/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**；NVS、bootloader、分区表、原厂槽和资源保护区校验通过。
+
+40秒启动报告`logs/device-motion-flow57-boot-report.json`：37个idle全部blocked、0运行故障标记，初始eye_remaining_ms=1,199,998，正常20分钟计时。376个距离样本均无效；seq55采集也有无效读数，本次没有检查传感器摆放或原因，不据此认定固件回归，也不宣称当前测距通过。随后175秒窗口`logs/device-motion-flow57-report.json`仍未进入LIVE，173个idle全部blocked，没有SC_HEAD/SC_FRAME、未发送测试配置、0故障标记。当前仅确认启动与软件渲染路径，实机流畅度没有测得；无需将“未发送配置”的restore=false解读为恢复失败。
+
+默认20分钟/REST20保留，未SAVE。隐藏额度助手已恢复 **PID1528**，COM38连接标记与新鲜安全PC摘要 **66%** 已核验，日志`logs/codex-weekly-motion-flow-helper.log`及`.err.log`，记录`.tools/motion-flow-helper-runtime.json`；PC摘要不是机器人显示验收，无系统自启动。本轮未重测物理NFC、LCD帧率、外部姿态或长期稳定性。

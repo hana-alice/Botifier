@@ -274,3 +274,13 @@ seq51实机只测到1raw左右抖动和0上下位移，证明仅补扭矩不充�
 `SC_HEAD` v1只在阶段/拍号/控制状态变化时输出已有事务缓存，读取`diagnostics()`不产生总线I/O。字段包括真实raw_position、position_reads、torque_before/after、独立位置/扭矩写ACK、写包duration_ms、协议错误与设备状态。SCS ACK=1不保证设备status=0，二者独立保留；无返回的raw=-1不替换成软件角度。记录发生在本帧StackChan.update前，不能把同一行target和旧write_ack硬配成同一事务，应依据计数递增和后续位置判断。扭矩寄存器40为单字节，修正原ReadWord为readByte，避免混入寄存器41。
 
 守岸人pack改为实际320×240满幅裁剪，去掉原56px留黑；38帧/10fps/3.8秒、422,532字节，SHA256`5a67997f01f8be973bd1f3d9b0b05785c89bb78b227ed679751bcc5f364155ab`。现有FFmpeg两次重建逐字节一致，所有38帧无整行黑边；复用原JPEG worker，无新依赖。真实LVGL、主机测试、实体反馈与LCD实拍分别记录，当前设备部署结果见[DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
+
+## 护眼摇头的连续过渡（2026-11-02）
+
+用户指出护眼摇头时表情与动作不连贯。此前seq53只证明实体位移与阶段时长，不能据此宣布动作流畅。实际生产View/Pet/LVGL按33ms采样显示：脸部容器在每秒换拍时直接跳到目标，990→1023ms跳4px、1980→2013ms跳8px；抵消容器平移后脸部区域像素差为0，证据`.tools/motion-flow-probe/baseline/manifest.json`。因此仅将Motion位置改为350ms smoothstep连续过渡、其余650ms保持；脸部与硬件共用`kMotionMoveMs`，保留原280ms情绪混合、12拍和完整REST20。
+
+串口两种`readSCS`仅在没有成功读到字节时让出CPU，避免缓冲数据逐字节触发额外调度；超时、部分读取、CRC/ID/status与flush语义不变。原源码提取实验63组比较通过，证据`logs/scserial-read-source-probe.json`；正式测试先在旧实现准确失败，修改后CTest17/17通过，包含串口5组和内容计时8组。固定SDK为100Hz，`pdMS_TO_TICKS(1)`实际为0，表示重新调度，不能解释成每字节固定延迟10ms；实验注入的调度成本不能当实机收益。
+
+新增被动`SC_FRAME`仅在LIVE的EyeRest Motion统计内容提交间隔、三处显示锁等待、前后head、StackChan与render耗时，每约2秒和阶段结束输出，输出在显示锁外。View内部仍可能节流，因此该计数不是实际绘制次数或LCD帧率。seq55保留旧画面用于基线采样，但两次175秒窗口均未进入LIVE、未发送测试配置，没有得到可比较的实机Motion数据。
+
+修改后实际LVGL同样91帧/33ms采样的相邻容器最大位移8→1px，两处旧边界跳变消失，视觉95/pass；完整App回归8,105项断言、五项隔离负控、0裁切/缺字、两组各100轮生命周期增量0。176张静态帧中160张非Motion图逐字节一致。证据`.tools/motion-flow-probe/motion56-result.json`与`after/visual-verdict.json`；motion56是桌面迭代名称，没有部署OTA seq56。此证据仅覆盖渲染路径，实机调度与机械流畅度须分开验证。

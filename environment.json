@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-11-02T16:10:42.651196+08:00",
+  "RecordedAt": "2026-11-02T17:06:36.052999+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5"
+    "LocalImplementationCommit": "fdf44df81bfd0990ef96f3c91492c0e76a74b112"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,9 +15,9 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "BOTIFIER fullscreen and timed head reminder; seq53/VALID independently verified. Hidden USB quota helper restored.",
+    "ConnectionStatus": "Motion face interpolation and bounded SCS read scheduling update; seq57/VALID independently verified. Hidden USB quota helper restored.",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 53,
+    "CurrentOtaSequence": 57,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,20 +73,20 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest15/15, including real Servo/Motion/UITK timed-motion regression; actual LVGL native pointer replay and five targeted negative controls. PC unchanged; historical77/77 not rerun.",
-  "FirmwareBuild": "ESP-IDF5.5.4 complete; image4468608 bytes, slot5177344, free708736 bytes; seq53/VALID.",
+  "HostTest": "CTest17/17; idle policy26 groups, head controller20, real Servo/Motion/UITK11, content timing8, real serial source5; actual LVGL8105 assertions/five negative controls. PC unchanged; historical77/77 not rerun.",
+  "FirmwareBuild": "ESP-IDF5.5.4 complete; image4470704 bytes, slot5177344, free706640 bytes; seq57/VALID.",
   "FirmwareBinary": {
-    "Path": ".tools/device-backups/20261102-botifier-fullscreen53/botifier-fullscreen-deployed.bin",
-    "Bytes": 4468608,
-    "SHA256": "9b79758d78e29a060adfde874d160d4ce9acf35ec12398ee580f9eae132d0c9b",
-    "SourceCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5",
-    "BuildLog": "logs/fullscreen-timed-build-final.log",
+    "Path": ".tools/device-backups/20261102-motion-flow57/motion-flow-deployed.bin",
+    "Bytes": 4470704,
+    "SHA256": "916e1c39b5469f15b11c979b79304d59242d91fce67950aeb1b96b19dd85364b",
+    "SourceCommit": "fdf44df81bfd0990ef96f3c91492c0e76a74b112",
+    "BuildLog": "logs/motion-flow-build-final.log",
     "Flashed": true,
-    "OtaSequence": 53,
+    "OtaSequence": 57,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261102-botifier-fullscreen53/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261102-botifier-fullscreen53/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-fullscreen53.log"
+    "Record": ".tools/device-backups/20261102-motion-flow57/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-motion-flow57/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-motion-flow57.log"
   },
   "LastDeployedPetFirmwareBinary": {
     "Path": ".tools/device-backups/20261030-182853-pet-face/distance-pet-working.bin",
@@ -3201,17 +3201,17 @@
     "DeploymentLog": "logs/device-update-shorekeeper47.log"
   },
   "IdleProgramFirmwareBinary": {
-    "Path": ".tools/device-backups/20261102-botifier-fullscreen53/botifier-fullscreen-deployed.bin",
-    "Bytes": 4468608,
-    "SHA256": "9b79758d78e29a060adfde874d160d4ce9acf35ec12398ee580f9eae132d0c9b",
-    "SourceCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5",
-    "BuildLog": "logs/fullscreen-timed-build-final.log",
+    "Path": ".tools/device-backups/20261102-motion-flow57/motion-flow-deployed.bin",
+    "Bytes": 4470704,
+    "SHA256": "916e1c39b5469f15b11c979b79304d59242d91fce67950aeb1b96b19dd85364b",
+    "SourceCommit": "fdf44df81bfd0990ef96f3c91492c0e76a74b112",
+    "BuildLog": "logs/motion-flow-build-final.log",
     "Flashed": true,
-    "OtaSequence": 53,
+    "OtaSequence": 57,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261102-botifier-fullscreen53/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261102-botifier-fullscreen53/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-fullscreen53.log"
+    "Record": ".tools/device-backups/20261102-motion-flow57/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-motion-flow57/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-motion-flow57.log"
   },
   "IdlePrograms": {
     "Defaults": {
@@ -3230,79 +3230,68 @@
     "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
     "Snapshot": {
       "available": true,
-      "remaining_percent": 67,
+      "remaining_percent": 66,
       "reset_at": 1793871052,
-      "observed_at": 1793606958
+      "observed_at": 1793610334
     },
-    "FirmwareTests": "logs/fullscreen-timed-host-final.log",
+    "FirmwareTests": "logs/motion-flow-host-final.log",
     "PcTests": "logs/idle-pc-tests-final.log",
-    "UiManifest": ".tools/idle-program-ui-probe/manifest-fullscreen-timed-head.json",
-    "UiVerdict": ".tools/idle-program-ui-probe/visual-verdict-fullscreen-timed-head-final.json",
+    "UiManifest": ".tools/motion-flow-probe/motion56-result.json",
+    "UiVerdict": ".tools/motion-flow-probe/after/visual-verdict.json",
     "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
-    "PhysicalProbe": "logs/device-fullscreen53-motion-report.json",
+    "PhysicalProbe": "logs/device-motion-flow57-report.json",
     "PhysicalProbeData": {
-      "scope": "Independent raw capture audit; physical encoders, not external pose or LCD measurement",
-      "axes": {
-        "yaw": {
-          "raw_min": 464,
-          "raw_max": 505,
-          "raw_span": 41,
-          "span_degrees_from_encoder": 12.8125,
-          "fresh_read_counters": [
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "duration_ms": 350
-        },
-        "pitch": {
-          "raw_min": 599,
-          "raw_max": 610,
-          "raw_span": 11,
-          "span_degrees_from_encoder": 3.4375,
-          "fresh_read_counters": [
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "duration_ms": 350
-        }
+      "Startup": {
+        "scope": "Forty-second same-port startup only; no Motion or LCD frame-rate acceptance",
+        "source": "logs/device-motion-flow-early-boot.log",
+        "distance_frames": 376,
+        "distance_valid": 0,
+        "distance_invalid": 376,
+        "idle_frames": 37,
+        "idle_blocked_frames": 37,
+        "runtime_failure_markers": 0,
+        "first_eye_remaining_ms": 1199998,
+        "last_eye_remaining_ms": 1163545,
+        "test_config_packets_sent": 0
       },
-      "motion_phase_ms": 12032,
-      "rest_entry_to_exit_log_ms": 20016,
-      "rest_entry_ms": 71559,
-      "rest_exit_log_ms": 91575,
-      "completed_rests": 1,
-      "restored_eye_remaining_ms": 1199440,
-      "distance_frames": 847,
-      "distance_valid": 847,
-      "distance_invalid": 0,
-      "idle_frames": 84,
-      "failure_markers": 0,
-      "physical_motion_verified": true,
-      "IndependentAudit": "logs/device-fullscreen53-independent-audit.json",
-      "RestoreWriteSucceeded": true,
-      "RestoreTimerObserved": true
+      "Capture": {
+        "requested_seconds": 175,
+        "quota": "omitted; root restores existing helper",
+        "config_attempted": false,
+        "config_write_succeeded": false,
+        "observed_existing_eye_rest": false,
+        "restore_attempted": false,
+        "restore_write_succeeded": false,
+        "restore_observed_normal_timer": false,
+        "defaults": {
+          "enabled": true,
+          "eye_interval_ms": 1200000,
+          "rest_duration_ms": 20000,
+          "idle_grace_ms": 10000,
+          "pet_gap_ms": 3000,
+          "weekly_duration_ms": 12000,
+          "weekly_interval_ms": 30000
+        },
+        "test_config": {
+          "enabled": true,
+          "eye_interval_ms": 10000,
+          "rest_duration_ms": 20000,
+          "idle_grace_ms": 0,
+          "pet_gap_ms": 3000,
+          "weekly_duration_ms": 12000,
+          "weekly_interval_ms": 30000
+        },
+        "post_completion_frames": 0,
+        "serial_error": false,
+        "interrupted": false,
+        "stop_reason": "timeout",
+        "elapsed_seconds": 177.047,
+        "restore_scope": "save=false only. A successful write is not device acceptance; timer observation is separate."
+      },
+      "PhysicalMotionVerified": false,
+      "Scope": "175-second follow-up stayed blocked; no Motion/SC_FRAME or test configuration; no physical smoothness comparison"
     },
-    "PhysicalAcceptance": "Physical position evidence passed",
+    "PhysicalAcceptance": "Seq57 startup and OTA validity verified. Physical motion smoothness/FPS not measured; seq53 position evidence remains historical.",
     "HistoricalAttempts": [
       {
         "sequence": 35,
@@ -3328,24 +3317,25 @@
       "Quota feed requires this PC and USB; no Wi-Fi feed or OS startup task.",
       "Rest completion is a timer, not verified gaze.",
       "Prior NFC RF transient errors are not fixed by this work.",
-      "LCD frame rate, external pose accuracy, physical NFC and long-running stability not measured this iteration.",
+      "No physical LCD FPS, smoothness, external pose, NFC or long-run acceptance in seq57.",
+      "Seq57 startup distance frames were invalid; both seq55 baseline captures also showed invalid readings. Sensor placement/cause not investigated in this Motion-only change.",
       "Existing cooperative bool motion lock has no owner token; occupied movement is not preempted."
     ],
     "PcHelperRuntime": {
-      "ProcessId": 146112,
-      "StartedAt": "2026-11-02T16:09:14.8713065+08:00",
+      "ProcessId": 1528,
+      "StartedAt": "2026-11-02T17:05:32.8632166+08:00",
       "Port": "COM38",
       "Hidden": true,
       "OsStartup": false,
-      "Log": "logs/codex-weekly-fullscreen-helper.log",
-      "ErrorLog": "logs/codex-weekly-fullscreen-helper.err.log",
+      "Log": "logs/codex-weekly-motion-flow-helper.log",
+      "ErrorLog": "logs/codex-weekly-motion-flow-helper.err.log",
       "PidFile": ".tools/codex-weekly-helper.pid",
-      "Status": "Alive; USB connected marker and safe account summary verified; PC summary is not device-display acceptance",
+      "Status": "Alive; USB connected marker and fresh safe account summary verified; PC summary is not device-display acceptance",
       "LastSafeSnapshot": {
         "available": true,
-        "remaining_percent": 67,
+        "remaining_percent": 66,
         "reset_at": 1793871052,
-        "observed_at": 1793606958
+        "observed_at": 1793610334
       }
     },
     "DisplayScope": "BOTIFIER (formerly DISTANCE) LIVE only; launcher and AI do not render programmes; sensor and eye timer remain process-wide.",
@@ -3375,7 +3365,9 @@
       "RestMs": 20000,
       "RestScope": "Starts at the actual Motion-to-Rest tick, independent of video/decode/scheduling time",
       "RestSource": "Config.rest_duration_ms;20000 is the unchanged default",
-      "Groups": "Left two beats/centre; right two/centre; up two/centre; down two/centre; each centre holds one second"
+      "Groups": "Left two beats/centre; right two/centre; up two/centre; down two/centre; each centre holds one second",
+      "VisualMoveMs": 350,
+      "VisualHoldMs": 650
     },
     "CardAppearance": "Warm amber clock/ring/MM:SS versus cool navy Codex dashboard/percent/ten quota cells",
     "HeadMotion": {
@@ -3386,7 +3378,7 @@
       "Reservation": "Intro reserves cooperative motion lock without movement; base sampled at Motion start",
       "Limits": "Current dynamic servo limits intersect the small relative window; occupied/unsatisfiable sessions skip physical movement",
       "Exit": "Only stop commands this controller initiated; release owned lock",
-      "Scope": "SC_HEAD cached bus replies and fresh physical position counters; no external pose/LCD measurement",
+      "Scope": "Unchanged350ms hardware targets; seq53 physical-position evidence is historical. No seq57 physical Motion/FPS acceptance.",
       "HardwareTargetDurationMs": 350,
       "Drive": "Opt-in hardware-timed WritePos; ordinary spring dt and AI motion unchanged",
       "Centre": "Midpoint of actual-pose relative window intersected with dynamic hard limits; offsets scaled to available half-width"
@@ -3406,6 +3398,36 @@
       "Actual": "12 beats, torque0->1, ACK1/state0; yaw486..487 and pitch601, insufficient displacement",
       "Cause": "Real UITK experiment confirms fixed20ms spring steps plus low observed write frequency and per-beat physical rebase lose progress",
       "ProbeCorrection": "Original attention_required omitted span failure; fixed summary and10s test period avoid premature new due. Raw evidence retained."
+    },
+    "MotionFluency": {
+      "Scope": "Only EyeRest Motion face offset and necessary serial scheduling; no ordinary pet/cadence changes",
+      "Interpolation": "Smoothstep previous beat to current target over350ms, then hold650ms; existing280ms mood blend retained",
+      "DesktopEvidence": ".tools/motion-flow-probe/motion56-result.json",
+      "DesktopIterationName": "motion56 names a desktop experiment, not an OTA sequence",
+      "DesktopSample": {
+        "Frames": 91,
+        "StepMs": 33,
+        "MaxAdjacentHostPixelsBefore": 8,
+        "MaxAdjacentHostPixelsAfter": 1
+      },
+      "DesktopLimits": "Production View/Pet and real LVGL; hardware/worker/clocks substituted; not real-device FPS",
+      "SerialChange": "Both readSCS overloads yield only after no successful byte receipt; timeout/partial/CRC/ID/status semantics retained",
+      "SerialBeforeSHA256": "6ae75b0373102c82375da1efc499978e0a5b546cec6d07a1a5c1ac0ea528075b",
+      "SerialAfterSHA256": "e0825ac18477785bee2dee79dfa89ddcb592089af29816afa0650f0bf1f620b2",
+      "SerialEvidence": "logs/scserial-read-source-probe.json",
+      "SerialTrackedRegression": "logs/scserial-tracked-regression-red-green.json",
+      "SerialModelLimit": "100Hz SDK maps1ms to0ticks; yield schedules ready tasks, no fixed10ms or measured device gain",
+      "Telemetry": "SC_FRAME counts render submission calls in Motion, not actual draws or LCD FPS; log outside LVGL lock",
+      "BaselineSequence": 55,
+      "BaselineReports": [
+        "logs/device-motion-baseline55-report.json",
+        "logs/device-motion-baseline55-retry-report.json"
+      ],
+      "BaselineLimit": "Both175s attempts remained blocked, sent no test config and captured no Motion/SC_FRAME",
+      "FinalReport": "logs/device-motion-flow57-report.json",
+      "PhysicalSmoothnessVerified": false,
+      "ShortCycleConfigurationSent": false,
+      "Defaults": "Normal20min/REST20 retained; no SAVE/NVS parameter writes"
     }
   },
   "PreviousIdlePrograms": {
@@ -3653,6 +3675,104 @@
       "Limits": "Current dynamic servo limits intersect the small relative window; occupied/unsatisfiable sessions skip physical movement",
       "Exit": "Only stop commands this controller initiated; release owned lock",
       "Scope": "Host-tested controller, mechanical angles/direction/rhythm not measured on hardware"
+    }
+  },
+  "PreviousFullscreenFirmwareBinary": {
+    "Path": ".tools/device-backups/20261102-botifier-fullscreen53/botifier-fullscreen-deployed.bin",
+    "Bytes": 4468608,
+    "SHA256": "9b79758d78e29a060adfde874d160d4ce9acf35ec12398ee580f9eae132d0c9b",
+    "SourceCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5",
+    "BuildLog": "logs/fullscreen-timed-build-final.log",
+    "Flashed": true,
+    "OtaSequence": 53,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-botifier-fullscreen53/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-botifier-fullscreen53/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-fullscreen53.log"
+  },
+  "PreviousFullscreenMotionEvidence": {
+    "OtaSequence": 53,
+    "Scope": "Historical position and timing acceptance; not a smoothness or FPS measurement",
+    "PhysicalProbe": "logs/device-fullscreen53-motion-report.json",
+    "PhysicalProbeData": {
+      "scope": "Independent raw capture audit; physical encoders, not external pose or LCD measurement",
+      "axes": {
+        "yaw": {
+          "raw_min": 464,
+          "raw_max": 505,
+          "raw_span": 41,
+          "span_degrees_from_encoder": 12.8125,
+          "fresh_read_counters": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "duration_ms": 350
+        },
+        "pitch": {
+          "raw_min": 599,
+          "raw_max": 610,
+          "raw_span": 11,
+          "span_degrees_from_encoder": 3.4375,
+          "fresh_read_counters": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "duration_ms": 350
+        }
+      },
+      "motion_phase_ms": 12032,
+      "rest_entry_to_exit_log_ms": 20016,
+      "rest_entry_ms": 71559,
+      "rest_exit_log_ms": 91575,
+      "completed_rests": 1,
+      "restored_eye_remaining_ms": 1199440,
+      "distance_frames": 847,
+      "distance_valid": 847,
+      "distance_invalid": 0,
+      "idle_frames": 84,
+      "failure_markers": 0,
+      "physical_motion_verified": true,
+      "IndependentAudit": "logs/device-fullscreen53-independent-audit.json",
+      "RestoreWriteSucceeded": true,
+      "RestoreTimerObserved": true
+    },
+    "PhysicalAcceptance": "Physical position evidence passed",
+    "PcHelperRuntime": {
+      "ProcessId": 146112,
+      "StartedAt": "2026-11-02T16:09:14.8713065+08:00",
+      "Port": "COM38",
+      "Hidden": true,
+      "OsStartup": false,
+      "Log": "logs/codex-weekly-fullscreen-helper.log",
+      "ErrorLog": "logs/codex-weekly-fullscreen-helper.err.log",
+      "PidFile": ".tools/codex-weekly-helper.pid",
+      "Status": "Alive; USB connected marker and safe account summary verified; PC summary is not device-display acceptance",
+      "LastSafeSnapshot": {
+        "available": true,
+        "remaining_percent": 67,
+        "reset_at": 1793871052,
+        "observed_at": 1793606958
+      }
     }
   }
 }
