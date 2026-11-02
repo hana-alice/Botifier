@@ -284,3 +284,23 @@ seq51实机只测到1raw左右抖动和0上下位移，证明仅补扭矩不充�
 新增被动`SC_FRAME`仅在LIVE的EyeRest Motion统计内容提交间隔、三处显示锁等待、前后head、StackChan与render耗时，每约2秒和阶段结束输出，输出在显示锁外。View内部仍可能节流，因此该计数不是实际绘制次数或LCD帧率。seq55保留旧画面用于基线采样，但两次175秒窗口均未进入LIVE、未发送测试配置，没有得到可比较的实机Motion数据。
 
 修改后实际LVGL同样91帧/33ms采样的相邻容器最大位移8→1px，两处旧边界跳变消失，视觉95/pass；完整App回归8,105项断言、五项隔离负控、0裁切/缺字、两组各100轮生命周期增量0。176张静态帧中160张非Motion图逐字节一致。证据`.tools/motion-flow-probe/motion56-result.json`与`after/visual-verdict.json`；motion56是桌面迭代名称，没有部署OTA seq56。此证据仅覆盖渲染路径，实机调度与机械流畅度须分开验证。
+
+## 两次往返与预备眼神（2026-11-02）
+
+用户进一步确认“左→中→再左→中，短暂停；右、上、下各重复两次”，并要求动画曲线。参考[Apple ELEGNT](https://machinelearning.apple.com/research/elegnt-expressive-functional-movement)的表达性动作设计、[Takayama等人的机器人动画研究](https://wendyju.com/publications/151r-takayama.pdf)的预备与结果反应、[Disney动画原则](https://www.disneyanimation.com/process/animation/)的节奏与缓入缓出。下列数值为本项目设计选择，论文并未证明它们是本设备最优参数。
+
+`eye_sequence.h`用16个带`start_ms/move_ms`的目标替代12个等长拍，删除等长常量。每组3秒，在120/720/1400/2100ms下发方向/中/方向/中，移动360/300/420/340ms，最后回中留560ms；两次偏移分别左右6°/8°、上下3°/4°，仍在原实际姿态±8°/±4°与动态硬限交集内缩放。首120ms仅眼神预备。共享索引保证View与控制器用同一时间表；迟到只发当前目标、不补播，回退不重发。取消、扭矩、协作锁、堵转检查、完整REST20与优先级保持。
+
+眼神在每个机头目标前120ms开始并用smoothstep移向目标；脸部容器按该目标的独立移动时长使用同一类曲线。每组暂停2560–2780ms做一次闭眼再睁开。硬件仍使用已有定时目标包，不把屏幕曲线宣称为实测舵机加速度曲线。`EyeCue`默认中立，只在Ready叠加，Alert不受影响；普通调用使用默认参数。
+
+首轮完整真实LVGL影片发现第三组Surprise在第二摆前到期，第四组末尾随机变Sad，视觉88/revise，失败证据保留`movie-v1/`。修复为仅Motion调用`Controller::update(...,hold_mood=true)`，保持该组情绪并抑制随机换脸，原280ms混合与细小动作继续；不每目标重播表情。第二轮300×40ms帧及60个精确采样点中，实际Controller情绪全部匹配四组，0越界/文字裁切，视觉94/pass，证据`.tools/expressive-motion-probe/movie-v2/`。主机CTest17/17通过（宠物18组、Policy27组、机头21组、生产Servo/Motion/UITK12组）。实机与完整App回归结果见部署记录。
+
+## 修正左右基准与Motion显示开销（2026-11-02）
+
+用户指出seq59实体机头四次均在同一侧。此前只以总跨度与目标包判定“physical_motion_verified”不充分，已明确撤回其方向通过含义。新启动记录给出yaw校准raw458；该轮起点raw499约为逻辑+12.8°，旧控制器以这个实际姿态为中点，全部左右目标仍在逻辑+4.8°到+20.8°，后续新鲜反馈raw477–518也全在校准正面的一侧。根代理独立原始帧审计`logs/device-expressive59-direction-failure-audit.json`保留，原自动报告不覆盖。
+
+`RestHeadMotion`左右改围绕校准yaw=0，与动态限位及±8°相交；交集不能跨零时跳过，不再制造偏置neutral。首目标用700ms缓慢归正，初始偏转超过30°则跳过实体动作，俯仰仍保留原实际姿态±4°可行窗口，避免调用会越过pitch下限的双轴goHome。原四组3秒动作顺延700ms，总12.7秒、17个目标。正常开始后迟到仍只发当前目标，不追赶旧拍；首次tick必须不晚于820−700=120ms，超过则释自己的reservation并跳过，不能省略或截断归正。120/121ms、过期首次tick、旧运动和他人锁均有生产代码回归。
+
+seq59实际内容提交仅45次/11,928ms≈3.77次每秒，44个间隔中43个≥100ms，最大354ms；显示锁等待共9,733ms，最大272ms。源码确认LVGL持全局锁执行刷新，Motion整脸scale232产生软件transform中间层；单320×20缓冲等待flush也在锁内。不能仅凭上述记录将全部等待归因于SPI或缩放。Motion改native256缩放，直接使用目标像素位置；每帧仅设最终字号/位置，删除先设普通208再改回256的重复布局。全局LVGL、SPI、缓冲和普通栏目不改。前后性能比较属于组合修改，不能当单因素实验或LCD帧率测量。
+
+实际LVGL保留318帧/40ms（末帧20ms）的12.7秒影片与64个精确点，17个拍点、预备画面和四组情绪均通过94/pass；同帧布局优化前后影片/关键帧及181个App场景逐像素一致。完整App回归与最终实体两侧方向合同见`DEVICE_DEPLOYMENT.md`；绝不以屏幕smoothstep宣称物理舵机cubic加速度已测得。

@@ -441,3 +441,37 @@ CTest **14/14**，实际LVGL **176帧、8,105断言**（5,638几何、2,467行�
 40秒启动报告`logs/device-motion-flow57-boot-report.json`：37个idle全部blocked、0运行故障标记，初始eye_remaining_ms=1,199,998，正常20分钟计时。376个距离样本均无效；seq55采集也有无效读数，本次没有检查传感器摆放或原因，不据此认定固件回归，也不宣称当前测距通过。随后175秒窗口`logs/device-motion-flow57-report.json`仍未进入LIVE，173个idle全部blocked，没有SC_HEAD/SC_FRAME、未发送测试配置、0故障标记。当前仅确认启动与软件渲染路径，实机流畅度没有测得；无需将“未发送配置”的restore=false解读为恢复失败。
 
 默认20分钟/REST20保留，未SAVE。隐藏额度助手已恢复 **PID1528**，COM38连接标记与新鲜安全PC摘要 **66%** 已核验，日志`logs/codex-weekly-motion-flow-helper.log`及`.err.log`，记录`.tools/motion-flow-helper-runtime.json`；PC摘要不是机器人显示验收，无系统自启动。本轮未重测物理NFC、LCD帧率、外部姿态或长期稳定性。
+
+## seq59：两次往返、预备眼神与暂停（2026-11-02）
+
+用户确认“一回中一，短暂停；二回中二……”指左/右/上/下每方向重复两次，中间回中，并要求动画曲线。源码 **803f622a195111442e6b53f2fb40bc8a773a3f80** 将等长12拍替换为16个明确目标：每组三秒内在120/720/1400/2100ms发方向/中/方向/中，时长360/300/420/340ms，结尾留560ms。眼神提前120ms，眼神与脸部位移用smoothstep；每组暂停眨眼并保持该组情绪。原限幅/堵转/取消与动画互斥保留，总Motion12秒后仍开始完整REST20。具体时间是设计选择，研究来源及实现说明见`DEVELOPMENT.md`，未宣称是本设备最优值或物理舵机cubic曲线。
+
+`logs/expressive-motion-host-final3.log`：CTest **17/17**，宠物18组、Policy27组、机头21组、生产Servo/Motion/UITK12组；额外四分之一/中点回归能区分线性位移与缓入缓出。真实App/Pet/LVGL **8,441断言**（5,926几何、2,515行为）、180帧、五项隔离负控通过，0裁切/缺字，19次图片释放/0借用错误，两组各100次生命周期堆增量0。156/160非Motion帧逐像素同seq57；4张紧跟Motion的Weekly图仅100×75私有宠物区域有差异，文字/额度条/时间/布局相同。状态历史是可能原因，未独立隔离，不冒称160张全同。
+
+完整12秒影片为300×40ms帧，另有60个精确采样点。第一轮因Surprise在第二摆前到期、末尾随机Sad，视觉88/revise；已通过仅Motion的`hold_mood`保持当前组情绪，原280ms混合与细小动作继续。第二轮实际Controller逐帧情绪300/300匹配四组，视觉94/pass，Happy弧眼的预备位移比睁眼组含蓄。失败v1/旧seq57完整保留，最终`.tools/expressive-motion-probe/manifest-final.json`及`movie-v2/visual-verdict.json`；16份源码摘要与当前树逐项核验，GIF为`movie-v2/expressive-12s.gif`。这是桌面渲染，不是LCD实拍或机械曲线测量。
+
+完整IDF5.5.4构建`logs/expressive-motion-build-final2.log`通过。镜像 **4,471,984字节**、SHA256 **b6194d2de226099987d8acc2063b49bc7a6dd04e2051c71c6c0ae0205a90f55a**，应用槽余 **705,360字节**。匹配bin/ELF/map归档`.tools/device-backups/20261102-expressive-motion59/expressive-motion-deployed.*`。`logs/device-update-expressive59.log`确认保护区校验；独立`ota-confirmation.json`确认 **seq59/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**。NVS、bootloader、分区表、原厂槽与资源均保留，未引入依赖。
+
+启动报告`logs/device-expressive59-boot-report.json`：37个idle全blocked，375个距离样本无效，0运行故障标记；初始eye_remaining_ms=1,199,998。测距无效在seq55/57已观察到，本次没有检查摆放或原因，不据此认定新编排回归，也不宣称当前测距验收通过。实机新动作另使用独立探针与seq59合同，禁止套用旧12拍通过记录；探针10项合成校验和脚本范围见`.tools/expressive-motion-probe-tests/delivery.json`。探针元数据`expected_sequence59`只是合同标签，OTA身份以上述独立flash读回为准。
+
+## seq59实体方向失败与seq63修正（2026-11-02）
+
+用户明确反馈“实体机头都朝同一侧”。seq59原探针以跨度/目标包判通过，未核对校准正面的两侧，判定范围过宽，已撤回其方向通过含义并保留原报告。实际校准yaw raw458、起点raw499，旧逻辑以起点为中心，使全部左右目标仍为正角度+4.8°到+20.8°；后续新鲜位置raw477–518也均大于458。失败独立审计`logs/device-expressive59-direction-failure-audit.json`。该轮45次内容提交/11,928ms≈3.77次每秒，最大间隔354ms，显示锁等待9,733ms/最大272ms；这不是LCD帧率。
+
+最终源码 **04d7d53dc903c14cc297907cb757256558fe4566**（含方向修正`1398ba0`）：yaw改以校准正面0为中心，先700ms归正，再做四组各两次往返，总12.7秒/17目标。初始偏转>30°、限位不能跨零、他人占用或首tick晚于120ms时跳过实体动作；不抢锁、不省略/截断归正。俯仰仍受原实际姿态±4°可行窗口限制，不调用双轴goHome。Motion脸改native256，删除每帧普通208→Motion256的重复布局；原厂主页面、AI、全局运动步长、SPI、LVGL缓冲和NFC优先级不改。涉及文件为`eye_sequence.h`、`rest_head_motion.h`、`view.cpp`及对应三份主机测试；此前seq59的EyeCue/组情绪实现保留。
+
+- `logs/centered-motion63-host-final.log`：CTest **17/17**，Policy28组、机头24组、真实Servo/Motion/UITK13组。首次120/121ms、稀疏更新、动态限位、取消与他人运动均覆盖。
+- 实际App/Pet/LVGL **8,548断言、五项隔离负控**；新增 **30条真实App/Policy迟到保护断言**与旧控制器负控，181帧同seq61逐像素一致，两组100次生命周期堆增量0、19次图片释放/0借用中释放。最终overlay`.tools/centered-motion-guard63-probe/guard-verification-overlay63.json`记录16个最终生产输入摘要；基准清单`.tools/centered-motion-probe/manifest-final.json`。完整318帧/12.7秒影片、64精确点、视觉94/pass保留在`movie-v2/`。背景层有意小幅平移并裁切，五官/文字不越界，不能泛称所有层均无裁切。
+- 完整ESP-IDF5.5.4构建`logs/centered-motion63-build-final.log`通过。镜像 **4,472,128字节**，SHA256 **88a97c8a47789249ea19fc78a1e7782862ebd5a95d36dd8c4bac9c16a781db4e**，应用槽余 **705,216字节**。匹配bin/ELF/map归档`.tools/device-backups/20261102-centered-motion63/centered-motion-deployed.*`；不可变构建清单位于`.tools/firmware-artifacts/20261102-centered-motion63/manifest.json`。
+
+中间版seq61已独立读回VALID，未进行实体动作验收；review发现迟到首次tick可能省略/截断归正，修复后最终部署63。`logs/device-update-centered63.log`与独立`ota-confirmation.json`确认 **seq63/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**。仅更新app与metadata sector0；NVS、bootloader、分区表、原厂槽与资源保护校验通过。第一次63预检因引用不存在的旧bin路径失败于打开串口之前，保留`device-update-centered63-preflight.log`；随后改用已核验不可变61构建镜像，未绕过任何保护。
+
+新启动报告`logs/device-centered63-boot-report.json`：376个距离样本中374有效、2个启动无效；37个idle均blocked、0故障标记，初始正常20分钟。校准仍为yaw458/pitch591，没有改动标定值。
+
+用户进入LIVE后，`logs/device-centered63.ndjson`采到同代 **0–16全部17目标**，硬件时长700与360/300/420/340ms正确，flags5、两轴ACK1/状态0、位置读取计数递增。目标后的新鲜反馈为：左两次raw **445、437**，右两次 **472、478**，相对校准458确实位于两侧。用户再次明确确认 **“左右都正常了”**，与根代理独立原始帧审计`logs/device-centered63-independent-audit.json`一致。
+
+**严格归中精度仍未通过。** 回中反馈raw453/462，相对458残余−5/+4raw，最大约1.5625°；原先±3raw验收阈值没有放宽。原严格探针的`physical_direction_verified/physical_motion_verified=false`完整保留，不改写为全通过；独立审计明确分开“两侧各两次=true”和“严格归中=false”。此项不是四次同侧问题复现，没有为通过测试擅自改舵机标定、PID或扩大运动幅度。
+
+本轮内容提交 **118次/12,646ms≈9.33次每秒**，最大间隔 **222ms**；显示锁等待最大 **140ms**。相对seq59的3.77次/秒、354ms/272ms有改善，但显示锁总等待仍9,553ms；这是一组组合修改比较，不能把收益全部归因于某一处，也不能当LCD实际FPS或主观流畅度已通过。实际Motion约 **12,755ms**；Rest入口至退出日志 **20,033ms**，completed_rests0→1。测试恢复包写成功，实际观察到 **eye_remaining_ms=1,199,323**，20分钟恢复；全程save=false，没有写保存参数。严格63探针本身11/11合成用例通过，能拒绝旧16目标、单侧位移、缓存位置、错时长与晚启动skip冒充正常动作，证据`.tools/centered-motion63-probe-tests/delivery.json`。
+
+隐藏额度助手已恢复 **PID28412**，COM38连接标记及新鲜安全PC摘要 **64%** 已核验；日志`logs/codex-weekly-centered-helper.log`与`.err.log`，运行记录`.tools/centered-helper-runtime.json`，无系统自启动。该摘要不替代设备额度页面验收。剩余限制为上述归中误差、LCD实际帧率/舵机物理缓动曲线及长期运行；物理NFC/触摸未在本次重复验收。无新增依赖、无远程推送。
