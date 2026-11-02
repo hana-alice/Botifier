@@ -399,3 +399,31 @@ OTA读回并重启后，默认20分钟周期启动待机采集49.266秒：50个i
 受保护更新完成：`logs/device-update-eye-sequence49.log`校验仅app与OTA sector0更新，原厂固件槽、原sector1、配置、bootloader、分区表和资源均保留。归档`.tools/device-backups/20261102-eye-sequence49/eye-sequence-deployed.{bin,elf,map}`；40秒同端口启动采集后，独立`ota-confirmation.json`确认 **seq49/state2 VALID、CRC正确、sector1 seq2/state2逐字节保留**。读回日志`logs/device-eye-sequence49-ota-confirm.log`。
 
 启动报告`logs/device-eye-sequence49-boot-report.json`：376个距离快照，374有效、2个启动无效样本保留；37/37栏目blocked，未发生EyeRest播放；0观察到的崩溃/断言/看门狗标记。未发短周期配置，初始eye_remaining_ms=1,200,000，默认20分钟保留。隐藏额度助手PID90060已恢复COM38连接，安全摘要71%（epoch1793599642），日志`logs/codex-weekly-eye-sequence-helper.log`及`.err.log`，无OS自启动；PC查询不替代设备显示验收。按用户此前要求不再安排重复限时确认。新LCD播放帧率、机械角度/节奏、物理NFC与长期运行未以主机结果替代。
+
+## 全屏菜单与四组慢拍：seq51实机失败记录（2026-11-02）
+
+用户要求播放与节目去掉常驻HOME、顶部下滑或底部上滑拉出菜单；指出未见机头动作，并将节奏明确为四组“两拍、回中”。源码`70c51f98134d18b62e2b513a4ce7b8b027d25823`改为12×1000ms、完整REST20仍独立计时；每个新拍开启扭矩。独立sys抽屉不改共享层属性，单纯开关不打断动画；HOME/设置导航在LVGL锁外停止worker。原底部控件删除，守岸人38帧均为320×240满幅，无56px留黑。
+
+seq51镜像 **4,467,840字节**、SHA256 **9022711f46f4fb93de7d2fca4e6e9eb1466c100250e5dc00350894ef2ed36302**，应用槽余 **709,504字节**。IDF日志`logs/fullscreen-build-final.log`；受保护更新与独立读回均完成，归档`.tools/device-backups/20261102-botifier-fullscreen51/`，元数据seq51/state2 VALID、CRC正确、原sector1逐字节保留。早期启动376距离/374有效/2启动无效，37个idle全部blocked、0运行故障标记；不能用该窗口声称运动通过。
+
+CTest **14/14**，实际LVGL **176帧、8,105断言**（5,638几何、2,467行为）、0裁切/缺字、两组各100轮生命周期LVGL增量0。五个隔离负控均准确失败；新增SAVE底边手势的PRESS_LOST负控真实复现按钮按下状态残留。清单`.tools/idle-program-ui-probe/manifest-fullscreen-presslost.json`、视觉95/pass；实际硬件和codec worker不在这些桌面证据范围内。
+
+用户进入LIVE后采集`logs/device-fullscreen51-motion.ndjson`及原始report：同代12拍、flags5（已开始且持锁）、扭矩寄存器明确0→1、位置与扭矩写ACK1/设备状态0，但新鲜位置 **yaw486–487、pitch601**，即左右仅1raw抖动、上下无位移。实机运动判定为 **失败**，不是“代码目标已发即摇头成功”。原report的`attention_required=false`漏计跨度不足，后续修正探针并保留原报告；`physical_motion_verified=false`原判定正确。
+
+同一日志11.294秒两轴各只增加30次位置写；这不直接等同App帧率，也不能确定阻塞来源。独立实验编译原UITK Animate/Spring源码：speed300的8°目标，2/3/4次固定20ms更新仅推进0.3485°/0.7055°/1.1301°；4°目标仅其一半，50次才接近完整目标。生产Servo每次固定推进20ms、每个新拍又从真实姿态重置起点，解释了低写入频率下运动不足。证据`.tools/servo-cadence-probe/probe.cpp`及`results.txt`；是否还有硬件死区未读寄存器，不作定论。此结论覆盖此前仅补扭矩就可能解决的推测。
+
+探针自身另有恢复竞态：1秒测试周期在主机看到completed前再次到期；生产Policy按原设计保留pending due，恢复20分钟包写成功但观察未恢复。没有为测试修改Policy。后续探针改10秒，及时恢复且分别记录写成功与实际正常计时。seq51已用save=false暂停RAM节目，未写NVS；暂停观察completed_rests2且eye_remaining1,055,669ms，额外pending轮完成后已按正常间隔走时，见`logs/device-fullscreen51-probe-pause.json`。
+
+## seq53：全屏、四组慢拍及实体位移通过（2026-11-02）
+
+最终源码 **735a2583725e78c67967f318f49b3c1555e3f7a5**，镜像 **4,468,608字节**，SHA256 **9b79758d78e29a060adfde874d160d4ce9acf35ec12398ee580f9eae132d0c9b**，原应用槽余 **708,736字节**。`logs/fullscreen-timed-build-final.log`完整构建通过，`logs/fullscreen-timed-host-final.log`记录 **15/15**；控制器20组、真实Servo/Motion/UITK11组。新增测试只替换硬件和墙钟，直接编译生产运动代码；验证低频更新、旧spring不覆盖、取消立即写当前角度、限幅/堵转hook及回绕。实际LVGL仍为 **8,105断言/176帧/五项负控**，176帧与全屏前版逐字节一致；清单`.tools/idle-program-ui-probe/manifest-fullscreen-timed-head.json`，视觉95/pass。
+
+护眼专用`moveWithDuration(...,350)`立即向SCS发完整目标和时长，不更改全局spring步长。timed期间继续原堵转检查，正常move/stop立即发当前角度20ms覆盖旧硬件目标；不依赖退出后的下一次App更新。初始姿态贴限位时在原实际姿态±8°/±4°与实时硬限的交集内选中点、缩小幅度，保留两方向活动空间，不扩大原外包络。菜单、播放器和普通栏目沿用seq51已验证全屏版本。
+
+受保护更新日志`logs/device-update-fullscreen53.log`，同端口40秒启动捕获后，独立只读`ota-confirmation.json`确认 **seq53/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**。原厂槽、配置、bootloader、分区与资源保护区校验通过。归档`.tools/device-backups/20261102-botifier-fullscreen53/botifier-fullscreen-deployed.{bin,elf,map}`。新启动376距离/374有效/2启动无效、37个idle全部blocked、0运行故障标记；初始护眼1,200,000ms。
+
+用户再次进入LIVE后，`logs/device-fullscreen53-motion.ndjson`实际采到同一generation的 **0–11全部12拍**，flags始终5；两轴每拍均为硬件350ms，ACK1、设备状态/独立错误均0。新鲜位置读取计数各为3→14：**yaw464–505，跨度41raw≈12.8125°；pitch599–610，跨度11raw≈3.4375°**。这证明实际编码器位置发生明显变化，不用目标或写入次数冒充实体运动，也不把编码器换算当作外部姿态标定。
+
+从设备快照反推Motion开始至Rest开始 **12,032ms**；Rest入口至退出日志 **20,016ms**（含退出处理延迟），completed_rests从0→1。全窗口847/847距离有效、84个idle快照，0畸形允许帧、0故障标记。一次性探针恢复包写成功，随后实际读回 **eye_remaining_ms=1,199,440**，正常20分钟计时恢复，未SAVE。自动报告`logs/device-fullscreen53-motion-report.json`与根代理独立原始帧核对`logs/device-fullscreen53-independent-audit.json`均通过，物理位移判定true。
+
+额度助手已恢复为隐藏进程 **PID146112**，COM38连接标记和真实PC摘要 **67%** 已核对；安全日志`logs/codex-weekly-fullscreen-helper.log`及`.err.log`，运行记录`.tools/fullscreen-helper-runtime.json`，无系统自启动。PC摘要不替代本轮机器人额度画面验收。未重测物理NFC、LCD实际帧率/物理手势灵敏度、外部姿态精度或长期运行；此前RF瞬态错误与协作bool锁无owner token的限制保留。

@@ -1,6 +1,6 @@
 # StackChan 开发准备
 
-更新：2026-10-31。已完整阅读 `STACKCHAN_HANDOFF.txt`，沿用 StackChan + ToF4M 方案。
+更新：2026-11-02。已完整阅读 `STACKCHAN_HANDOFF.txt`，沿用 StackChan + ToF4M 方案。最新全屏菜单与12秒护眼动作说明见本文末尾；历史试验按时间保留。
 
 ## 已验证状态
 
@@ -13,15 +13,15 @@
 | ESP-IDF | v5.5.4，commit `735507283d5b2f9fb363a1901172dbd9e847945d` |
 | Python | IDF 使用已有 Python 3.12.10 创建的本地 venv；系统原默认是 3.14.3 |
 | 工具目录 | `.tools/esp-idf-v5.5.4` 和 `.tools/espressif`，未修改系统级 PATH |
-| 设备 | COM38，USB VID 303A / PID 1001，同一 MAC；用户于 2026-10-31 接回 USB，最新启动记录 seq17/VALID |
-| C++ 主机测试 | 7/7 通过；驱动 11 组、规则 30 组、快照 9 组、生命周期 2 组、宠物动作 15 组、响指候选与运动融合 12 组；后两者使用合成输入 |
-| 电脑端测试 | 57 项通过；包含新增调试字段的兼容测试；无硬件模拟产生 1 次电脑端提醒 |
-| 当前固件构建 | 新增响指候选与摄像头运动辅助，修复 nano printf 的 64 位格式崩溃后已刷入；当前与历史产物分开记录于 environment.json |
+| 设备 | COM38，USB VID 303A / PID 1001，同一MAC；最新seq53/VALID独立读回，12拍真实位置反馈通过，已恢复默认20分钟 |
+| C++ 主机测试 | 15/15通过；包括Policy25组、护眼控制器20组、真实Servo/Motion/UITK定时运动11组；硬件写回和时钟为替身 |
+| 电脑端测试 | 历史77/77通过；本次PC代码未改，不冒充本次重跑 |
+| 当前固件构建 | BOTIFIER全屏手势菜单、12秒四组动作、护眼专用350ms定时目标；无新依赖，当前与历史产物分开记录于 environment.json |
 | 固件刷写 | 已备份整片 16 MiB 并校验；距离固件写入 ota_0，原厂 ota_1、资源与配置区保留并核验 |
 | 配网 | 用户确认更换为 AX300 后连接成功；热点排查结束，不再作为开发阻塞 |
 | ToF4M | 用户确认已接线；新固件已返回约 80 cm 的有效读数，约 10 Hz |
 | 摆放目标 | 用户计划将 ToF 固定在电脑屏幕边框，Grove 线连接机器人；USB 较短，先近处测试 |
-| 测距调试入口 | 主菜单 DISTANCE；LIVE 电子宠物脸、TUNE 实时距离与三参数调节、HOME 退出；读数 100 ms 刷新；用户已确认上一版诊断读数灵敏 |
+| 测距调试入口 | 主菜单 BOTIFIER；顶部下滑/底部上滑打开菜单，DISTANCE 实时调参，HOME退出；读数100ms刷新；用户已确认诊断读数灵敏 |
 
 完整版本、依赖 commit 和固件 SHA256 见 [environment.json](environment.json)。
 设备配网另见 [WIFI_DIAGNOSIS.md](WIFI_DIAGNOSIS.md)。
@@ -258,3 +258,19 @@ PC `pc.codex_weekly`通过现有Codex native app-server只读握手与`account/r
 独立实验从SDK自动提取7个真实函数、只替换硬件FIFO/无driver状态和锁，在主机编译运行：O_NONBLOCK下待收16字节、读取0、FIFO尝试0；O_RDONLY完整收16字节，空FIFO一次尝试立即返回EWOULDBLOCK；512字节预算读512并留下88。证据`logs/usb-secondary-vfs-source-probe.json`、`.log`，可复现`.tools/usb-secondary-vfs-probe/run.py`。该实验不替代USB硬件验证。
 
 修正保留VFS锁、peek与换行处理，basic模式以O_RDONLY启用立即FIFO预读，短read继续、每40ms总计最多512字节。若未来安装USB driver则停止本输入路径，避免进入blocking read；不混用另一条LL输入、不改变TX或主UART。seq39实际USB采集已收到真实75%周额度并进入Weekly、EyeRest；Alert抢占时完成计数保持0，具体当前版本与后续倒计时界面验收见部署记录。
+
+## BOTIFIER全屏菜单与四组慢拍（2026-11-02）
+
+本次只修改BOTIFIER及其护眼动作，不改变原厂主菜单或AI应用。移除常驻底部HOME/TUNE和顶部状态，将导航与状态集中到独立`lv_layer_sys()`抽屉；不修改共享sys层属性。顶部28px内向下、底部28px内向上，向内滑至少42px且纵向明显大于横向，松手打开；最长4秒。菜单可从视频、宠物、栏目和设置页呼出，单纯开关菜单不改播放或护眼计时。显式HOME或切换设置由下一轮App逻辑在LVGL锁外停止worker。销毁先注销本应用indev回调，再释放抽屉与图片。
+
+实际LVGL事件链表明，indev拦截RELEASED会跳过按钮自身的release；默认PRESS_LOCK按钮也不会因滑出而收到PRESS_LOST。因此有效手势先向原对象发送PRESS_LOST清除按下状态，再拦release及独立的SHORT_CLICKED/CLICKED，防止误触SAVE/HOME。真实指针回放覆盖SAVE底边和菜单底排；仅删除PRESS_LOST的隔离负控精确复现按下状态残留。
+
+`eye_sequence.h`统一定义12拍、每拍1000ms：左4°、左8°、回中；右4°、右8°、回中；上2°、上4°、回中；下2°、下4°、回中。每次回中独占一秒，画面表情/组号/拍点使用同一表。实际姿态±8°/±4°窗口与动态硬限取交集，以可用窗口中点作为本轮neutral，并按半窗宽缩放目标；避免初始姿态紧贴下限导致一个方向完全不动，也不扩大原实际姿态的外包络。顺序为实际3.8秒视频完成→12秒动作→独立完整REST20秒。NFC与整段EyeRest互斥、距离采样持续等既有规则保留。
+
+此前把主机控制器发出目标当作实体动作准备充分是不够的：生产`ScsServo::init()`调用`Servo::init()`，后者明确关扭矩；自动释放逻辑也会在静止时关扭矩。旧护眼路径从未开启。新控制器每个新拍在moveWithSpeed前开启双轴扭矩，重复tick、Intro预占、他人占用或丢锁不发开启命令；不全局关闭自动释放。硬件上的因果与实际位移仍须用反馈验证，不能仅凭目标日志宣布已转动。
+
+seq51实机只测到1raw左右抖动和0上下位移，证明仅补扭矩不充分。独立编译真实UITK后验证：固定20ms软件步长在每秒只有少量写入时走不完一拍，再从真实姿态重新开始会损失剩余进度。护眼专用`moveWithDuration(...,350)`改为立即发完整目标和硬件时长，舵机自行插值；timed期间不让旧spring覆盖，但继续原堵转检查。普通move/stop取消timed，原厂应用继续使用原spring与固定dt；没有全局提速或关闭堵转保护。
+
+`SC_HEAD` v1只在阶段/拍号/控制状态变化时输出已有事务缓存，读取`diagnostics()`不产生总线I/O。字段包括真实raw_position、position_reads、torque_before/after、独立位置/扭矩写ACK、写包duration_ms、协议错误与设备状态。SCS ACK=1不保证设备status=0，二者独立保留；无返回的raw=-1不替换成软件角度。记录发生在本帧StackChan.update前，不能把同一行target和旧write_ack硬配成同一事务，应依据计数递增和后续位置判断。扭矩寄存器40为单字节，修正原ReadWord为readByte，避免混入寄存器41。
+
+守岸人pack改为实际320×240满幅裁剪，去掉原56px留黑；38帧/10fps/3.8秒、422,532字节，SHA256`5a67997f01f8be973bd1f3d9b0b05785c89bb78b227ed679751bcc5f364155ab`。现有FFmpeg两次重建逐字节一致，所有38帧无整行黑边；复用原JPEG worker，无新依赖。真实LVGL、主机测试、实体反馈与LCD实拍分别记录，当前设备部署结果见[DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。

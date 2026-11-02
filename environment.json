@@ -1,11 +1,11 @@
 {
-  "RecordedAt": "2026-11-02T14:10:47.4827987+08:00",
+  "RecordedAt": "2026-11-02T16:10:42.651196+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "d927abe93a464229a82625512af2fd6948796c96"
+    "LocalImplementationCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,9 +15,9 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "Three-stage BOTIFIER eye break deployed; seq49/VALID independently read back, factory firmware and original sector1 preserved. COM38 owned by connected hidden quota helper.",
+    "ConnectionStatus": "BOTIFIER fullscreen and timed head reminder; seq53/VALID independently verified. Hidden USB quota helper restored.",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 49,
+    "CurrentOtaSequence": 53,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,20 +73,20 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest13/13: policy25, head-motion14 and wire7 groups; both actual embedded packs parsed. Actual LVGL6950 assertions,4 targeted negative controls. PC unchanged; historical77/77 not rerun.",
-  "FirmwareBuild": "ESP-IDF5.5.4 complete; image4366576 bytes, slot5177344, free810768 bytes; seq49/VALID.",
+  "HostTest": "CTest15/15, including real Servo/Motion/UITK timed-motion regression; actual LVGL native pointer replay and five targeted negative controls. PC unchanged; historical77/77 not rerun.",
+  "FirmwareBuild": "ESP-IDF5.5.4 complete; image4468608 bytes, slot5177344, free708736 bytes; seq53/VALID.",
   "FirmwareBinary": {
-    "Path": ".tools/device-backups/20261102-eye-sequence49/eye-sequence-deployed.bin",
-    "Bytes": 4366576,
-    "SHA256": "c2f17a86a168f76e191ef9de0e2e6654b71fd10dcce41bf16115371d29d75dbc",
-    "SourceCommit": "d927abe93a464229a82625512af2fd6948796c96",
-    "BuildLog": "logs/eye-sequence-build-final.log",
+    "Path": ".tools/device-backups/20261102-botifier-fullscreen53/botifier-fullscreen-deployed.bin",
+    "Bytes": 4468608,
+    "SHA256": "9b79758d78e29a060adfde874d160d4ce9acf35ec12398ee580f9eae132d0c9b",
+    "SourceCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5",
+    "BuildLog": "logs/fullscreen-timed-build-final.log",
     "Flashed": true,
-    "OtaSequence": 49,
+    "OtaSequence": 53,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261102-eye-sequence49/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261102-eye-sequence49/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-eye-sequence49.log"
+    "Record": ".tools/device-backups/20261102-botifier-fullscreen53/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-botifier-fullscreen53/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-fullscreen53.log"
   },
   "LastDeployedPetFirmwareBinary": {
     "Path": ".tools/device-backups/20261030-182853-pet-face/distance-pet-working.bin",
@@ -3201,6 +3201,321 @@
     "DeploymentLog": "logs/device-update-shorekeeper47.log"
   },
   "IdleProgramFirmwareBinary": {
+    "Path": ".tools/device-backups/20261102-botifier-fullscreen53/botifier-fullscreen-deployed.bin",
+    "Bytes": 4468608,
+    "SHA256": "9b79758d78e29a060adfde874d160d4ce9acf35ec12398ee580f9eae132d0c9b",
+    "SourceCommit": "735a2583725e78c67967f318f49b3c1555e3f7a5",
+    "BuildLog": "logs/fullscreen-timed-build-final.log",
+    "Flashed": true,
+    "OtaSequence": 53,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-botifier-fullscreen53/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-botifier-fullscreen53/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-fullscreen53.log"
+  },
+  "IdlePrograms": {
+    "Defaults": {
+      "enabled": true,
+      "eye_interval_ms": 1200000,
+      "rest_duration_ms": 20000,
+      "idle_grace_ms": 10000,
+      "pet_gap_ms": 3000,
+      "weekly_duration_ms": 12000,
+      "weekly_interval_ms": 30000
+    },
+    "LocalParameters": "BOTIFIER -> top-down/bottom-up swipe drawer -> DISTANCE/NFC/PROGRAMS; explicit SAVE only",
+    "PcLauncher": "Start-CodexWeekly.cmd",
+    "ApiMethod": "account/rateLimits/read",
+    "ApiWindowMinutes": 10080,
+    "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
+    "Snapshot": {
+      "available": true,
+      "remaining_percent": 67,
+      "reset_at": 1793871052,
+      "observed_at": 1793606958
+    },
+    "FirmwareTests": "logs/fullscreen-timed-host-final.log",
+    "PcTests": "logs/idle-pc-tests-final.log",
+    "UiManifest": ".tools/idle-program-ui-probe/manifest-fullscreen-timed-head.json",
+    "UiVerdict": ".tools/idle-program-ui-probe/visual-verdict-fullscreen-timed-head-final.json",
+    "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
+    "PhysicalProbe": "logs/device-fullscreen53-motion-report.json",
+    "PhysicalProbeData": {
+      "scope": "Independent raw capture audit; physical encoders, not external pose or LCD measurement",
+      "axes": {
+        "yaw": {
+          "raw_min": 464,
+          "raw_max": 505,
+          "raw_span": 41,
+          "span_degrees_from_encoder": 12.8125,
+          "fresh_read_counters": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "duration_ms": 350
+        },
+        "pitch": {
+          "raw_min": 599,
+          "raw_max": 610,
+          "raw_span": 11,
+          "span_degrees_from_encoder": 3.4375,
+          "fresh_read_counters": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "duration_ms": 350
+        }
+      },
+      "motion_phase_ms": 12032,
+      "rest_entry_to_exit_log_ms": 20016,
+      "rest_entry_ms": 71559,
+      "rest_exit_log_ms": 91575,
+      "completed_rests": 1,
+      "restored_eye_remaining_ms": 1199440,
+      "distance_frames": 847,
+      "distance_valid": 847,
+      "distance_invalid": 0,
+      "idle_frames": 84,
+      "failure_markers": 0,
+      "physical_motion_verified": true,
+      "IndependentAudit": "logs/device-fullscreen53-independent-audit.json",
+      "RestoreWriteSucceeded": true,
+      "RestoreTimerObserved": true
+    },
+    "PhysicalAcceptance": "Physical position evidence passed",
+    "HistoricalAttempts": [
+      {
+        "sequence": 35,
+        "state": "ABORTED",
+        "evidence": ".tools/device-backups/20261102-1050-idle-program/ota-observation.json",
+        "note": "Initial attempt rolled back before confirmation; first-boot cause not captured and remains unverified."
+      },
+      {
+        "sequence": 37,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-retry37/ota-confirmation.json",
+        "note": "Same image booted and confirmed during same-port early capture; its separate USB RX defect was then fixed."
+      },
+      {
+        "sequence": 39,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-rx39/ota-confirmation.json",
+        "probe": "logs/device-idle-rx39-probe-report.json",
+        "note": "Real75% quota delivered; 825 valid distance frames; Alert interrupted rest without recording completion."
+      }
+    ],
+    "Limits": [
+      "Quota feed requires this PC and USB; no Wi-Fi feed or OS startup task.",
+      "Rest completion is a timer, not verified gaze.",
+      "Prior NFC RF transient errors are not fixed by this work.",
+      "LCD frame rate, external pose accuracy, physical NFC and long-running stability not measured this iteration.",
+      "Existing cooperative bool motion lock has no owner token; occupied movement is not preempted."
+    ],
+    "PcHelperRuntime": {
+      "ProcessId": 146112,
+      "StartedAt": "2026-11-02T16:09:14.8713065+08:00",
+      "Port": "COM38",
+      "Hidden": true,
+      "OsStartup": false,
+      "Log": "logs/codex-weekly-fullscreen-helper.log",
+      "ErrorLog": "logs/codex-weekly-fullscreen-helper.err.log",
+      "PidFile": ".tools/codex-weekly-helper.pid",
+      "Status": "Alive; USB connected marker and safe account summary verified; PC summary is not device-display acceptance",
+      "LastSafeSnapshot": {
+        "available": true,
+        "remaining_percent": 67,
+        "reset_at": 1793871052,
+        "observed_at": 1793606958
+      }
+    },
+    "DisplayScope": "BOTIFIER (formerly DISTANCE) LIVE only; launcher and AI do not render programmes; sensor and eye timer remain process-wide.",
+    "Priority": [
+      "NFC playback and complete EyeRest Intro/Motion/Rest sequence: equal highest, first started completes without mutual interruption",
+      "TOO CLOSE",
+      "EyeCountdown / Weekly / Pet"
+    ],
+    "AnimationArbitration": "Generation-bound actual completion ack; all EyeRest phases reject NFC and ordinary activity. Busy taps are consumed without queue/extension. A break due during NFC waits. HOME/TUNE/OFF cancel owned playback/movement.",
+    "HistoricalDisplayScopeEvidenceSeq45": "logs/botifier-display-scope-audit.json",
+    "SnapshotScope": "PC account/rateLimits/read safe summary; not a fresh device display or packet-acceptance measurement",
+    "Artwork": {
+      "Pack": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper_intro.bin",
+      "Bytes": 422532,
+      "SHA256": "5a67997f01f8be973bd1f3d9b0b05785c89bb78b227ed679751bcc5f364155ab",
+      "Provenance": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper-3d-source.json",
+      "Generation": "Official game-rendered3D footage from profile GIF; cropped and transcoded, no AI image generation",
+      "Format": "38 full-bleed320x240 baseline JPEG frames,10fps,3800ms,KINTRO1; no padded rows",
+      "Runtime": "Reuses existing single JPEG worker and two weak image slots",
+      "ReproducibleConverter": "scripts/Prepare-Shorekeeper3D.py; rebuilt byte-for-byte",
+      "HistoricalAssets": "Seq47 PNG, prompt and BGRA pack retained but no longer linked"
+    },
+    "EyeSequence": {
+      "Intro": "Actual completed3.8s local pre-rendered3D clip; start failure advances once",
+      "MotionMs": 12000,
+      "BeatMs": 1000,
+      "RestMs": 20000,
+      "RestScope": "Starts at the actual Motion-to-Rest tick, independent of video/decode/scheduling time",
+      "RestSource": "Config.rest_duration_ms;20000 is the unchanged default",
+      "Groups": "Left two beats/centre; right two/centre; up two/centre; down two/centre; each centre holds one second"
+    },
+    "CardAppearance": "Warm amber clock/ring/MM:SS versus cool navy Codex dashboard/percent/ten quota cells",
+    "HeadMotion": {
+      "YawRelativeTenths": 80,
+      "PitchRelativeTenths": 40,
+      "BeatMs": 1000,
+      "DurationMs": 12000,
+      "Reservation": "Intro reserves cooperative motion lock without movement; base sampled at Motion start",
+      "Limits": "Current dynamic servo limits intersect the small relative window; occupied/unsatisfiable sessions skip physical movement",
+      "Exit": "Only stop commands this controller initiated; release owned lock",
+      "Scope": "SC_HEAD cached bus replies and fresh physical position counters; no external pose/LCD measurement",
+      "HardwareTargetDurationMs": 350,
+      "Drive": "Opt-in hardware-timed WritePos; ordinary spring dt and AI motion unchanged",
+      "Centre": "Midpoint of actual-pose relative window intersected with dynamic hard limits; offsets scaled to available half-width"
+    },
+    "UiNavigation": {
+      "Default": "Full320x240 content with no permanent navigation or status bar",
+      "Gesture": "Top28px downward or bottom28px upward; inward42px and vertically dominant, release<=4s",
+      "Drawer": "Own lv_layer_sys child; opening/closing does not cancel animation; explicit HOME/settings exits do",
+      "ConsumedRelease": "Send PRESS_LOST to original button, then consume release and subsequent click"
+    },
+    "FailedFullscreenAttempt51": {
+      "SourceCommit": "70c51f98134d18b62e2b513a4ce7b8b027d25823",
+      "Sequence": 51,
+      "OtaState": "VALID",
+      "PhysicalMotionVerified": false,
+      "Evidence": "logs/device-fullscreen51-motion-report.json",
+      "Actual": "12 beats, torque0->1, ACK1/state0; yaw486..487 and pitch601, insufficient displacement",
+      "Cause": "Real UITK experiment confirms fixed20ms spring steps plus low observed write frequency and per-beat physical rebase lose progress",
+      "ProbeCorrection": "Original attention_required omitted span failure; fixed summary and10s test period avoid premature new due. Raw evidence retained."
+    }
+  },
+  "PreviousIdlePrograms": {
+    "Defaults": {
+      "enabled": true,
+      "eye_interval_ms": 1200000,
+      "rest_duration_ms": 20000,
+      "idle_grace_ms": 10000,
+      "pet_gap_ms": 3000,
+      "weekly_duration_ms": 12000,
+      "weekly_interval_ms": 30000
+    },
+    "LocalParameters": "BOTIFIER -> TUNE -> NFC -> PROGRAMS; explicit SAVE only",
+    "PcLauncher": "Start-CodexWeekly.cmd",
+    "ApiMethod": "account/rateLimits/read",
+    "ApiWindowMinutes": 10080,
+    "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
+    "Snapshot": {
+      "available": true,
+      "remaining_percent": 72,
+      "reset_at": 1793871052,
+      "observed_at": 1793595111
+    },
+    "FirmwareTests": "logs/shorekeeper-host-tests.log",
+    "PcTests": "logs/idle-pc-tests-final.log",
+    "UiManifest": ".tools/idle-program-ui-probe/manifest-shorekeeper.json",
+    "UiVerdict": ".tools/idle-program-ui-probe/visual-verdict-shorekeeper.json",
+    "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
+    "PhysicalProbe": "logs/device-shorekeeper47-boot-report.json",
+    "PhysicalProbeData": {
+      "scope": "Forty-second same-port early boot only; not a hardware LCD animation or NFC interaction test",
+      "source": "logs/device-shorekeeper-early-boot.log",
+      "distance_frames": 375,
+      "distance_valid": 373,
+      "distance_invalid": 2,
+      "distance_alert_frames": 0,
+      "idle_frames": 38,
+      "idle_blocked_frames": 38,
+      "programs": [
+        "pet"
+      ],
+      "runtime_failure_markers": 0,
+      "hal_valid_marker_count": 1,
+      "first_idle_uptime_ms": 1918,
+      "last_idle_uptime_ms": 38969,
+      "first_eye_remaining_ms": 1198082,
+      "last_eye_remaining_ms": 1162949,
+      "test_config_packets_sent": 0,
+      "manual_confirmation": "Not requested; user may report issues during normal use"
+    },
+    "PhysicalAcceptance": "Forty-second startup only:373/375 distance samples valid,2 invalid startup samples retained,38/38 idle frames blocked,0 failure markers; no short-cycle config sent. New LCD animation and NFC interactions were not physically retested.",
+    "HistoricalAttempts": [
+      {
+        "sequence": 35,
+        "state": "ABORTED",
+        "evidence": ".tools/device-backups/20261102-1050-idle-program/ota-observation.json",
+        "note": "Initial attempt rolled back before confirmation; first-boot cause not captured and remains unverified."
+      },
+      {
+        "sequence": 37,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-retry37/ota-confirmation.json",
+        "note": "Same image booted and confirmed during same-port early capture; its separate USB RX defect was then fixed."
+      },
+      {
+        "sequence": 39,
+        "state": "VALID",
+        "evidence": ".tools/device-backups/20261102-idle-rx39/ota-confirmation.json",
+        "probe": "logs/device-idle-rx39-probe-report.json",
+        "note": "Real75% quota delivered; 825 valid distance frames; Alert interrupted rest without recording completion."
+      }
+    ],
+    "Limits": [
+      "Quota feed currently needs this PC and USB; no Wi-Fi feed or OS startup task.",
+      "Rest completion is a timer, not verified gaze.",
+      "NFC RF transient errors from prior deployments are not fixed by this work.",
+      "New LCD animation frame rate, physical NFC interactions and long-running stability were not measured this iteration."
+    ],
+    "PcHelperRuntime": {
+      "ProcessId": 144096,
+      "OsStartup": false,
+      "Hidden": true,
+      "Status": "Process alive; connected marker and safe real quota summary independently checked after startup",
+      "PidFile": ".tools/codex-weekly-helper.pid",
+      "StartedAt": "2026-11-02T12:51:49.3543596+08:00",
+      "Port": "COM38",
+      "Log": "logs/codex-weekly-shorekeeper-helper.log",
+      "ErrorLog": "logs/codex-weekly-shorekeeper-helper.err.log"
+    },
+    "DisplayScope": "BOTIFIER (formerly DISTANCE) LIVE only; launcher and AI do not render programmes; sensor and eye timer remain process-wide.",
+    "Priority": [
+      "NFC playback and EyeRest animation: equal highest; first started completes, neither interrupts the other",
+      "TOO CLOSE",
+      "EyeCountdown / Weekly / Pet"
+    ],
+    "AnimationArbitration": "Atomic foreground claim under the service state_mutex; taps during EyeRest are consumed and dropped, never queued or used to extend it. A break due during NFC stays pending. Explicit HOME/TUNE/OFF remain exits.",
+    "HistoricalDisplayScopeEvidenceSeq45": "logs/botifier-display-scope-audit.json",
+    "SnapshotScope": "Safe PC account/rateLimits/read summary from the connected helper, not a new device display or packet-acceptance measurement.",
+    "Artwork": {
+      "Source": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper-sheet.png",
+      "Pack": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper.bin",
+      "Bytes": 614400,
+      "SHA256": "2f5ce8498008a319933016834a631a60fcfa3852fad7f9007197a10f371484bf",
+      "Provenance": "StackChan/firmware/main/apps/common/idle_program/media/source.json",
+      "Generation": "Built-in image_gen; textual prompt only, no input images",
+      "Format": "Six160x160 BGRA straight-alpha frames, static descriptors directly reference flash",
+      "Runtime": "No new dependency, decoding task or per-frame RGB allocation"
+    }
+  },
+  "PreviousEyeSequenceFirmwareBinary": {
     "Path": ".tools/device-backups/20261102-eye-sequence49/eye-sequence-deployed.bin",
     "Bytes": 4366576,
     "SHA256": "c2f17a86a168f76e191ef9de0e2e6654b71fd10dcce41bf16115371d29d75dbc",
@@ -3213,7 +3528,7 @@
     "OtaReadback": ".tools/device-backups/20261102-eye-sequence49/ota-confirmation.json",
     "DeploymentLog": "logs/device-update-eye-sequence49.log"
   },
-  "IdlePrograms": {
+  "PreviousEyeSequenceIdlePrograms": {
     "Defaults": {
       "enabled": true,
       "eye_interval_ms": 1200000,
@@ -3338,113 +3653,6 @@
       "Limits": "Current dynamic servo limits intersect the small relative window; occupied/unsatisfiable sessions skip physical movement",
       "Exit": "Only stop commands this controller initiated; release owned lock",
       "Scope": "Host-tested controller, mechanical angles/direction/rhythm not measured on hardware"
-    }
-  },
-  "PreviousIdlePrograms": {
-    "Defaults": {
-      "enabled": true,
-      "eye_interval_ms": 1200000,
-      "rest_duration_ms": 20000,
-      "idle_grace_ms": 10000,
-      "pet_gap_ms": 3000,
-      "weekly_duration_ms": 12000,
-      "weekly_interval_ms": 30000
-    },
-    "LocalParameters": "BOTIFIER -> TUNE -> NFC -> PROGRAMS; explicit SAVE only",
-    "PcLauncher": "Start-CodexWeekly.cmd",
-    "ApiMethod": "account/rateLimits/read",
-    "ApiWindowMinutes": 10080,
-    "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
-    "Snapshot": {
-      "available": true,
-      "remaining_percent": 72,
-      "reset_at": 1793871052,
-      "observed_at": 1793595111
-    },
-    "FirmwareTests": "logs/shorekeeper-host-tests.log",
-    "PcTests": "logs/idle-pc-tests-final.log",
-    "UiManifest": ".tools/idle-program-ui-probe/manifest-shorekeeper.json",
-    "UiVerdict": ".tools/idle-program-ui-probe/visual-verdict-shorekeeper.json",
-    "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
-    "PhysicalProbe": "logs/device-shorekeeper47-boot-report.json",
-    "PhysicalProbeData": {
-      "scope": "Forty-second same-port early boot only; not a hardware LCD animation or NFC interaction test",
-      "source": "logs/device-shorekeeper-early-boot.log",
-      "distance_frames": 375,
-      "distance_valid": 373,
-      "distance_invalid": 2,
-      "distance_alert_frames": 0,
-      "idle_frames": 38,
-      "idle_blocked_frames": 38,
-      "programs": [
-        "pet"
-      ],
-      "runtime_failure_markers": 0,
-      "hal_valid_marker_count": 1,
-      "first_idle_uptime_ms": 1918,
-      "last_idle_uptime_ms": 38969,
-      "first_eye_remaining_ms": 1198082,
-      "last_eye_remaining_ms": 1162949,
-      "test_config_packets_sent": 0,
-      "manual_confirmation": "Not requested; user may report issues during normal use"
-    },
-    "PhysicalAcceptance": "Forty-second startup only:373/375 distance samples valid,2 invalid startup samples retained,38/38 idle frames blocked,0 failure markers; no short-cycle config sent. New LCD animation and NFC interactions were not physically retested.",
-    "HistoricalAttempts": [
-      {
-        "sequence": 35,
-        "state": "ABORTED",
-        "evidence": ".tools/device-backups/20261102-1050-idle-program/ota-observation.json",
-        "note": "Initial attempt rolled back before confirmation; first-boot cause not captured and remains unverified."
-      },
-      {
-        "sequence": 37,
-        "state": "VALID",
-        "evidence": ".tools/device-backups/20261102-idle-retry37/ota-confirmation.json",
-        "note": "Same image booted and confirmed during same-port early capture; its separate USB RX defect was then fixed."
-      },
-      {
-        "sequence": 39,
-        "state": "VALID",
-        "evidence": ".tools/device-backups/20261102-idle-rx39/ota-confirmation.json",
-        "probe": "logs/device-idle-rx39-probe-report.json",
-        "note": "Real75% quota delivered; 825 valid distance frames; Alert interrupted rest without recording completion."
-      }
-    ],
-    "Limits": [
-      "Quota feed currently needs this PC and USB; no Wi-Fi feed or OS startup task.",
-      "Rest completion is a timer, not verified gaze.",
-      "NFC RF transient errors from prior deployments are not fixed by this work.",
-      "New LCD animation frame rate, physical NFC interactions and long-running stability were not measured this iteration."
-    ],
-    "PcHelperRuntime": {
-      "ProcessId": 144096,
-      "OsStartup": false,
-      "Hidden": true,
-      "Status": "Process alive; connected marker and safe real quota summary independently checked after startup",
-      "PidFile": ".tools/codex-weekly-helper.pid",
-      "StartedAt": "2026-11-02T12:51:49.3543596+08:00",
-      "Port": "COM38",
-      "Log": "logs/codex-weekly-shorekeeper-helper.log",
-      "ErrorLog": "logs/codex-weekly-shorekeeper-helper.err.log"
-    },
-    "DisplayScope": "BOTIFIER (formerly DISTANCE) LIVE only; launcher and AI do not render programmes; sensor and eye timer remain process-wide.",
-    "Priority": [
-      "NFC playback and EyeRest animation: equal highest; first started completes, neither interrupts the other",
-      "TOO CLOSE",
-      "EyeCountdown / Weekly / Pet"
-    ],
-    "AnimationArbitration": "Atomic foreground claim under the service state_mutex; taps during EyeRest are consumed and dropped, never queued or used to extend it. A break due during NFC stays pending. Explicit HOME/TUNE/OFF remain exits.",
-    "HistoricalDisplayScopeEvidenceSeq45": "logs/botifier-display-scope-audit.json",
-    "SnapshotScope": "Safe PC account/rateLimits/read summary from the connected helper, not a new device display or packet-acceptance measurement.",
-    "Artwork": {
-      "Source": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper-sheet.png",
-      "Pack": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper.bin",
-      "Bytes": 614400,
-      "SHA256": "2f5ce8498008a319933016834a631a60fcfa3852fad7f9007197a10f371484bf",
-      "Provenance": "StackChan/firmware/main/apps/common/idle_program/media/source.json",
-      "Generation": "Built-in image_gen; textual prompt only, no input images",
-      "Format": "Six160x160 BGRA straight-alpha frames, static descriptors directly reference flash",
-      "Runtime": "No new dependency, decoding task or per-frame RGB allocation"
     }
   }
 }

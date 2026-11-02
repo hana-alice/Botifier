@@ -16,7 +16,7 @@ import tempfile
 
 
 SOURCE_SHA256 = "43a9d89d15d8c5e8b9b65287c02cf3cfad146e7a0c196d5bde1de2505691df2b"
-FILTER = "crop=664:374:68:208,scale=320:184:flags=lanczos,fps=10,pad=320:240:0:0:black"
+FILTER = "crop=500:374:150:208,scale=320:240:flags=lanczos,fps=10"
 SOURCE_URL = (
     "https://hw-media-cdn-mingchao.kurogame.com/object/1727366400000/"
     "i3h37xv61wxlu49nxy-1727430153729.gif"
@@ -83,9 +83,9 @@ def main(argv=None):
             "source_sha256": source_sha, "source_url": SOURCE_URL,
             "source_article": "https://wutheringwaves.kurogames.com/en/main/news/detail/1419",
             "time_range_seconds": [0, 3.8],
-            "crop": {"x": 68, "y": 208, "width": 664, "height": 374},
-            "scaled_video": {"width": 320, "height": 184},
-            "pad": {"width": 320, "height": 240, "x": 0, "y": 0, "color": "black"},
+            "crop": {"x": 150, "y": 208, "width": 500, "height": 374},
+            "scaled_video": {"width": 320, "height": 240},
+            "pad": None, "presentation": "Full-screen video; no menu area or black padding",
             "filter": FILTER, "jpeg_quality_scale": 5,
             "jpeg_sampling": "yuvj420p", "jpeg_baseline_validated": True,
             "audio": False, "ffmpeg_version": version,
