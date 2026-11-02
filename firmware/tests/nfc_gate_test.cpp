@@ -114,8 +114,8 @@ void playback_absence_cannot_prearm_resume()
 void blocked_card_is_consumed_without_a_queue()
 {
     CardGate gate;
-    // `blocked` also represents invalid/stale/alerting distance observations.
-    check(!gate.observe(0, true, true, true), "distance-blocked card emitted an event");
+    // Playback consumes presentations without queuing them for its end.
+    check(!gate.observe(0, true, true, true), "playback-blocked card emitted an event");
     check(!gate.observe(150, true), "unblocking replayed the still-present card");
     check(!gate.observe(300, false, true, true), "blocked empty field emitted an event");
     gate.observe(450, false);

@@ -1,7 +1,6 @@
 #include "nfc_service.h"
 #include "nfc_gate.h"
 
-#include <distance_sensor/service.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -129,16 +128,12 @@ void worker(void*)
             error = ESP_ERR_INVALID_RESPONSE;
         }
         const auto timestamp = now_ms();
-        const auto distance = distance_sensor::snapshot();
-        const bool distance_blocked = !distance.valid || distance.stale || distance.filtered_mm < 0 ||
-                                      distance.proximity_state == distance_sensor::ProximityState::Alert;
         {
             std::lock_guard<std::mutex> lock(state_mutex);
             if (epoch == request.epoch && latest.active && latest.config.enabled) {
                 ++latest.reads;
                 if (error != ESP_OK) ++latest.errors;
-                const bool accepted = gate.observe(timestamp, present, error == ESP_OK,
-                                                   latest.playback_paused || distance_blocked);
+                const bool accepted = gate.observe(timestamp, present, error == ESP_OK, latest.playback_paused);
                 latest.waiting_for_removal = gate.waiting_for_removal();
                 latest.card = error == ESP_OK && present ? card : Card{};
                 latest.error = error;

@@ -365,9 +365,6 @@ struct AppDistance::View {
         } else if (scanned.status == nfc_sense::Status::Starting) {
             text = "NFC STARTING";
             color = kNear;
-        } else if (!distance.valid || distance.stale || distance.filtered_mm < 0) {
-            text = "NFC NEEDS DISTANCE";
-            color = kNear;
         } else if (scanned.waiting_for_removal) {
             text = "NFC MOVE CARD AWAY";
             color = kNear;
@@ -542,15 +539,6 @@ void AppDistance::onRunning()
     auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
     auto scanned = nfc_sense::snapshot();
-    // Keep the original distance warning ahead of the optional short clip.
-    const bool alert = current.valid && !current.stale &&
-                       current.proximity_state == distance_sensor::ProximityState::Alert;
-    const bool interrupted = playback.busy && alert;
-    if (interrupted) {
-        intro_player::stop(); // Never hold LVGL while waiting for the worker.
-        playback = intro_player::snapshot();
-        scanned = nfc_sense::snapshot();
-    }
     const auto now = GetHAL().millis();
     if (playback.completed_count != _intro_completed_count) {
         _intro_completed_count = playback.completed_count;
@@ -558,8 +546,7 @@ void AppDistance::onRunning()
     }
     const bool new_event = scanned.accepted != _last_nfc_event;
     _last_nfc_event = scanned.accepted; // Busy events are consumed, never queued.
-    if (!interrupted && !playback.busy && new_event && now - scanned.last_accepted_ms <= 500 &&
-        current.valid && !current.stale && current.filtered_mm >= 0 && !alert) {
+    if (!playback.busy && new_event && now - scanned.last_accepted_ms <= 500) {
         if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
     }
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
