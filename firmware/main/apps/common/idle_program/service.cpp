@@ -4,6 +4,7 @@
 
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <driver/usb_serial_jtag.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <nvs.h>
@@ -119,13 +120,20 @@ void worker(void*)
             opened_at = timestamp;
             // Existing secondary VFS only. No driver install, console switch,
             // stream buffering changes, line-ending changes or UART ownership.
-            secondary = ::open("/dev/secondary", O_RDONLY | O_NONBLOCK);
+            // IDF 5.5.4's no-driver O_NONBLOCK read skips the FIFO prefetch
+            // and consults an absent driver's ring buffer, so it never reads.
+            // Basic RX itself never waits; leave the prefetch enabled instead.
+            secondary = ::open("/dev/secondary", O_RDONLY);
         }
         if (secondary >= 0) {
             // Bound work per tick even if a sender floods malformed input.
-            for (unsigned batch = 0; batch < 4; ++batch) {
+            std::size_t consumed = 0;
+            while (consumed < 512) {
+                // A future console-driver switch needs a new RX adapter. Do
+                // not enter a potentially blocking driver read in this mode.
+                if (usb_serial_jtag_is_driver_installed()) break;
                 char bytes[128];
-                const auto count = ::read(secondary, bytes, sizeof(bytes));
+                const auto count = ::read(secondary, bytes, std::min(sizeof(bytes), 512 - consumed));
                 if (count < 0) {
                     if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
                         ::close(secondary);
@@ -135,12 +143,12 @@ void worker(void*)
                     break;
                 }
                 if (count == 0) break;
+                consumed += static_cast<std::size_t>(count);
                 for (ssize_t i = 0; i < count; ++i) {
                     const auto result = lines.push(bytes[i]);
                     if (result == wire::LineResult::TooLong ||
                         (result == wire::LineResult::Ready && !process_frame(lines.data(), lines.size()))) invalid_frame();
                 }
-                if (count < static_cast<ssize_t>(sizeof(bytes))) break;
             }
         }
         {
