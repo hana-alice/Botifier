@@ -7,6 +7,7 @@
 #include <lvgl.h>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <limits>
@@ -283,8 +284,9 @@ struct View {
             lv_label_set_text(title, "FOLLOW THE BEAT");
             lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
             place(title, 16, 8, 288);
-            const auto target = motion_beat(value.phase_elapsed_ms);
-            place(face_host, 15 + target.yaw_delta / 10, 10 + target.pitch_delta / 10, 320, 232);
+            const auto target = motion_visual_offset(value.phase_elapsed_ms);
+            place(face_host, 15 + static_cast<int>(std::lround(target.yaw_delta / 10)),
+                  10 + static_cast<int>(std::lround(target.pitch_delta / 10)), 320, 232);
             const auto group = motion_group(value.phase_elapsed_ms);
             const auto step = motion_step(value.phase_elapsed_ms);
             const char* direction = group == 1 ? "LEFT" : group == 2 ? "RIGHT" : group == 3 ? "NOD A" : "NOD B";

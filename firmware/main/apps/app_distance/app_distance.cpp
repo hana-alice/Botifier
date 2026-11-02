@@ -4,6 +4,7 @@
 #include "intro_player.h"
 #include "rest_head_motion.h"
 #include "edge_swipe.h"
+#include "content_timing.h"
 
 #include <assets/assets.h>
 #include <apps/common/idle_program/service.h>
@@ -31,6 +32,35 @@ constexpr std::uint32_t kSafe = 0x74E4B5;
 constexpr std::uint32_t kNear = 0xFFD37A;
 constexpr std::uint32_t kAlert = 0xFF7979;
 constexpr std::uint32_t kRefreshMs = 100;
+
+// Called only by the app task after releasing the LVGL lock. These are content
+// update-call timings (rendering may throttle internally); they do not measure
+// actual draws, LCD scanout or LVGL's display flush rate.
+void emit_content_timing(const distance_pet::ContentTimingBatch& batch)
+{
+    for (std::uint32_t i = 0; i < batch.count; ++i) {
+        const auto& r = batch.reports[i];
+        std::printf("SC_FRAME {\"v\":1,\"mode\":0,\"uptime_ms\":%" PRIu32 ",\"generation\":%" PRIu32
+                    ",\"window_start_ms\":%" PRIu32
+                    ",\"first_uptime_ms\":%" PRIu32 ",\"last_uptime_ms\":%" PRIu32
+                    ",\"content_update\":%" PRIu32 ",\"span_ms\":%" PRIu32 ",\"gaps\":%" PRIu32
+                    ",\"gap_sum_ms\":%" PRIu32 ",\"gap_max_ms\":%" PRIu32
+                    ",\"gap_ge50\":%" PRIu32 ",\"gap_ge100\":%" PRIu32 ",\"tail\":%" PRIu32
+                    ",\"content_sum_ms\":%" PRIu32 ",\"content_max_ms\":%" PRIu32
+                    ",\"lock_wait_sum_ms\":%" PRIu32 ",\"lock_wait_max_ms\":%" PRIu32
+                    ",\"head_before_sum_ms\":%" PRIu32 ",\"head_before_max_ms\":%" PRIu32
+                    ",\"head_after_sum_ms\":%" PRIu32 ",\"head_after_max_ms\":%" PRIu32
+                    ",\"head_sum_ms\":%" PRIu32 ",\"head_max_ms\":%" PRIu32
+                    ",\"stack_sum_ms\":%" PRIu32 ",\"stack_max_ms\":%" PRIu32
+                    ",\"render_sum_ms\":%" PRIu32 ",\"render_max_ms\":%" PRIu32 "}\n",
+                    static_cast<std::uint32_t>(GetHAL().millis()), r.generation, r.window_start_ms,
+                    r.first_uptime_ms, r.last_uptime_ms, r.content_update, r.span_ms, r.gaps,
+                    r.gap_sum_ms, r.gap_max_ms, r.gap_ge50, r.gap_ge100, r.tail,
+                    r.content.sum_ms, r.content.max_ms, r.lock_wait.sum_ms, r.lock_wait.max_ms,
+                    r.head_before.sum_ms, r.head_before.max_ms, r.head_after.sum_ms, r.head_after.max_ms,
+                    r.head.sum_ms, r.head.max_ms, r.stack.sum_ms, r.stack.max_ms, r.render.sum_ms, r.render.max_ms);
+    }
+}
 
 std::unique_ptr<Container> make_page(bool transparent = false)
 {
@@ -168,6 +198,7 @@ struct AppDistance::View {
     std::uint32_t idle_edit_revision = 0;
     bool intro_visible = false;
     distance_pet::RestHeadMotion rest_head;
+    distance_pet::ContentTimingWindow content_timings;
     bool rest_head_active = false;
     std::uint32_t rest_head_intro_generation = 0;
     bool drawer_open = false;
@@ -787,10 +818,13 @@ void AppDistance::onOpen()
 
 void AppDistance::onRunning()
 {
+    distance_pet::ContentFrameTiming frame_timing;
+    auto lock_requested_ms = GetHAL().millis();
     bool close_requested = false;
     bool stop_playback_requested = false;
     {
         LvglLockGuard lock;
+        frame_timing.lock_wait_ms += GetHAL().millis() - lock_requested_ms;
         close_requested = _view && _view->close_requested;
         stop_playback_requested = _view && _view->stop_playback_requested;
         if (_view) _view->stop_playback_requested = false;
@@ -798,6 +832,7 @@ void AppDistance::onRunning()
     if (close_requested) {
         // The input callback only requests this action. Worker cancellation and
         // app teardown run outside LVGL's event-dispatch lock.
+        if (_view) emit_content_timing(_view->content_timings.finish());
         close();
         return;
     }
@@ -821,8 +856,10 @@ void AppDistance::onRunning()
         pending_eye.program == idle_program::Program::EyeRest &&
         pending_eye.eye_phase == idle_program::EyePhase::Intro;
     bool live_requested = false;
+    lock_requested_ms = GetHAL().millis();
     {
         LvglLockGuard lock;
+        frame_timing.lock_wait_ms += GetHAL().millis() - lock_requested_ms;
         live_requested = _view && _view->mode == View::Mode::Live &&
                          _view->requested_mode == View::Mode::Live;
     }
@@ -867,16 +904,25 @@ void AppDistance::onRunning()
     bool save = false;
     bool save_idle = false;
     std::uint32_t saved_revision = 0;
+    bool motion_content_updated = false;
+    std::uint32_t content_generation = 0;
+    lock_requested_ms = GetHAL().millis();
     {
         LvglLockGuard lock;
+        frame_timing.start_ms = GetHAL().millis();
+        frame_timing.lock_wait_ms += frame_timing.start_ms - lock_requested_ms;
         if (!_view) {
             return;
         }
         const auto previous_mode = _view->mode;
         _view->apply_mode();
         _view->update_pet(now, current);
+        auto stage_started_ms = GetHAL().millis();
         _view->update_rest_head(idle_program::snapshot());
+        frame_timing.head_before_ms = GetHAL().millis() - stage_started_ms;
+        stage_started_ms = GetHAL().millis();
         GetStackChan().update();
+        frame_timing.stack_ms = GetHAL().millis() - stage_started_ms;
         // The sampler can enter Alert after the snapshot above. Match the
         // global warning before allowing a top-layer information card.
         const bool distance_alert = distance_sensor::alert_active() ||
@@ -889,7 +935,9 @@ void AppDistance::onRunning()
                 _view->mode != View::Mode::Live,
             distance_alert});
         const auto idle = idle_program::snapshot();
+        stage_started_ms = GetHAL().millis();
         _view->update_rest_head(idle);
+        frame_timing.head_after_ms = GetHAL().millis() - stage_started_ms;
         const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
         if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
             (distance_alert && !rest_animation)) {
@@ -897,7 +945,12 @@ void AppDistance::onRunning()
         } else {
             // EyeRest and NFC are exclusive top-priority animations. TOO CLOSE
             // replaces ordinary cards, but waits for either animation to finish.
+            stage_started_ms = GetHAL().millis();
             idle_program::render_locked(idle);
+            frame_timing.render_ms = GetHAL().millis() - stage_started_ms;
+            motion_content_updated = idle.active && !idle.blocked &&
+                idle.program == idle_program::Program::EyeRest && idle.eye_phase == idle_program::EyePhase::Motion;
+            content_generation = idle.generation;
         }
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), scanned);
@@ -908,7 +961,11 @@ void AppDistance::onRunning()
         save_idle = _view->save_idle_requested;
         _view->save_requested = false;
         saved_revision = save_idle ? _view->idle_edit_revision : _view->edit_revision;
+        frame_timing.end_ms = GetHAL().millis();
     }
+
+    // Timing reports are emitted outside the display lock.
+    emit_content_timing(_view->content_timings.add(motion_content_updated, content_generation, frame_timing));
 
     if (save) {
         // NVS work runs on the app task, outside both the event callback and
@@ -923,6 +980,7 @@ void AppDistance::onRunning()
 
 void AppDistance::onClose()
 {
+    if (_view) emit_content_timing(_view->content_timings.finish());
     _eye_intro_started = false;
     idle_program::set_context({false, false, false});
     // Never hold the display lock while waiting for input or playback workers.

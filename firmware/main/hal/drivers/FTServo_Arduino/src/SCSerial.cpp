@@ -87,6 +87,7 @@ int SCSerial::readSCS(unsigned char *nDat, int nLen, unsigned long TimeOut)
 	int64_t t_begin = esp_timer_get_time() / 1000;
 
 	while (1) {
+		bool received = false;
 		size_t available = 0;
 		uart_get_buffered_data_len(uart_num, &available);
 
@@ -94,6 +95,7 @@ int SCSerial::readSCS(unsigned char *nDat, int nLen, unsigned long TimeOut)
 			unsigned char byte;
 			int len = uart_read_bytes(uart_num, &byte, 1, 0);
 			if (len > 0) {
+				received = true;
 				if (nDat) {
 					nDat[size] = byte;
 				}
@@ -109,7 +111,8 @@ int SCSerial::readSCS(unsigned char *nDat, int nLen, unsigned long TimeOut)
 			break;
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(1));
+		// Drain bytes already in the FIFO without scheduling between each byte.
+		if (!received) vTaskDelay(pdMS_TO_TICKS(1));
 	}
 
 	return size;
@@ -125,6 +128,7 @@ int SCSerial::readSCS(unsigned char *nDat, int nLen)
 	int64_t t_begin = esp_timer_get_time() / 1000;
 
 	while (1) {
+		bool received = false;
 		size_t available = 0;
 		uart_get_buffered_data_len(uart_num, &available);
 
@@ -132,6 +136,7 @@ int SCSerial::readSCS(unsigned char *nDat, int nLen)
 			unsigned char byte;
 			int len = uart_read_bytes(uart_num, &byte, 1, 0);
 			if (len > 0) {
+				received = true;
 				if (nDat) {
 					nDat[size] = byte;
 				}
@@ -148,7 +153,7 @@ int SCSerial::readSCS(unsigned char *nDat, int nLen)
 			break;
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(1));
+		if (!received) vTaskDelay(pdMS_TO_TICKS(1));
 	}
 
 	return size;

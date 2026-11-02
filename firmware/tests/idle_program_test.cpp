@@ -1,5 +1,6 @@
 #include <apps/common/idle_program/policy.h>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <iostream>
@@ -759,6 +760,33 @@ void stored_config_v1_migrates_cadence_and_v2_preserves_settings()
     check(!decode_config(invalid, loaded), "invalid stored boolean accepted");
 }
 
+void visual_motion_is_continuous_and_holds_each_completed_target()
+{
+    check(kMotionMoveMs < kMotionBeatMs, "motion must retain the between-beat hold");
+    auto previous = motion_visual_offset(0);
+    check(previous.yaw_delta == 0 && previous.pitch_delta == 0, "visual motion must begin at neutral");
+    for (std::uint32_t time = 1; time <= kMotionDurationMs; ++time) {
+        const auto current = motion_visual_offset(time);
+        check(std::abs(current.yaw_delta - previous.yaw_delta) < 0.35f &&
+                  std::abs(current.pitch_delta - previous.pitch_delta) < 0.35f,
+              "visual motion jumps between adjacent milliseconds or beat boundaries");
+        check(std::abs(current.yaw_delta) <= 80 && std::abs(current.pitch_delta) <= 40,
+              "visual easing overshot the original motion envelope");
+        previous = current;
+    }
+    for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
+        const auto target = kMotionBeats[beat];
+        for (const auto offset : {static_cast<std::uint32_t>(kMotionMoveMs), kMotionBeatMs - 1}) {
+            const auto settled = motion_visual_offset(beat * kMotionBeatMs + offset);
+            check(settled.yaw_delta == target.yaw_delta && settled.pitch_delta == target.pitch_delta,
+                  "visual movement failed to settle and hold the same hardware target");
+        }
+    }
+    check(motion_visual_offset(UINT32_MAX).yaw_delta == 0 &&
+              motion_visual_offset(UINT32_MAX).pitch_delta == 0,
+          "completed or oversized phase must remain at neutral");
+}
+
 void clock_wrap_and_read_only_snapshots()
 {
     Config config;
@@ -801,7 +829,8 @@ int main()
         interrupted_weekly_does_not_extend_the_pure_pet_gap,
         weekly_duplicates_old_observations_and_ttl_do_not_refresh, reset_deadline_absolute_clock_and_shortened_reconnect_ttl,
         unavailable_is_explicit_and_missing_data_is_not_a_card, stale_quota_rotates_without_a_current_percentage,
-        stored_config_v1_migrates_cadence_and_v2_preserves_settings, clock_wrap_and_read_only_snapshots};
+        stored_config_v1_migrates_cadence_and_v2_preserves_settings,
+        visual_motion_is_continuous_and_holds_each_completed_target, clock_wrap_and_read_only_snapshots};
     try { for (const auto test : tests) test(); }
     catch (const std::exception& error) { std::cerr << "idle_program_test: " << error.what() << '\n'; return 1; }
     std::cout << "idle_program_test: " << tests.size() << " policy groups passed\n";

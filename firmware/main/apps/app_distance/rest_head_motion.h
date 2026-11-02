@@ -77,7 +77,7 @@ public:
         // finish before the next beat, so every fresh target must re-enable it.
         // Reservation and duplicate ticks deliberately leave torque untouched.
         motion.setTorqueEnabled(true);
-        motion.moveWithDuration(yaw, pitch, 350);
+        motion.moveWithDuration(yaw, pitch, idle_program::kMotionMoveMs);
         _target_yaw = yaw;
         _target_pitch = pitch;
         _started = true;
