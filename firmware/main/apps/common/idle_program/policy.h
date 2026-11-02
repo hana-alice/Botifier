@@ -87,12 +87,14 @@ public:
     void set_context(const Context& value, std::uint32_t now_ms) noexcept
     {
         if (!advance_clock(now_ms)) return;
-        const bool was_blocked = blocked(now_ms);
+        const bool was_blocked = foreground_blocked(now_ms);
         context_ = value;
         context_ms_ = now_ms;
         have_context_ = true;
-        if (was_blocked || blocked(now_ms)) {
+        if (was_blocked || foreground_blocked(now_ms)) {
             activity_ms_ = now_ms;
+            change_program(Program::Pet, now_ms);
+        } else if (context_.distance_alert && program_ != Program::EyeRest) {
             change_program(Program::Pet, now_ms);
         }
     }
@@ -100,9 +102,25 @@ public:
     void note_activity(std::uint32_t now_ms) noexcept
     {
         if (!advance_clock(now_ms)) return;
+        if (program_ == Program::EyeRest && !foreground_blocked(now_ms)) return;
         mark_due(now_ms);
         activity_ms_ = now_ms;
         change_program(Program::Pet, now_ms);
+    }
+
+    bool try_begin_foreground_animation(std::uint32_t now_ms) noexcept
+    {
+        if (!advance_clock(now_ms)) return false;
+        if (program_ == Program::EyeRest && !foreground_blocked(now_ms)) return false;
+        mark_due(now_ms);
+        activity_ms_ = now_ms;
+        change_program(Program::Pet, now_ms);
+        // The same state lock protects this temporary claim and worker ticks.
+        // The caller replaces it with the real playback context on success or failure.
+        context_.foreground_busy = true;
+        context_ms_ = now_ms;
+        have_context_ = true;
+        return true;
     }
 
     bool update_weekly(const WeeklyUpdate& value, std::uint32_t now_ms, std::uint32_t unix_seconds = 0) noexcept
@@ -139,7 +157,7 @@ public:
         if (!active_ || !advance_clock(now_ms, unix_seconds)) return;
         mark_due(now_ms);
         refresh_weekly();
-        if (blocked(now_ms)) {
+        if (foreground_blocked(now_ms)) {
             activity_ms_ = now_ms;
             change_program(Program::Pet, now_ms);
             return;
@@ -152,7 +170,7 @@ public:
             return;
         }
         if (program_ == Program::RestDone) {
-            if (now_ms - program_since_ms_ >= 2000u) change_program(Program::Pet, now_ms);
+            if (context_.distance_alert || now_ms - program_since_ms_ >= 2000u) change_program(Program::Pet, now_ms);
             return;
         }
         if (program_ == Program::EyeRest) return;
@@ -160,6 +178,10 @@ public:
         // A due rest can replace either information card and bypass the pet gap.
         if (eye_due_ && idle) {
             change_program(Program::EyeRest, now_ms);
+            return;
+        }
+        if (context_.distance_alert) {
+            change_program(Program::Pet, now_ms);
             return;
         }
         if (program_ == Program::Weekly || program_ == Program::EyeCountdown) {
@@ -189,7 +211,8 @@ public:
         Snapshot result;
         result.active = active_;
         result.config = config_;
-        result.blocked = !chronological || copy.blocked(now_ms);
+        result.blocked = !chronological || copy.foreground_blocked(now_ms) ||
+                         (context_.distance_alert && program_ != Program::EyeRest);
         result.program = result.blocked ? Program::Pet : program_;
         result.generation = generation_;
         result.completed_rests = completed_rests_;
@@ -229,10 +252,10 @@ private:
         return true;
     }
 
-    bool blocked(std::uint32_t now_ms) const noexcept
+    bool foreground_blocked(std::uint32_t now_ms) const noexcept
     {
         return !active_ || !config_.enabled || !have_context_ || now_ms - context_ms_ >= 500u ||
-               !context_.surface_available || context_.foreground_busy || context_.distance_alert;
+               !context_.surface_available || context_.foreground_busy;
     }
 
     void mark_due(std::uint32_t now_ms) noexcept

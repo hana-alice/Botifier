@@ -631,9 +631,11 @@ void AppDistance::onRunning()
     }
     const bool new_event = scanned.accepted != _last_nfc_event;
     _last_nfc_event = scanned.accepted; // Busy events are consumed, never queued.
-    const bool nfc_activity = !playback.busy && new_event && now - scanned.last_accepted_ms <= 500;
+    // The programme service claims this slot atomically against its EyeRest
+    // worker. A tap during that animation is consumed above, never queued.
+    const bool nfc_activity = !playback.busy && new_event && now - scanned.last_accepted_ms <= 500 &&
+                              idle_program::try_begin_foreground_animation();
     if (nfc_activity) {
-        idle_program::note_activity();
         if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
     }
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
@@ -663,13 +665,19 @@ void AppDistance::onRunning()
             _view->mode == View::Mode::Live,
             playback.busy || _view->mode != View::Mode::Live,
             distance_alert});
+        const auto idle = idle_program::snapshot();
+        const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
+        // Keep the whole warning behind the animation, including the bottom
+        // control area outside its top-layer card. Controls remain usable.
+        _view->live_controls->setBgColor(lv_color_hex(0x6E35CB));
+        _view->live_controls->setBgOpa(rest_animation ? LV_OPA_COVER : LV_OPA_TRANSP);
         if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
-            distance_alert) {
+            (distance_alert && !rest_animation)) {
             idle_program::clear_locked();
         } else {
-            // This app exclusively owns programme display. Foreground playback
-            // and TOO CLOSE always take priority over information cards.
-            idle_program::render_locked(idle_program::snapshot());
+            // EyeRest and NFC are exclusive top-priority animations. TOO CLOSE
+            // replaces ordinary cards, but waits for either animation to finish.
+            idle_program::render_locked(idle);
         }
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), scanned);

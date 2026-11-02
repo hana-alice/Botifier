@@ -95,15 +95,13 @@ void full_twenty_second_rest_and_two_second_completion()
     check(policy.snapshot(now).completed_rests == 1, "reading snapshots added completions");
 }
 
-void activity_cancels_without_completion_and_holds_idle()
+void ordinary_activity_preserves_started_animation_and_holds_idle_cards()
 {
     Config config;
     config.eye_interval_ms = 20000;
     auto policy = make_policy(config);
     std::uint32_t now = 0;
     run(policy, now, 20000);
-    run(policy, now, 10000);
-    policy.note_activity(now);
     const auto generation = policy.snapshot(now).generation;
     for (unsigned touch = 0; touch < 1000; ++touch) {
         now += 20;
@@ -111,20 +109,36 @@ void activity_cancels_without_completion_and_holds_idle()
         policy.set_context(eligible, now);
         policy.tick(now);
         const auto state = policy.snapshot(now);
-        check(state.program == Program::Pet && state.completed_rests == 0 && state.eye_remaining_ms == 0,
-              "held touch restarted or completed a cancelled rest");
-        check(state.generation == generation, "repeated pet activity changed programme generation");
+        if (touch < 999) {
+            check(state.program == Program::EyeRest && state.remaining_ms == 40000u - now && state.completed_rests == 0,
+                  "ordinary touch interrupted the highest-priority animation");
+            check(state.generation == generation, "ordinary touch restarted animation generation");
+        }
+    }
+    check(policy.snapshot(now).completed_rests == 1 && policy.snapshot(now).program == Program::RestDone,
+          "touching during animation prevented its complete twenty-second play");
+
+    policy = make_policy();
+    now = 0;
+    const auto pet_generation = policy.snapshot(now).generation;
+    for (unsigned touch = 0; touch < 1000; ++touch) {
+        now += 20;
+        policy.note_activity(now);
+        policy.set_context(eligible, now);
+        policy.tick(now);
+        check(policy.snapshot(now).program == Program::Pet && policy.snapshot(now).generation == pet_generation,
+              "held touch started an ordinary card or changed pet generation");
     }
     run(policy, now, 9999);
-    check(policy.snapshot(now).program == Program::Pet, "cancelled rest ignored fresh idle grace");
+    check(policy.snapshot(now).program == Program::Pet, "ordinary card ignored fresh idle grace");
     run(policy, now, 1);
-    check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000,
-          "cancelled due did not restart a complete rest");
+    check(policy.snapshot(now).program == Program::EyeCountdown && policy.snapshot(now).remaining_ms == 12000,
+          "ordinary card failed to resume after held touch ended");
 }
 
 void blocked_context_and_asynchronous_staleness_cancel()
 {
-    for (const auto blocked : {Context{false, false, false}, Context{true, true, false}, Context{true, false, true}}) {
+    for (const auto blocked : {Context{false, false, false}, Context{true, true, false}}) {
         Config config;
         config.eye_interval_ms = 20000;
         auto policy = make_policy(config);
@@ -132,7 +146,7 @@ void blocked_context_and_asynchronous_staleness_cancel()
         run(policy, now, 20000);
         policy.set_context(blocked, now);
         check(policy.snapshot(now).blocked && policy.snapshot(now).program == Program::Pet &&
-                  policy.snapshot(now).completed_rests == 0, "explicit task/alert did not cancel rest");
+                  policy.snapshot(now).completed_rests == 0, "explicit exit/foreground did not cancel rest");
         run(policy, now, 20000, blocked);
         run(policy, now, 100);
         check(policy.snapshot(now).program == Program::Pet, "unblock reused time spent in a foreground task");
@@ -153,6 +167,97 @@ void blocked_context_and_asynchronous_staleness_cancel()
     policy.tick(now);
     check(policy.snapshot(now).completed_rests == 0 && policy.snapshot(now).program == Program::Pet,
           "late context refresh retroactively completed a rest");
+}
+
+void persistent_distance_alert_allows_and_cannot_interrupt_due_rest()
+{
+    Config config;
+    config.eye_interval_ms = 20000;
+    auto policy = make_policy(config);
+    std::uint32_t now = 0;
+    const Context alert{true, false, true};
+    policy.set_context(alert, now);
+    run(policy, now, 19999, alert);
+    check(policy.snapshot(now).blocked && policy.snapshot(now).program == Program::Pet,
+          "distance warning did not suppress ordinary cards");
+    run(policy, now, 1, alert);
+    auto state = policy.snapshot(now);
+    check(!state.blocked && state.program == Program::EyeRest && state.remaining_ms == 20000,
+          "distance alert reset idle activity forever or prevented a due animation");
+    run(policy, now, 19999, alert);
+    state = policy.snapshot(now);
+    check(!state.blocked && state.program == Program::EyeRest && state.remaining_ms == 1 && state.completed_rests == 0,
+          "persistent alert interrupted or shortened the animation");
+    run(policy, now, 1, alert);
+    state = policy.snapshot(now);
+    check(state.completed_rests == 1 && state.blocked && state.program == Program::Pet,
+          "complete animation did not hand the surface back to the ongoing alert");
+}
+
+void eye_rest_rejects_foreground_claim_without_changing_playback()
+{
+    Config config;
+    config.eye_interval_ms = 20000;
+    auto policy = make_policy(config);
+    std::uint32_t now = 0;
+    run(policy, now, 25000);
+    const auto before = policy.snapshot(now);
+    check(before.program == Program::EyeRest && before.remaining_ms == 15000, "claim test did not enter eye rest");
+    check(!policy.try_begin_foreground_animation(now), "foreground claim interrupted an already started eye rest");
+    const auto after = policy.snapshot(now);
+    check(after.program == before.program && after.remaining_ms == before.remaining_ms &&
+              after.generation == before.generation && !after.blocked,
+          "rejected foreground claim modified remaining animation time or ownership");
+    run(policy, now, 15000);
+    check(policy.snapshot(now).completed_rests == 1, "rejected claim prevented completion at the original deadline");
+}
+
+void foreground_claim_wins_tick_race_and_preserves_one_due()
+{
+    for (const bool start_failed : {false, true}) {
+        Config config;
+        config.eye_interval_ms = 20000;
+        auto policy = make_policy(config);
+        std::uint32_t now = 0;
+        run(policy, now, 19999);
+        check(policy.try_begin_foreground_animation(now), "foreground claim was denied before eye rest began");
+        // There is deliberately no new context before this worker tick.
+        policy.tick(now + 1u);
+        check(policy.snapshot(now + 1u).blocked && policy.snapshot(now + 1u).program == Program::Pet &&
+                  policy.snapshot(now + 1u).eye_remaining_ms == 0,
+              "worker started eye rest in the check/start gap after a foreground claim");
+        ++now;
+        if (!start_failed) run(policy, now, 60000, {true, true, true});
+        policy.set_context(eligible, now);
+        run(policy, now, 9999);
+        check(policy.snapshot(now).program == Program::Pet && policy.snapshot(now).completed_rests == 0,
+              "foreground playback or failed start queued multiple rests or reused busy time as idle");
+        run(policy, now, 1);
+        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000 &&
+                  policy.snapshot(now).completed_rests == 0,
+              "foreground completion/failure lost the single pending due");
+    }
+}
+
+void explicit_program_disable_can_stop_animation()
+{
+    Config config;
+    config.eye_interval_ms = 20000;
+    auto policy = make_policy(config);
+    std::uint32_t now = 0;
+    run(policy, now, 25000);
+    config.enabled = false;
+    check(policy.set_config(config, now), "explicit program disable rejected");
+    check(policy.snapshot(now).blocked && policy.snapshot(now).program == Program::Pet &&
+              policy.snapshot(now).completed_rests == 0 && policy.snapshot(now).eye_remaining_ms == 0,
+          "explicit program disable failed to stop animation without awarding completion");
+    run(policy, now, 1000);
+    config.enabled = true;
+    check(policy.set_config(config, now), "program reenable rejected");
+    policy.set_context(eligible, now);
+    run(policy, now, 10000);
+    check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000,
+          "explicitly cancelled eye due did not restart completely after reenable and fresh idle");
 }
 
 void overdue_intervals_never_form_a_backlog()
@@ -449,8 +554,11 @@ void clock_wrap_and_read_only_snapshots()
 int main()
 {
     const std::array tests{defaults_and_configuration_bounds, twenty_minute_due_waits_for_idle_eligibility,
-        full_twenty_second_rest_and_two_second_completion, activity_cancels_without_completion_and_holds_idle,
+        full_twenty_second_rest_and_two_second_completion, ordinary_activity_preserves_started_animation_and_holds_idle_cards,
         blocked_context_and_asynchronous_staleness_cancel, overdue_intervals_never_form_a_backlog,
+        persistent_distance_alert_allows_and_cannot_interrupt_due_rest,
+        eye_rest_rejects_foreground_claim_without_changing_playback,
+        foreground_claim_wins_tick_race_and_preserves_one_due, explicit_program_disable_can_stop_animation,
         twelve_three_twelve_three_information_cadence, alternating_cards_are_fair_and_weekly_interval_is_a_lower_bound,
         eye_due_preempts_each_information_card_and_pet_gap, interrupted_information_is_discarded_and_next_card_waits_for_idle,
         interrupted_weekly_does_not_extend_the_pure_pet_gap,

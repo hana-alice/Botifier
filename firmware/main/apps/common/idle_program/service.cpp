@@ -207,6 +207,12 @@ void note_activity()
     policy.note_activity(now_ms());
 }
 
+bool try_begin_foreground_animation()
+{
+    std::lock_guard<std::mutex> lock(state_mutex);
+    return policy.try_begin_foreground_animation(now_ms());
+}
+
 Snapshot snapshot()
 {
     std::lock_guard<std::mutex> lock(state_mutex);

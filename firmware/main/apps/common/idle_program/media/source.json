@@ -1,0 +1,19 @@
+{
+  "character": "The Shorekeeper / 守岸人",
+  "franchise": "Wuthering Waves / 鸣潮",
+  "tool": "Built-in image_gen",
+  "mode": "New generation with transparent_background=true",
+  "image_inputs": [],
+  "prompt": "Use case: stylized-concept. Asset type: a transparent production sprite sheet for a small 320x240 robot LCD eye-rest reminder. Create one ORIGINAL fan-art sprite sheet of The Shorekeeper (守岸人) from Wuthering Waves / WuWa. Recognizable original design: very long icy pale-blue hair, blue/lilac eyes, blue butterfly hair ornament and translucent blue veil, elegant white and midnight-blue dress with cyan star-and-butterfly accents. Cute wholesome chibi anime, large head and expressive face, fully clothed, gentle friendly smile; crisp clean contours and simplified details readable at 160px. EXACT LAYOUT: three equal square columns and two equal square rows (3x2), SIX complete frames on a wide 3:2 transparent canvas. Every frame has the SAME character at identical scale, identical central placement, identical baseline, same head size; keep a generous clear transparent margin within every square. Animation frames in reading order show a smooth gentle small one-hand wave and one slow blink: 1 hand slightly raised/eyes open; 2 hand rises a little; 3 hand waves outward/eyes half closed; 4 hand waves inward/eyes gently closed; 5 hand lowers slightly/eyes half open; 6 returns nearly to frame1/eyes open. Only small pose changes, consistent character identity and outfit. One tiny luminous cyan butterfly floats near her raised hand in each cell. Full figure with skirt/feet fully inside EACH cell; no frame may cross cell boundaries. Vivid luminous cyan, periwinkle and white, bright against a blue-violet background that WILL BE ADDED BY CODE, so your actual canvas must be transparent. NO background, no labels, no text, no words, no numbers, no watermark, no grid lines, no UI, no duplicate characters inside a single cell. This is original chibi fan art, not a screenshot or copy of another fan artist.",
+  "source_png": "shorekeeper-sheet.png",
+  "source_sha256": "cd73d4132d171e6eff04e5a74d76af7d3df3b931ac42a9177487dfdc418b8003",
+  "generated_filename": "exec-2a75b2cf-4d1a-44bc-b310-d770b2cd5824.png",
+  "design_references": [
+    "https://www.youtube.com/watch?v=FQEyNpQnK60",
+    "https://wutheringwaves.notion.site/Developer-s-Notes-Shorekeeper-114ef7f91e4b813db9ace98a30c26a55"
+  ],
+  "reference_scope": "Character design and themes only; neither page imagery nor the unrelated behind-the-scenes orchestra thumbnail was supplied to image_gen or packed into the firmware.",
+  "conversion": "scripts/Prepare-Shorekeeper.py",
+  "pack_sha256": "2f5ce8498008a319933016834a631a60fcfa3852fad7f9007197a10f371484bf",
+  "runtime": "Static flash-backed ARGB8888 six-frame animation; no downloaded clips, audio, decoder or per-frame RGB allocation"
+}
