@@ -348,7 +348,9 @@ void actual_controller_skips_expired_targets_instead_of_replaying()
     distance_pet::RestHeadMotion head;
     head.reserve(motion);
     const auto start = clock_ms;
-    constexpr std::array<std::size_t, 12> selected{{1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16}};
+    constexpr std::array<std::size_t, 13> selected{{0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16}};
+    head.tick(motion, 0);
+    motion.update();
     for (std::uint32_t elapsed = 1000; elapsed <= idle_program::kMotionDurationMs; elapsed += 1000) {
         clock_ms = start + elapsed;
         head.tick(motion, elapsed);
@@ -369,6 +371,46 @@ void actual_controller_skips_expired_targets_instead_of_replaying()
     check(y->physical == 0 && p->physical == 50 && y->writes.size() == selected.size() &&
               p->writes.size() == selected.size(), "expired final centre did not finish once while retaining REST ownership");
     head.cancel(motion);
+}
+
+void actual_controller_preserves_preparation_at_the_first_tick_deadline()
+{
+    constexpr auto deadline = idle_program::kMotionBeats[1].start_ms -
+                              idle_program::kMotionBeats.front().move_ms;
+    for (const auto lateness : {deadline, deadline + 1u, 1000u}) {
+        clock_ms = 0;
+        auto yaw = std::make_unique<HardwareServo>(128);
+        auto pitch = std::make_unique<HardwareServo>(31, uitk::Vector2i{30, 870});
+        auto* y = yaw.get();
+        auto* p = pitch.get();
+        stackchan::motion::Motion motion(std::move(yaw), std::move(pitch));
+        motion.init();
+        clock_ms = 20;
+        motion.update();
+        y->writes.clear();
+        p->writes.clear();
+        distance_pet::RestHeadMotion head;
+        head.reserve(motion);
+        const auto start = clock_ms;
+        clock_ms = start + lateness;
+        head.tick(motion, lateness);
+        motion.update();
+        if (lateness == deadline) {
+            check(head.started() && y->writes.size() == 1 && y->writes.front().angle == 0 &&
+                      y->writes.front().duration == 700 && p->writes.front().duration == 700,
+                  "real servo did not receive its complete 700 ms preparation at the deadline");
+            clock_ms = start + idle_program::kMotionBeats[1].start_ms;
+            head.tick(motion, idle_program::kMotionBeats[1].start_ms);
+            motion.update();
+            check(y->writes.size() == 2 && y->writes.back().angle == -60 && y->physical == 0,
+                  "first excursion preempted the deadline-started home preparation");
+        } else {
+            check(head.skipped() && !head.started() && !head.owns_lock() && !motion.isModifyLocked() &&
+                      y->writes.empty() && p->writes.empty() && y->physical == 128,
+                  "late first tick sent a servo packet without a complete preparation slot");
+        }
+        head.cancel(motion);
+    }
 }
 
 } // namespace
@@ -392,7 +434,8 @@ int main()
         ordinary_spring_still_uses_its_existing_fixed_delta();
         actual_controller_and_motion_keep_nonuniform_targets_at_two_hz();
         actual_controller_skips_expired_targets_instead_of_replaying();
-        std::cout << "servo timed motion: 12 groups passed (production Servo/Motion/UITK, simulated hardware clock)\n";
+        actual_controller_preserves_preparation_at_the_first_tick_deadline();
+        std::cout << "servo timed motion: 13 groups passed (production Servo/Motion/UITK, simulated hardware clock)\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

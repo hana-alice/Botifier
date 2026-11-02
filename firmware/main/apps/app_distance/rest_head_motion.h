@@ -37,6 +37,15 @@ public:
         if (_cancelled || _skipped || _ownership_lost || _limits_unavailable) return;
         if (_owns_lock && !check_ownership(motion)) return;
         if (!_started) {
+            constexpr auto latest_start = idle_program::kMotionBeats[1].start_ms -
+                                          idle_program::kMotionBeats.front().move_ms;
+            // The complete preparation must finish before the first excursion.
+            // A late first UI tick cannot bypass or truncate that movement.
+            if (elapsed_ms > latest_start) {
+                _skipped = true;
+                release(motion);
+                return;
+            }
             if (!_owns_lock) {
                 if (_attempted) return;
                 _attempted = true;

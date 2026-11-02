@@ -103,16 +103,19 @@ void skipped_frames_do_not_replay()
     head.cancel(motion);
 }
 
-void delayed_first_tick_uses_current_beat()
+void delayed_tick_after_preparation_uses_current_beat()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
+    head.tick(motion, 0);
     head.tick(motion, at(11) + 100u);
-    check(motion.commands.size() == 1 && motion.commands[0].pitch == 110, "late start replayed the beginning");
+    check(motion.commands.size() == 2 && motion.commands.front().duration_ms == 700 &&
+              motion.commands.back().pitch == 110, "late running tick replayed a target after preparation");
     head.cancel(motion);
     distance_pet::RestHeadMotion expired;
+    expired.tick(motion, 0);
     expired.tick(motion, kDurationMs + 1);
-    check(motion.commands.size() == 2 && motion.commands.back().pitch == 150, "expired start failed to centre once");
+    check(motion.commands.size() == 4 && motion.commands.back().pitch == 150, "expired running session failed to centre once");
     expired.cancel(motion);
 }
 
@@ -121,6 +124,7 @@ void explicit_exit_is_idempotent_and_terminal()
     for (const auto elapsed : {0u, 350u, at(1), kDurationMs - 200u, kDurationMs + 20000u}) {
         distance_pet::RestHeadMotion head;
         FakeMotion motion;
+        head.tick(motion, 0);
         head.tick(motion, elapsed);
         const auto count = motion.commands.size();
         head.cancel(motion); // HOME, TUNE and PROGRAMS OFF share this exit.
@@ -602,6 +606,53 @@ void yaw_limits_must_cross_home_and_never_redefine_neutral()
     changed.cancel(dynamic);
 }
 
+void preparation_deadline_accepts_120_and_rejects_late_first_ticks()
+{
+    constexpr auto deadline = idle_program::kMotionBeats[1].start_ms -
+                              idle_program::kMotionBeats.front().move_ms;
+    static_assert(deadline == 120);
+    for (const bool reserve : {false, true}) {
+        distance_pet::RestHeadMotion accepted;
+        FakeMotion motion;
+        if (reserve) accepted.reserve(motion);
+        accepted.tick(motion, deadline);
+        check(accepted.started() && !accepted.skipped() && accepted.owns_lock() &&
+                  motion.commands.size() == 1 && motion.commands.front().duration_ms == 700 &&
+                  motion.commands.front().yaw == 0,
+              "exactly 120 ms first tick did not preserve the complete preparation");
+        accepted.tick(motion, at(1));
+        check(motion.commands.size() == 2 && motion.commands.back().yaw == -60,
+              "accepted preparation did not proceed to the first scheduled excursion");
+        accepted.cancel(motion);
+
+        for (const auto late : {deadline + 1u, 1000u, kDurationMs + 1u}) {
+            distance_pet::RestHeadMotion rejected;
+            FakeMotion other;
+            if (reserve) rejected.reserve(other);
+            other.moving = true; // Existing movement must keep running.
+            rejected.tick(other, late);
+            rejected.tick(other, 0);
+            rejected.tick(other, at(1));
+            rejected.cancel(other);
+            check(rejected.skipped() && !rejected.started() && !rejected.owns_lock() &&
+                      other.commands.empty() && other.current_reads == 0 && other.torque_enables == 0 &&
+                      other.stops == 0 && other.moving && !other.locked &&
+                      other.lock_writes == (reserve ? 2 : 0),
+                  "late first tick moved, stopped, retried, or leaked an existing reservation");
+        }
+    }
+    distance_pet::RestHeadMotion foreign;
+    FakeMotion occupied;
+    occupied.locked = true;
+    occupied.moving = true;
+    foreign.tick(occupied, 1000);
+    foreign.cancel(occupied);
+    check(foreign.skipped() && !foreign.started() && occupied.locked && occupied.moving &&
+              occupied.lock_writes == 0 && occupied.stops == 0 && occupied.commands.empty() &&
+              occupied.current_reads == 0 && occupied.torque_enables == 0,
+          "late unreserved first tick changed another owner's lock or motion");
+}
+
 } // namespace
 
 int main()
@@ -609,7 +660,7 @@ int main()
     try {
         normal_beats_and_centre_hold();
         skipped_frames_do_not_replay();
-        delayed_first_tick_uses_current_beat();
+        delayed_tick_after_preparation_uses_current_beat();
         explicit_exit_is_idempotent_and_terminal();
         busy_or_locked_first_attempt_is_skipped();
         dynamic_limits_are_read_on_each_new_beat();
@@ -630,7 +681,8 @@ int main()
         home_preparation_is_timed_after_reservation_and_can_be_cancelled();
         positive_and_negative_initial_yaw_share_calibrated_home();
         yaw_limits_must_cross_home_and_never_redefine_neutral();
-        std::cout << "rest head motion: 23 groups passed\n";
+        preparation_deadline_accepts_120_and_rejects_late_first_ticks();
+        std::cout << "rest head motion: 24 groups passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
