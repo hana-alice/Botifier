@@ -361,3 +361,24 @@ Codex周额度由PC只读`account/rateLimits/read`，按codex桶10080分钟窗�
 OTA读回并重启后，默认20分钟周期启动待机采集49.266秒：50个idle快照全部blocked/Pet，未激活栏目；真实73%额度Fresh快照47个、3次安全额度包写入。距离496/498有效（2个启动无效样本保留），有5个Alert快照，说明栏目不展示期间测距与阈值判断仍运行；0畸形允许帧、0采集串口错误、0观察到的运行故障标记。证据`logs/device-botifier45-probe-report.json`；这是设备遥测，不是主菜单LCD录像。默认参数RAM恢复save=false，未改用户NVS。隐藏额度助手随后恢复，日志`logs/codex-weekly-botifier-helper.log`及`.err.log`。
 
 本版未重新进行物理刷卡；上述抢占为实际生产界面配合合成服务输入的回归，seq33物理验收保留。长期运行与所有AI交互组合仍未全量覆盖。
+
+## 红底距离提醒、守岸人休息动画与互斥播放（2026-11-02）
+
+用户要求距离提示更显眼、护眼到点改成鸣潮角色二创动画，并选定守岸人；随后明确“动画这种优先级并列最高、互不打断”。该最新要求覆盖seq45的NFC→Alert→EyeRest顺序。现在NFC与EyeRest同属最高自动优先级，先开始的完整播放；EyeRest期间的新卡消费丢弃，不排队、不补播、不延长休息。NFC期间护眼到点只保留一个due，前台结束并空闲后开始。距离Alert排在两种动画之后，但持续独立采样；普通Countdown/Weekly/Pet仍立即让位给Alert。显式HOME/TUNE/OFF可以退出。
+
+距离警告改为全屏不透明 **#ED1724** 鲜红背景、80px白图形与约36px白字，无频闪。只改自有decorator，不重设共享screen/头像颜色；原有底部控制与NFC片头仍位于其上。EyeRest改为蓝紫渐变、金色大号秒数、守岸人六帧挥手/眨眼、轻微浮动和星点；显示仅在BOTIFIER LIVE，原20分钟/20秒和12/3/12/3栏目节奏保留。EyeRest时控制层也使用不透明蓝紫背景，避免低优先级红底从底部透出，结束恢复透明。
+
+纯策略区分前台阻挡与距离阻挡，持续Alert不再刷新idle活动时间；已播EyeRest忽略Alert和普通触摸。`try_begin_foreground_animation()`与worker tick同用state_mutex，原子决定先后，避免查询后同时启动的竞态；App先消费刷卡事件，再尝试claim。退出与关闭仍由context/set_config明确取消。
+
+素材使用内置image_gen新生成、未提供图片输入。透明PNG及完整提示词/设计依据在`apps/common/idle_program/media/`，包含原图`shorekeeper-sheet.png`、`source.json`和可复现转换记录。实际pack **614,400字节、六160×160 BGRA帧**，SHA256 **2f5ce8498008a319933016834a631a60fcfa3852fad7f9007197a10f371484bf**；六帧SHA均不同，alpha数据验证和160px预览通过。`scripts/Prepare-Shorekeeper.py`只用现有FFmpeg和标准库裁格、缩放、打包，无新增依赖；原画生成非确定性，原图到pack转换可复现。官方开发笔记/角色展示仅为设计参考，没有将官方图或他人二创帧打包；此前误取到的幕后乐手封面未用于生成或固件。
+
+源码 **0a5c81849c73005a9ab7407630d208bba5c7b878**。完整IDF5.5.4构建`logs/shorekeeper-build-first.log`通过，镜像 **4,653,296字节**、SHA256 **3c9a74fefe2da7bdf1b79de5716014ef2db21c978276b9758ad201dd7697c848**，原应用槽剩 **524,048字节**。匹配bin/ELF/map归档`.tools/firmware-artifacts/20261102-shorekeeper/`。像素与descriptor均静态flash生命周期，不新增解码器、后台任务或逐帧RGB分配；源码检查不等于实机帧率测量。
+
+- CTest **12/12**（Policy **21组**、wire7组），MSVC C++17 `/W4 /WX`通过；日志`logs/shorekeeper-host-tests.log`。PC助手未改，原77/77证据保留。
+- 实际完整AppDistance/View/Pet、真实LVGL/红底decorator与真实Policy共 **6,517断言**（2,409行为/4,108几何），0裁切/缺字；123独立帧中19个新场景。真实614,400字节资源通过host链接适配使用，实际frame_index执行，FreeRTOS/NVS锁层和硬件为替身。
+- 红主导像素 **66,677/76,800 = 86.82%**，白标题437px/白图形1,014px，连续50帧稳定；NFC全帧像素与无警告时一致，解除恢复。EyeRest显示六帧及20/19/1/0秒，普通栏目样式恢复；真实Policy执行NFC播中到期→结束后护眼、护眼期间Alert/刷卡不中断/不延长，20,000ms结束同帧恢复红底。显式退出清层。
+- 100轮含EyeRest/Countdown/Weekly/六帧切换，LVGL free **8,374,448→8,374,448**，15次图像释放/0借用中释放。manifest`.tools/idle-program-ui-probe/manifest-shorekeeper.json`、`frames-shorekeeper-v1/shorekeeper-contact.png`，视觉 **98/pass**；27份生产源/资源摘要与最终工作树匹配，旧seq45的104帧保留。旧Alert热读竞态负控制仍准确失败，生产源码通过。初次测试错误要求主体alpha必须255，实际抗锯齿主体为253/254；已按实测改为≥250并保留失败日志，不将测试阈值错误归为生产故障。
+
+受保护更新已完成：`logs/device-update-shorekeeper47.log`校验新app及原厂固件、配置、bootloader、分区和资源保护区；匹配bin/ELF/map归档`.tools/device-backups/20261102-shorekeeper47/shorekeeper-deployed.*`。同端口40秒早期启动采集后，独立只读`ota-confirmation.json`确认 **seq47/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**。
+
+本轮启动窗口仅证明启动与遥测：`logs/device-shorekeeper47-boot-report.json`记录375个距离快照，373有效、2个启动无效样本保留；38个idle快照全部blocked，未进入BOTIFIER播放；0观察到的panic/assert/watchdog标记。未发送短周期配置，仍为默认20分钟/20秒。PC额度助手已隐藏启动并恢复COM38连接，启动摘要为真实72%；记录`logs/codex-weekly-shorekeeper-helper.log`及`.err.log`，不将PC查询结果当作本轮设备显示验收。这些检查不替代新LCD动画帧率实测、物理NFC验证或长期运行测试；按用户此前要求不再安排重复限时确认。

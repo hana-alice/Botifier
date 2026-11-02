@@ -225,7 +225,11 @@ LIVE 显示 MOVE HAND OUT／SHOW HAND／HOLD HAND／READY，SNAP 页显示手置
 
 ## 空闲节目与 Codex 周额度（2026-11-02）
 
-`apps/common/idle_program` 复用现有 FreeRTOS、NVS、USB Serial/JTAG 与 LVGL，不增加组件。`Policy` 接收单调毫秒时钟；服务每40ms推进，仅BOTIFIER（原DISTANCE）LIVE发布可展示上下文并在同一LVGL锁内渲染，超过500ms未更新即阻止显示。主菜单与AI没有栏目渲染入口；退出应用禁用上下文并清除图层。触摸持续刷新活动时间；显示优先级为NFC→距离Alert→护眼及普通信息，设置页暂停节目。节目图层以稳定的`lv_layer_top()`为父，更换屏幕不会保留悬空父指针；退出只删自有控件与宠物，不重设共享avatar。活跃动画最多约30Hz，抢占不受节流限制。App取测距快照后采样任务可能继续更新，因此在`GetStackChan().update()`后再以`alert_active()`与快照Alert取并集，统一阻止栏目并隐藏顶部状态，避免旧Safe快照把新warning盖住。
+`apps/common/idle_program` 复用现有 FreeRTOS、NVS、USB Serial/JTAG 与 LVGL，不增加组件。`Policy` 接收单调毫秒时钟；服务每40ms推进，仅BOTIFIER（原DISTANCE）LIVE发布可展示上下文并在同一LVGL锁内渲染，超过500ms未更新即阻止显示。主菜单与AI没有栏目渲染入口；退出应用禁用上下文并清除图层。最新优先级为NFC片头/EyeRest并列且互斥→距离Alert→普通信息，设置页暂停节目。普通触摸在有效EyeRest期间不取消动画，显式HOME/TUNE/OFF仍可退出。节目图层以稳定的`lv_layer_top()`为父，更换屏幕不会保留悬空父指针；退出只删自有控件与宠物，不重设共享avatar。活跃动画最多约30Hz，抢占不受节流限制。App取测距快照后采样任务可能继续更新，因此在`GetStackChan().update()`后再以`alert_active()`与快照Alert取并集，阻止普通栏目并隐藏顶部状态；有效EyeRest保留。
+
+`try_begin_foreground_animation()`与服务tick共用state_mutex：已有有效EyeRest则拒绝且不改其时间，否则先占foreground_busy再由App调用片头start，同帧以真实播放结果覆盖context。刷卡事件在claim之前消费，失败或动画中被拒绝的事件不补播。距离Alert只阻挡普通栏目，不刷新idle活动时间，因此到期EyeRest能在持续Alert中开始并完整计时；NFC播中到期只留单due。EyeRest期间LIVE控制层用不透明蓝紫底遮住下层红底的底部区域，结束恢复透明，保留按钮。
+
+`shorekeeper_art.cpp`从应用槽嵌入614,400字节原始六帧160×160 BGRA，静态descriptor直接引用flash，尺寸/索引先校验；不新增线程、解码器或逐帧RGB分配。动画时钟与护眼计时独立，切换模式恢复黑底和原宠物布局；PNG原图与生成提示、pack/hash/透明度数据均保留在media目录。转换脚本只用标准库和已有FFmpeg，不新增Python依赖。
 
 护眼默认20分钟/20秒，完成短暂显示RestDone；中断不记完成，到期仅保留一次。用户追加要求信息主导，常规栏目按EyeCountdown12秒→Pet3秒→Weekly12秒→Pet3秒交替（正常约80%信息），到期休息可抢占普通栏目。EyeCountdown只读eye_remaining_ms，不把12秒卡片时长当工作计时。NVS v2保存新节奏，v1只迁移原开关/护眼间隔/休息时长。当前精简字库缺少护眼中文用字，经实际glyph查询与画面确认，采用已有英文文案，避免引入完整大字库。
 
