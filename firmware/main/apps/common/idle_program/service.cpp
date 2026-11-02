@@ -26,11 +26,6 @@ std::mutex persistence_mutex;
 Policy policy;
 TaskHandle_t worker_task = nullptr;
 
-struct StoredConfig {
-    std::uint32_t version, enabled, eye_interval_ms, rest_duration_ms;
-    std::uint32_t idle_grace_ms, pet_gap_ms, weekly_duration_ms, weekly_interval_ms;
-};
-
 std::uint32_t now_ms()
 {
     return static_cast<std::uint32_t>(esp_timer_get_time() / 1000);
@@ -53,16 +48,8 @@ Config load_config()
     std::size_t size = sizeof(stored);
     const auto error = nvs_get_blob(handle, "config", &stored, &size);
     nvs_close(handle);
-    if (error != ESP_OK || size != sizeof(stored) || stored.version != 1 || stored.enabled > 1) return result;
-    Config loaded;
-    loaded.enabled = stored.enabled != 0;
-    loaded.eye_interval_ms = stored.eye_interval_ms;
-    loaded.rest_duration_ms = stored.rest_duration_ms;
-    loaded.idle_grace_ms = stored.idle_grace_ms;
-    loaded.pet_gap_ms = stored.pet_gap_ms;
-    loaded.weekly_duration_ms = stored.weekly_duration_ms;
-    loaded.weekly_interval_ms = stored.weekly_interval_ms;
-    return valid_config(loaded) ? loaded : result;
+    if (error == ESP_OK && size == sizeof(stored)) decode_config(stored, result);
+    return result;
 }
 
 bool process_frame(const char* data, std::size_t size)
@@ -196,7 +183,7 @@ esp_err_t set_config(const Config& value)
 esp_err_t save_config()
 {
     const auto value = config();
-    const StoredConfig stored{1, value.enabled ? 1u : 0u, value.eye_interval_ms, value.rest_duration_ms,
+    const StoredConfig stored{2, value.enabled ? 1u : 0u, value.eye_interval_ms, value.rest_duration_ms,
                               value.idle_grace_ms, value.pet_gap_ms, value.weekly_duration_ms, value.weekly_interval_ms};
     std::lock_guard<std::mutex> persistence(persistence_mutex);
     nvs_handle_t handle;
@@ -233,6 +220,7 @@ const char* program_text(Program value)
     case Program::EyeRest: return "eye_rest";
     case Program::Weekly: return "weekly";
     case Program::RestDone: return "rest_done";
+    case Program::EyeCountdown: return "eye_countdown";
     }
     return "pet";
 }

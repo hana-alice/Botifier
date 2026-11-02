@@ -50,6 +50,7 @@ distance_pet::Mood mood_for(const Snapshot& value)
 {
     if (value.program == Program::RestDone) return distance_pet::Mood::Happy;
     if (value.program == Program::EyeRest) return distance_pet::Mood::Affection;
+    if (value.program == Program::EyeCountdown) return distance_pet::Mood::Curious;
     if (value.weekly_status == WeeklyStatus::Unavailable || value.weekly_left < 0) return distance_pet::Mood::Sad;
     return value.weekly_left <= 20 ? distance_pet::Mood::Sad :
            value.weekly_left >= 60 ? distance_pet::Mood::Happy : distance_pet::Mood::Curious;
@@ -150,8 +151,33 @@ struct View {
         pet->tick(now, distance_pet::Signal::Ready);
         show(number, value.program != Program::RestDone);
         show(unit, value.program != Program::RestDone);
+        const bool countdown = value.program == Program::EyeCountdown;
+        lv_obj_set_width(number, countdown ? 110 : 82);
+        lv_obj_set_style_transform_scale_x(number, countdown ? 384 : 512, 0);
+        lv_obj_set_style_transform_scale_y(number, countdown ? 384 : 512, 0);
         char text[64];
-        if (value.program == Program::EyeRest) {
+        if (countdown) {
+            lv_label_set_text(title, "NEXT EYE BREAK");
+            lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
+            const auto seconds = value.eye_remaining_ms / 1000 + (value.eye_remaining_ms % 1000 != 0);
+            std::snprintf(text, sizeof(text), "%02lu:%02lu", static_cast<unsigned long>(seconds / 60),
+                          static_cast<unsigned long>(seconds % 60));
+            lv_label_set_text(number, text);
+            lv_obj_set_style_text_color(number, lv_color_hex(kMint), 0);
+            lv_label_set_text(unit, "UNTIL REST");
+            lv_obj_set_pos(unit, 16, 111);
+            lv_obj_set_style_text_color(unit, lv_color_hex(kMuted), 0);
+            const auto rest_seconds = value.config.rest_duration_ms / 1000 + (value.config.rest_duration_ms % 1000 != 0);
+            std::snprintf(text, sizeof(text), "REST %lus - Look about 6m away", static_cast<unsigned long>(rest_seconds));
+            lv_label_set_text(detail, text);
+            lv_obj_set_style_text_font(detail, &lv_font_montserrat_14, 0);
+            lv_obj_set_pos(detail, 16, 153);
+            lv_obj_set_pos(progress, 16, 140);
+            const auto duration = std::max<std::uint32_t>(1, value.config.eye_interval_ms);
+            lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,
+                             static_cast<std::uint64_t>(value.eye_remaining_ms) * 1000 / duration)), LV_ANIM_OFF);
+            lv_obj_set_style_bg_color(progress, lv_color_hex(kMint), LV_PART_INDICATOR);
+        } else if (value.program == Program::EyeRest) {
             lv_label_set_text(title, "EYE REST");
             lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
             std::snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(value.remaining_ms / 1000 +

@@ -27,6 +27,29 @@ inline bool valid_config(const Config& value) noexcept
            value.weekly_duration_ms <= value.weekly_interval_ms;
 }
 
+struct StoredConfig {
+    std::uint32_t version, enabled, eye_interval_ms, rest_duration_ms;
+    std::uint32_t idle_grace_ms, pet_gap_ms, weekly_duration_ms, weekly_interval_ms;
+};
+
+inline bool decode_config(const StoredConfig& stored, Config& output) noexcept
+{
+    if ((stored.version != 1 && stored.version != 2) || stored.enabled > 1) return false;
+    Config value;
+    value.enabled = stored.enabled != 0;
+    value.eye_interval_ms = stored.eye_interval_ms;
+    value.rest_duration_ms = stored.rest_duration_ms;
+    if (stored.version == 2) {
+        value.idle_grace_ms = stored.idle_grace_ms;
+        value.pet_gap_ms = stored.pet_gap_ms;
+        value.weekly_duration_ms = stored.weekly_duration_ms;
+        value.weekly_interval_ms = stored.weekly_interval_ms;
+    }
+    if (!valid_config(value)) return false;
+    output = value;
+    return true;
+}
+
 inline bool valid_weekly(const WeeklyUpdate& value) noexcept
 {
     if (!value.available) return true;
@@ -44,7 +67,8 @@ public:
     {
         if (active_) return;
         active_ = true;
-        clock_ms_ = eye_since_ms_ = activity_ms_ = pet_since_ms_ = weekly_since_ms_ = now_ms;
+        clock_ms_ = eye_since_ms_ = activity_ms_ = pet_since_ms_ = now_ms;
+        weekly_since_ms_ = now_ms - config_.weekly_interval_ms;
     }
 
     Config config() const noexcept { return config_; }
@@ -133,21 +157,27 @@ public:
         }
         if (program_ == Program::EyeRest) return;
         const bool idle = now_ms - activity_ms_ >= config_.idle_grace_ms;
-        // Eye rest can replace an ordinary weekly card and bypass the pet gap.
+        // A due rest can replace either information card and bypass the pet gap.
         if (eye_due_ && idle) {
             change_program(Program::EyeRest, now_ms);
             return;
         }
-        if (program_ == Program::Weekly) {
-            if (now_ms - program_since_ms_ >= config_.weekly_duration_ms || !weekly_displayable()) {
+        if (program_ == Program::Weekly || program_ == Program::EyeCountdown) {
+            if (now_ms - program_since_ms_ >= config_.weekly_duration_ms ||
+                (program_ == Program::Weekly && !weekly_displayable())) {
                 change_program(Program::Pet, now_ms);
             }
             return;
         }
-        if (idle && weekly_displayable() && now_ms - weekly_since_ms_ >= config_.weekly_interval_ms &&
-            now_ms - pet_since_ms_ >= config_.pet_gap_ms) {
-            weekly_since_ms_ = now_ms;
-            change_program(Program::Weekly, now_ms);
+        if (idle && now_ms - pet_since_ms_ >= config_.pet_gap_ms) {
+            if (next_weekly_ && weekly_displayable() && now_ms - weekly_since_ms_ >= config_.weekly_interval_ms) {
+                weekly_since_ms_ = now_ms;
+                next_weekly_ = false;
+                change_program(Program::Weekly, now_ms);
+            } else {
+                next_weekly_ = true;
+                change_program(Program::EyeCountdown, now_ms);
+            }
         }
     }
 
@@ -165,7 +195,8 @@ public:
         result.completed_rests = completed_rests_;
         result.eye_remaining_ms = eye_due_ ? 0u : remaining(config_.eye_interval_ms, now_ms - eye_since_ms_);
         if (result.program == Program::EyeRest) result.remaining_ms = remaining(config_.rest_duration_ms, now_ms - program_since_ms_);
-        else if (result.program == Program::Weekly) result.remaining_ms = remaining(config_.weekly_duration_ms, now_ms - program_since_ms_);
+        else if (result.program == Program::Weekly || result.program == Program::EyeCountdown)
+            result.remaining_ms = remaining(config_.weekly_duration_ms, now_ms - program_since_ms_);
         else if (result.program == Program::RestDone) result.remaining_ms = remaining(2000u, now_ms - program_since_ms_);
         result.weekly_status = copy.weekly_status_;
         result.weekly_left = copy.weekly_status_ == WeeklyStatus::Fresh ? weekly_.remaining_percent : -1;
@@ -240,6 +271,7 @@ private:
     bool have_sequence_ = false;
     bool have_observed_ = false;
     bool have_wall_ = false;
+    bool next_weekly_ = false;
     std::uint32_t clock_ms_ = 0, context_ms_ = 0, eye_since_ms_ = 0, activity_ms_ = 0;
     std::uint32_t program_since_ms_ = 0, pet_since_ms_ = 0, weekly_since_ms_ = 0;
     std::uint32_t generation_ = 0, completed_rests_ = 0, sequence_ = 0;

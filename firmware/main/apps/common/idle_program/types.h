@@ -3,7 +3,7 @@
 
 namespace idle_program {
 
-enum class Program { Pet, EyeRest, Weekly, RestDone };
+enum class Program { Pet, EyeRest, Weekly, RestDone, EyeCountdown };
 enum class WeeklyStatus { Waiting, Fresh, Stale, Unavailable };
 
 struct Config {
@@ -11,9 +11,9 @@ struct Config {
     std::uint32_t eye_interval_ms = 20u * 60u * 1000u;
     std::uint32_t rest_duration_ms = 20000;
     std::uint32_t idle_grace_ms = 10000;
-    std::uint32_t pet_gap_ms = 30000;
-    std::uint32_t weekly_duration_ms = 6000;
-    std::uint32_t weekly_interval_ms = 60000;
+    std::uint32_t pet_gap_ms = 3000;
+    std::uint32_t weekly_duration_ms = 12000;
+    std::uint32_t weekly_interval_ms = 30000;
 };
 
 struct Context {

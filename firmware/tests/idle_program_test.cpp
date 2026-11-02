@@ -41,8 +41,8 @@ void defaults_and_configuration_bounds()
 {
     Config config;
     check(config.eye_interval_ms == 1200000 && config.rest_duration_ms == 20000 &&
-              config.idle_grace_ms == 10000 && config.pet_gap_ms == 30000 &&
-              config.weekly_duration_ms == 6000 && config.weekly_interval_ms == 60000,
+              config.idle_grace_ms == 10000 && config.pet_gap_ms == 3000 &&
+              config.weekly_duration_ms == 12000 && config.weekly_interval_ms == 30000,
           "default schedule changed");
     check(valid_config(config), "defaults invalid");
     config.eye_interval_ms = 999;
@@ -167,56 +167,159 @@ void overdue_intervals_never_form_a_backlog()
     run(policy, now, 20000);
     check(policy.snapshot(now).completed_rests == 1, "one due generated multiple completions");
     run(policy, now, 19999);
-    check(policy.snapshot(now).program == Program::Pet && policy.snapshot(now).completed_rests == 1,
+    check(policy.snapshot(now).program != Program::EyeRest && policy.snapshot(now).completed_rests == 1,
           "missed intervals were replayed as a backlog");
     run(policy, now, 1);
     check(policy.snapshot(now).program == Program::EyeRest, "next interval was not measured from completion");
 }
 
-void weekly_six_seconds_sixty_seconds_and_pet_gap()
+void twelve_three_twelve_three_information_cadence()
 {
     auto policy = make_policy();
     check(policy.update_weekly(quota(), 0), "quota rejected");
     std::uint32_t now = 0;
-    run(policy, now, 59999);
-    check(policy.snapshot(now).program == Program::Pet, "weekly card appeared before 60 seconds");
+    run(policy, now, 9999);
+    check(policy.snapshot(now).program == Program::Pet, "information appeared before idle grace");
     run(policy, now, 1);
-    check(policy.snapshot(now).program == Program::Weekly && policy.snapshot(now).remaining_ms == 6000,
-          "weekly card did not start for six seconds");
-    run(policy, now, 6000);
-    check(policy.snapshot(now).program == Program::Pet, "weekly card did not return to pet");
-    run(policy, now, 54000);
-    check(policy.snapshot(now).program == Program::Weekly, "weekly start cadence did not repeat at 60 seconds");
+    check(policy.snapshot(now).program == Program::EyeCountdown && policy.snapshot(now).remaining_ms == 12000 &&
+              policy.snapshot(now).eye_remaining_ms == 1190000,
+          "first 12-second countdown did not display the independent eye deadline");
+    run(policy, now, 11999);
+    check(policy.snapshot(now).program == Program::EyeCountdown && policy.snapshot(now).remaining_ms == 1,
+          "countdown card ended early");
+    run(policy, now, 1);
+    check(policy.snapshot(now).program == Program::Pet, "countdown did not return to pet after 12 seconds");
+    run(policy, now, 2999);
+    check(policy.snapshot(now).program == Program::Pet, "information cards skipped the three-second pet gap");
+    run(policy, now, 1);
+    check(now == 25000 && policy.snapshot(now).program == Program::Weekly && policy.snapshot(now).remaining_ms == 12000,
+          "first weekly card incorrectly waited for its normal interval");
+    run(policy, now, 12000);
+    check(policy.snapshot(now).program == Program::Pet, "weekly card did not end after 12 seconds");
+    run(policy, now, 3000);
+    check(policy.snapshot(now).program == Program::EyeCountdown, "second cycle did not alternate back to countdown");
+    run(policy, now, 15000);
+    check(now == 55000 && policy.snapshot(now).program == Program::Weekly,
+          "weekly starts did not preserve the 30-second lower bound");
+    check(policy.snapshot(now).completed_rests == 0 && policy.snapshot(now).eye_remaining_ms == 1145000,
+          "information cards advanced or completed the independent eye-rest timer");
+}
+
+void alternating_cards_are_fair_and_weekly_interval_is_a_lower_bound()
+{
+    auto policy = make_policy();
+    policy.update_weekly(quota(), 0);
+    std::uint32_t now = 0;
+    run(policy, now, 10000);
+    std::uint32_t countdown_ms = 0, weekly_ms = 0, pet_ms = 0;
+    for (unsigned sample = 0; sample < 1500; ++sample) {
+        const auto state = policy.snapshot(now);
+        if (state.program == Program::EyeCountdown) countdown_ms += 100;
+        else if (state.program == Program::Weekly) weekly_ms += 100;
+        else if (state.program == Program::Pet) pet_ms += 100;
+        else check(false, "ordinary rotation created an eye-rest completion");
+        run(policy, now, 100);
+    }
+    check(countdown_ms == 60000 && weekly_ms == 60000 && pet_ms == 30000,
+          "five normal cycles failed 12/3/12/3 fairness and 80 percent information occupancy");
 
     Config config;
-    config.weekly_interval_ms = 10000;
+    config.weekly_interval_ms = 60000;
     policy = make_policy(config);
     policy.update_weekly(quota(), 0);
     now = 0;
+    run(policy, now, 25000);
+    check(policy.snapshot(now).program == Program::Weekly, "first weekly card was not immediately eligible");
     run(policy, now, 30000);
-    check(policy.snapshot(now).program == Program::Weekly, "initial pet gap was ignored or never completed");
-    run(policy, now, 6000);
+    check(policy.snapshot(now).program == Program::EyeCountdown,
+          "weekly interval delay extended plain pet instead of showing another countdown");
     run(policy, now, 29999);
-    check(policy.snapshot(now).program == Program::Pet, "weekly cards did not preserve 30 seconds of pet");
+    check(policy.snapshot(now).program == Program::Pet, "weekly card ignored its longer configured lower bound");
     run(policy, now, 1);
-    check(policy.snapshot(now).program == Program::Weekly, "weekly card failed after complete pet gap");
+    check(policy.snapshot(now).program == Program::Weekly, "weekly lower bound prevented a due card forever");
 }
 
-void eye_due_preempts_weekly_and_ordinary_pet_gap()
+void eye_due_preempts_each_information_card_and_pet_gap()
 {
+    for (const auto deadline : {15000u, 27000u}) {
+        Config config;
+        config.eye_interval_ms = deadline;
+        auto policy = make_policy(config);
+        policy.update_weekly(quota(), 0);
+        std::uint32_t now = 0;
+        run(policy, now, deadline - 1000u);
+        check(policy.snapshot(now).program == (deadline == 15000 ? Program::EyeCountdown : Program::Weekly),
+              "preemption test did not enter the intended information card");
+        run(policy, now, 1000);
+        check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000 &&
+                  policy.snapshot(now).completed_rests == 0,
+              "due eye rest did not replace the information card with a complete 20-second rest");
+    }
     Config config;
-    config.eye_interval_ms = 62000;
+    config.eye_interval_ms = 20000;
+    config.pet_gap_ms = 30000;
     auto policy = make_policy(config);
+    std::uint32_t now = 0;
+    run(policy, now, 20000);
+    check(policy.snapshot(now).program == Program::EyeRest, "eye due waited for an ordinary pet gap");
+}
+
+void interrupted_information_is_discarded_and_next_card_waits_for_idle()
+{
+    auto policy = make_policy();
     policy.update_weekly(quota(), 0);
     std::uint32_t now = 0;
-    run(policy, now, 60000);
-    check(policy.snapshot(now).program == Program::Weekly, "test did not start a weekly card");
-    run(policy, now, 2000);
-    check(policy.snapshot(now).program == Program::EyeRest && policy.snapshot(now).remaining_ms == 20000,
-          "due eye rest did not preempt an ordinary weekly card");
+    run(policy, now, 12000);
+    check(policy.snapshot(now).program == Program::EyeCountdown, "interruption test did not start a countdown card");
+    policy.set_context({true, true, false}, now);
+    run(policy, now, 5000, {true, true, false});
+    policy.set_context(eligible, now);
+    run(policy, now, 9999);
+    check(policy.snapshot(now).program == Program::Pet, "foreground interruption did not reset idle grace");
+    run(policy, now, 1);
+    check(policy.snapshot(now).program == Program::Weekly && policy.snapshot(now).remaining_ms == 12000 &&
+              policy.snapshot(now).completed_rests == 0,
+          "interrupted countdown was queued or counted as a completed eye rest");
+    run(policy, now, 1000);
     policy.note_activity(now);
     run(policy, now, 10000);
-    check(policy.snapshot(now).program == Program::EyeRest, "eye due incorrectly waited for the ordinary 30 second pet gap");
+    check(policy.snapshot(now).program == Program::EyeCountdown && policy.snapshot(now).completed_rests == 0,
+          "touch interruption replayed the weekly card instead of moving to the next card");
+}
+
+void interrupted_weekly_does_not_extend_the_pure_pet_gap()
+{
+    for (const bool foreground : {false, true}) {
+        auto policy = make_policy();
+        policy.update_weekly(quota(), 0);
+        std::uint32_t now = 0;
+        run(policy, now, 25000);
+        check(policy.snapshot(now).program == Program::Weekly, "interruption test did not start weekly");
+        if (foreground) {
+            policy.set_context({true, true, false}, now);
+            run(policy, now, 1000, {true, true, false});
+            policy.set_context(eligible, now);
+            run(policy, now, 10000);
+        } else {
+            WeeklyUpdate unavailable;
+            unavailable.sequence = 2;
+            policy.update_weekly(unavailable, now);
+            run(policy, now, 3000);
+        }
+        check(policy.snapshot(now).program == Program::EyeCountdown,
+              "interrupted weekly did not advance to a countdown");
+        run(policy, now, 12000);
+        check(policy.snapshot(now).program == Program::Pet, "countdown did not finish before fallback");
+        run(policy, now, 2999);
+        check(policy.snapshot(now).program == Program::Pet, "fallback skipped the configured pet gap");
+        run(policy, now, 1);
+        check(policy.snapshot(now).program == Program::EyeCountdown && policy.snapshot(now).remaining_ms == 12000 &&
+                  policy.snapshot(now).completed_rests == 0,
+              "pending weekly lower bound extended pure pet beyond three seconds");
+        run(policy, now, 15000);
+        check(policy.snapshot(now).program == Program::Weekly,
+              "fallback countdown starved weekly after its lower bound became due");
+    }
 }
 
 void weekly_duplicates_old_observations_and_ttl_do_not_refresh()
@@ -267,12 +370,13 @@ void unavailable_is_explicit_and_missing_data_is_not_a_card()
     auto policy = make_policy();
     std::uint32_t now = 0;
     run(policy, now, 60000);
-    check(policy.snapshot(now).program == Program::Pet && policy.snapshot(now).weekly_status == WeeklyStatus::Waiting,
+    check(policy.snapshot(now).program == Program::EyeCountdown && policy.snapshot(now).weekly_status == WeeklyStatus::Waiting &&
+              policy.snapshot(now).completed_rests == 0,
           "missing quota fabricated a weekly card");
     WeeklyUpdate unavailable;
     unavailable.sequence = 1;
     check(policy.update_weekly(unavailable, now), "explicit unavailable rejected");
-    run(policy, now, 100);
+    run(policy, now, 10000);
     check(policy.snapshot(now).program == Program::Weekly && policy.snapshot(now).weekly_status == WeeklyStatus::Unavailable &&
               policy.snapshot(now).weekly_left == -1, "explicit unavailable was presented as a percentage");
 }
@@ -288,12 +392,33 @@ void stale_quota_rotates_without_a_current_percentage()
     auto state = policy.snapshot(now);
     check(state.program == Program::Weekly && state.weekly_status == WeeklyStatus::Stale && state.weekly_left == -1,
           "expired quota failed to rotate explicitly as stale without an old percentage");
-    run(policy, now, 6000);
+    run(policy, now, 7000);
     check(policy.snapshot(now).program == Program::Pet, "stale weekly card failed to return to pet");
-    run(policy, now, 54000);
+    run(policy, now, 18000);
     state = policy.snapshot(now);
     check(state.program == Program::Weekly && state.weekly_status == WeeklyStatus::Stale && state.weekly_left == -1,
           "stale status did not preserve the normal weekly rotation cadence");
+}
+
+void stored_config_v1_migrates_cadence_and_v2_preserves_settings()
+{
+    Config loaded;
+    const StoredConfig legacy{1, 0, 600000, 45000, 1234, 30000, 6000, 60000};
+    check(decode_config(legacy, loaded) && !loaded.enabled && loaded.eye_interval_ms == 600000 &&
+              loaded.rest_duration_ms == 45000 && loaded.idle_grace_ms == 10000 && loaded.pet_gap_ms == 3000 &&
+              loaded.weekly_duration_ms == 12000 && loaded.weekly_interval_ms == 30000,
+          "version-one migration retained hidden old cadence or lost visible user settings");
+    const StoredConfig current{2, 1, 900000, 30000, 5000, 4000, 15000, 45000};
+    check(decode_config(current, loaded) && loaded.enabled && loaded.eye_interval_ms == 900000 &&
+              loaded.rest_duration_ms == 30000 && loaded.idle_grace_ms == 5000 && loaded.pet_gap_ms == 4000 &&
+              loaded.weekly_duration_ms == 15000 && loaded.weekly_interval_ms == 45000,
+          "version-two settings did not survive decoding");
+    auto invalid = current;
+    invalid.version = 3;
+    check(!decode_config(invalid, loaded) && loaded.weekly_interval_ms == 45000, "unknown storage version mutated current settings");
+    invalid = current;
+    invalid.enabled = 2;
+    check(!decode_config(invalid, loaded), "invalid stored boolean accepted");
 }
 
 void clock_wrap_and_read_only_snapshots()
@@ -326,10 +451,12 @@ int main()
     const std::array tests{defaults_and_configuration_bounds, twenty_minute_due_waits_for_idle_eligibility,
         full_twenty_second_rest_and_two_second_completion, activity_cancels_without_completion_and_holds_idle,
         blocked_context_and_asynchronous_staleness_cancel, overdue_intervals_never_form_a_backlog,
-        weekly_six_seconds_sixty_seconds_and_pet_gap, eye_due_preempts_weekly_and_ordinary_pet_gap,
+        twelve_three_twelve_three_information_cadence, alternating_cards_are_fair_and_weekly_interval_is_a_lower_bound,
+        eye_due_preempts_each_information_card_and_pet_gap, interrupted_information_is_discarded_and_next_card_waits_for_idle,
+        interrupted_weekly_does_not_extend_the_pure_pet_gap,
         weekly_duplicates_old_observations_and_ttl_do_not_refresh, reset_deadline_absolute_clock_and_shortened_reconnect_ttl,
         unavailable_is_explicit_and_missing_data_is_not_a_card, stale_quota_rotates_without_a_current_percentage,
-        clock_wrap_and_read_only_snapshots};
+        stored_config_v1_migrates_cadence_and_v2_preserves_settings, clock_wrap_and_read_only_snapshots};
     try { for (const auto test : tests) test(); }
     catch (const std::exception& error) { std::cerr << "idle_program_test: " << error.what() << '\n'; return 1; }
     std::cout << "idle_program_test: " << tests.size() << " policy groups passed\n";
