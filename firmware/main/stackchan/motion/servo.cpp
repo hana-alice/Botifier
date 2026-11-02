@@ -43,6 +43,17 @@ void Servo::update()
     }
     _last_tick = GetHAL().millis();
 
+    if (_timed_active) {
+        // Hardware owns interpolation for this opt-in command. Keep the driver's
+        // obstruction checks running, without re-sending the old software spring.
+        update_timed_motion_impl(_timed_target_angle);
+        if (!_timed_active) return; // The driver stopped at an obstruction.
+        if (_last_tick - _timed_start_tick >= _timed_duration_ms && !is_moving_impl()) {
+            _timed_active = false;
+        }
+        return;
+    }
+
     // Apply animation
     if (!_angle_anim.done()) {
         _angle_anim.updateWithDelta(0.02f);  // Fixed delta time for consistency
@@ -87,6 +98,23 @@ void Servo::moveWithSpeed(int angle, int speed)
     moveWithSpringParams(angle, spring_options.stiffness, spring_options.damping);
 }
 
+void Servo::moveWithDuration(int angle, std::uint16_t duration_ms)
+{
+    angle = uitk::clamp(angle, _angle_limit.x, _angle_limit.y);
+    _timed_start_angle = getCurrentAngle();
+    _timed_target_angle = angle;
+    _timed_start_tick = GetHAL().millis();
+    _timed_duration_ms = duration_ms == 0 ? 1 : duration_ms;
+    // Finish the old generator so a later ordinary update cannot overwrite the
+    // hardware target with one 20 ms step from the previous spring.
+    _angle_anim.teleport(static_cast<float>(angle));
+    _angle_anim.complete();
+    _angle_anim.updateWithDelta(0.0f);
+    _snap_to_target_on_rest = false;
+    _timed_active = true;
+    set_angle_with_duration_impl(angle, _timed_duration_ms);
+}
+
 int Servo::getCurrentAngle()
 {
     return _angle_anim.directValue();
@@ -94,7 +122,7 @@ int Servo::getCurrentAngle()
 
 bool Servo::isMoving()
 {
-    return _angle_anim.done() == false || is_moving_impl();
+    return _timed_active || _angle_anim.done() == false || is_moving_impl();
 }
 
 void Servo::apply_default_spring_options()
@@ -107,10 +135,18 @@ void Servo::apply_default_spring_options()
 
 void Servo::update_angle_anim_target(int angle)
 {
+    const bool was_timed = _timed_active;
+    _timed_active = false;
     angle = uitk::clamp(angle, _angle_limit.x, _angle_limit.y);
 
-    if (_auto_angle_sync_enabled) {
-        _angle_anim.teleport(getCurrentAngle());  // Use current angle as start
+    if (_auto_angle_sync_enabled || was_timed) {
+        const int current = getCurrentAngle();
+        _angle_anim.teleport(current);  // Use current angle as start
+        if (was_timed) {
+            // App exit may not run another update. Override the outstanding
+            // hardware target now, then allow the new ordinary spring to run.
+            set_angle_with_duration_impl(current, 20);
+        }
     }
     _angle_anim             = angle;  // Apply new target
     _snap_to_target_on_rest = true;
@@ -118,6 +154,7 @@ void Servo::update_angle_anim_target(int angle)
 
 void Servo::stop_motion_at_angle(int angle)
 {
+    _timed_active = false;
     angle = uitk::clamp(angle, _angle_limit.x, _angle_limit.y);
     _angle_anim.teleport(angle);
     _snap_to_target_on_rest = false;

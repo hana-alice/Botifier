@@ -76,6 +76,23 @@ public:
 
     void set_angle_impl(int angle) override
     {
+        write_angle_target(angle, 20);
+    }
+
+    void set_angle_with_duration_impl(int angle, std::uint16_t duration_ms) override
+    {
+        write_angle_target(angle, duration_ms);
+    }
+
+    void update_timed_motion_impl(int angle) override
+    {
+        const int mapped = uitk::clamp(_zero_pos + angle * 16 / 5 / 10,
+                                      _runtime_raw_pos_limit.x, _runtime_raw_pos_limit.y);
+        update_stall_protection(mapped);
+    }
+
+    void write_angle_target(int angle, std::uint16_t duration_ms)
+    {
         int mapped_angle = _zero_pos + angle * 16 / 5 / 10;  // 一步对应 0.3125度, 0.3125 = 5/16
         mapped_angle     = uitk::clamp(mapped_angle, _runtime_raw_pos_limit.x, _runtime_raw_pos_limit.y);
 
@@ -86,7 +103,8 @@ public:
         }
 
         check_mode(Mode::Position);
-        _diagnostics.write_ack = _scs_bus.WritePos(_config.id, mapped_angle, 20, 0);
+        _diagnostics.write_ack = _scs_bus.WritePos(_config.id, mapped_angle, duration_ms, 0);
+        _diagnostics.last_write_duration_ms = duration_ms;
         ++_diagnostics.position_writes;
         cache_bus_status();
         _diagnostics.write_error = _diagnostics.last_error;
@@ -192,6 +210,8 @@ public:
         if (!_config.enablePwmMode) {
             return;
         }
+
+        _timed_active = false;
 
         int mapped_velocity = map_range(velocity, 0, 1000, 0, 1023);
 
@@ -352,6 +372,7 @@ private:
 
         check_mode(Mode::Position);
         _diagnostics.write_ack = _scs_bus.WritePos(_config.id, raw_pos, 20, 0);
+        _diagnostics.last_write_duration_ms = 20;
         ++_diagnostics.position_writes;
         cache_bus_status();
         _diagnostics.write_error = _diagnostics.last_error;

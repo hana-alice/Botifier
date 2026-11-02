@@ -95,6 +95,9 @@ public:
      */
     void moveWithSpeed(int yawAngle, int pitchAngle, int speed);
 
+    // Explicit duration is used only by the bounded eye-break choreography.
+    void moveWithDuration(int yawAngle, int pitchAngle, std::uint16_t duration_ms);
+
     /**
      * @brief Move head to home position (0,0)
      *

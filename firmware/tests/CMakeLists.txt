@@ -95,3 +95,22 @@ add_executable(edge_swipe_test edge_swipe_test.cpp)
 target_include_directories(edge_swipe_test PRIVATE ../main)
 target_compile_features(edge_swipe_test PRIVATE cxx_std_17)
 add_test(NAME edge_swipe_test COMMAND $<TARGET_FILE:edge_swipe_test>)
+
+# Production Servo/Motion and actual UITK springs; only the clock and hardware
+# position writer are simulated. These include paths apply to this target only.
+set(servo_uitk_root "${CMAKE_CURRENT_SOURCE_DIR}/../components/smooth_ui_toolkit/src")
+add_executable(servo_timed_motion_test
+    servo_timed_motion_test.cpp
+    ../main/stackchan/motion/servo.cpp
+    ../main/stackchan/motion/motion.cpp
+    ../main/stackchan/motion/motion_math.cpp
+    "${servo_uitk_root}/core/animation/animate_value/animate_value.cpp"
+    "${servo_uitk_root}/core/animation/animate/animate.cpp"
+    "${servo_uitk_root}/core/animation/generators/spring/spring.cpp"
+    "${servo_uitk_root}/core/animation/generators/easing/easing.cpp"
+    "${servo_uitk_root}/core/easing/ease.cpp"
+    "${servo_uitk_root}/core/hal/hal.cpp")
+target_include_directories(servo_timed_motion_test PRIVATE fakes/servo_motion ../main "${servo_uitk_root}")
+target_compile_definitions(servo_timed_motion_test PRIVATE _USE_MATH_DEFINES SMOOTH_UI_TOOLKIT_ENABLE_DEFAULT_HAL=0)
+target_compile_features(servo_timed_motion_test PRIVATE cxx_std_17)
+add_test(NAME servo_timed_motion_test COMMAND $<TARGET_FILE:servo_timed_motion_test>)

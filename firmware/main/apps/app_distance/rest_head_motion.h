@@ -77,7 +77,7 @@ public:
         // finish before the next beat, so every fresh target must re-enable it.
         // Reservation and duplicate ticks deliberately leave torque untouched.
         motion.setTorqueEnabled(true);
-        motion.moveWithSpeed(yaw, pitch, 300);
+        motion.moveWithDuration(yaw, pitch, 350);
         _target_yaw = yaw;
         _target_pitch = pitch;
         _started = true;
@@ -131,7 +131,13 @@ private:
         const auto low = std::max<std::int64_t>(minimum, static_cast<std::int64_t>(base) - radius);
         const auto high = std::min<std::int64_t>(maximum, static_cast<std::int64_t>(base) + radius);
         if (low > high) return false;
-        result = static_cast<int>(std::clamp<std::int64_t>(static_cast<std::int64_t>(base) + offset, low, high));
+        // When already beside a physical stop, use the permitted window's centre
+        // so both directions remain visible. Neither direction can leave the
+        // original actual-angle +/- radius envelope, even after limits tighten.
+        const auto centre = low + (high - low) / 2;
+        const auto extent = offset < 0 ? centre - low : high - centre;
+        result = static_cast<int>(std::clamp<std::int64_t>(
+            centre + static_cast<std::int64_t>(offset) * extent / radius, low, high));
         return true;
     }
 

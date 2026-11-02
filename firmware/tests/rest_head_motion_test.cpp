@@ -23,7 +23,7 @@ struct FakeServo {
     Angles limits;
     Angles getAngleLimit() const { return limits; }
 };
-struct Command { int yaw; int pitch; int speed; };
+struct Command { int yaw; int pitch; int duration_ms; };
 struct FakeMotion {
     bool locked = false;
     bool moving = false;
@@ -51,10 +51,10 @@ struct FakeMotion {
         if (enabled) ++torque_enables;
         else ++torque_disables;
     }
-    void moveWithSpeed(int y, int p, int speed)
+    void moveWithDuration(int y, int p, std::uint16_t duration_ms)
     {
-        commands.push_back({y, p, speed});
-        if (torque_enabled) effective_commands.push_back({y, p, speed});
+        commands.push_back({y, p, duration_ms});
+        if (torque_enabled) effective_commands.push_back({y, p, duration_ms});
     }
     void stop() { ++stops; }
 };
@@ -70,7 +70,7 @@ void normal_beats_and_centre_hold()
     for (std::size_t i = 0; i < motion.commands.size(); ++i) {
         const auto& command = motion.commands[i];
         check(command.yaw == motion.current.x + idle_program::kMotionBeats[i].yaw_delta &&
-              command.pitch == motion.current.y + idle_program::kMotionBeats[i].pitch_delta && command.speed == 300,
+              command.pitch == motion.current.y + idle_program::kMotionBeats[i].pitch_delta && command.duration_ms == 350,
               "normal beat disagreed with the shared relative choreography");
     }
     check(motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150, "final beat failed to centre");
@@ -167,7 +167,7 @@ void dynamic_limits_are_read_on_each_new_beat()
     motion.yaw.limits = {-30, 10};
     motion.pitch.limits = {140, 145};
     head.tick(motion, kDurationMs);
-    check(motion.commands.back().yaw == 10 && motion.commands.back().pitch == 145,
+    check(motion.commands.back().yaw == -10 && motion.commands.back().pitch == 142,
           "final centre ignored the current narrowed limits");
     head.cancel(motion);
 }
@@ -339,7 +339,7 @@ void each_new_beat_reenables_torque_before_its_target()
     // Model the hardware distinction that a queued goal is not effective while
     // torque is disabled. The old controller passed a command-count-only fake.
     FakeMotion control;
-    control.moveWithSpeed(50, 150, 300);
+    control.moveWithDuration(50, 150, 350);
     check(control.commands.size() == 1 && control.effective_commands.empty(),
           "torque-disabled control model accepted an effective movement");
 
@@ -435,6 +435,45 @@ void four_directions_use_two_slow_beats_and_a_centre()
     head.cancel(motion);
 }
 
+void starting_at_pitch_edge_uses_both_directions_inside_original_window()
+{
+    distance_pet::RestHeadMotion head;
+    FakeMotion motion;
+    motion.current = {1270, 31};
+    for (std::uint32_t i = 0; i < kBeatCount; ++i) {
+        head.tick(motion, i * kBeatMs);
+        const auto& command = motion.commands.back();
+        check(command.yaw >= 1190 && command.yaw <= 1280 && command.pitch >= 30 && command.pitch <= 71,
+              "edge neutral escaped the original actual-angle envelope or physical limits");
+    }
+    check(motion.commands[6].pitch == 40 && motion.commands[7].pitch == 30 &&
+          motion.commands[9].pitch == 60 && motion.commands[10].pitch == 71 && motion.commands[11].pitch == 50,
+          "pitch near its stop did not have two visible beats in both directions and a bounded centre");
+    check(motion.commands[1].yaw == 1190 && motion.commands[4].yaw == 1280 && motion.commands[11].yaw == 1235,
+          "yaw near its stop did not use the bounded window centre");
+    head.cancel(motion);
+}
+
+void shrinking_limits_recentre_without_expanding_original_window()
+{
+    distance_pet::RestHeadMotion head;
+    FakeMotion motion;
+    motion.current.y = 31;
+    head.tick(motion, 0);
+    motion.pitch.limits = {45, 65};
+    head.tick(motion, 7 * kBeatMs);
+    check(motion.commands.back().pitch == 45, "tightened pitch minimum was not honoured");
+    head.tick(motion, 8 * kBeatMs);
+    check(motion.commands.back().pitch == 55, "tightened pitch window did not retain a bounded neutral");
+    head.tick(motion, 10 * kBeatMs);
+    check(motion.commands.back().pitch == 65, "tightened pitch maximum was not honoured");
+    motion.pitch.limits = {100, 110};
+    head.tick(motion, 11 * kBeatMs);
+    check(head.limits_unavailable() && !head.owns_lock() && motion.stops == 1,
+          "shifted physical limits caused an expanded movement envelope");
+    head.cancel(motion);
+}
+
 } // namespace
 
 int main()
@@ -458,7 +497,9 @@ int main()
         rejected_or_cancelled_reservations_never_enable_torque();
         lost_ownership_or_limits_never_reenable_torque();
         four_directions_use_two_slow_beats_and_a_centre();
-        std::cout << "rest head motion: 18 groups passed\n";
+        starting_at_pitch_edge_uses_both_directions_inside_original_window();
+        shrinking_limits_recentre_without_expanding_original_window();
+        std::cout << "rest head motion: 20 groups passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

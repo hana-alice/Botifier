@@ -63,6 +63,12 @@ void Motion::moveWithSpeed(int yawAngle, int pitchAngle, int speed)
     _pitch_servo->moveWithSpeed(pitchAngle, speed);
 }
 
+void Motion::moveWithDuration(int yawAngle, int pitchAngle, std::uint16_t duration_ms)
+{
+    _yaw_servo->moveWithDuration(yawAngle, duration_ms);
+    _pitch_servo->moveWithDuration(pitchAngle, duration_ms);
+}
+
 void Motion::goHome(int speed)
 {
     _yaw_servo->moveWithSpeed(0, speed);

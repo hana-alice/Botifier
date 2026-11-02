@@ -500,20 +500,22 @@ struct AppDistance::View {
                     "\"target_yaw\":%d,\"target_pitch\":%d,\"cached_feedback\":true,"
                     "\"yaw\":{\"supported\":%s,\"position\":%d,\"moving\":%d,\"torque_before\":%d,\"torque\":%d,"
                     "\"position_reads\":%" PRIu32 ",\"position_writes\":%" PRIu32 ",\"write_ack\":%d,"
-                    "\"write_error\":%d,\"write_state\":%d,\"torque_ack\":%d,"
+                    "\"write_error\":%d,\"write_state\":%d,\"write_duration_ms\":%u,\"torque_ack\":%d,"
                     "\"torque_write_error\":%d,\"torque_write_state\":%d,\"torque_read_error\":%d},"
                     "\"pitch\":{\"supported\":%s,\"position\":%d,\"moving\":%d,\"torque_before\":%d,\"torque\":%d,"
                     "\"position_reads\":%" PRIu32 ",\"position_writes\":%" PRIu32 ",\"write_ack\":%d,"
-                    "\"write_error\":%d,\"write_state\":%d,\"torque_ack\":%d,"
+                    "\"write_error\":%d,\"write_state\":%d,\"write_duration_ms\":%u,\"torque_ack\":%d,"
                     "\"torque_write_error\":%d,\"torque_write_state\":%d,\"torque_read_error\":%d}}\n",
                     static_cast<std::uint32_t>(GetHAL().millis()), idle.generation,
                     exit ? "exit" : idle_program::eye_phase_text(idle.eye_phase), idle.phase_elapsed_ms, beat, flags,
                     rest_head.target_yaw(), rest_head.target_pitch(),
                     yaw.supported ? "true" : "false", yaw.raw_position, yaw.raw_moving, yaw.torque_before, yaw.raw_torque,
                     yaw.position_reads, yaw.position_writes, yaw.write_ack, yaw.write_error, yaw.write_state,
+                    static_cast<unsigned>(yaw.last_write_duration_ms),
                     yaw.torque_ack, yaw.torque_write_error, yaw.torque_write_state, yaw.torque_read_error,
                     pitch.supported ? "true" : "false", pitch.raw_position, pitch.raw_moving, pitch.torque_before, pitch.raw_torque,
                     pitch.position_reads, pitch.position_writes, pitch.write_ack, pitch.write_error, pitch.write_state,
+                    static_cast<unsigned>(pitch.last_write_duration_ms),
                     pitch.torque_ack, pitch.torque_write_error, pitch.torque_write_state, pitch.torque_read_error);
     }
 

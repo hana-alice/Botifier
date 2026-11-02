@@ -37,6 +37,7 @@ public:
         int torque_write_error = -1;
         int torque_write_state = -1;
         int torque_read_error = -1;
+        int last_write_duration_ms = -1;
         std::uint32_t position_reads = 0;
         std::uint32_t moving_reads = 0;
         std::uint32_t position_writes = 0;
@@ -82,6 +83,11 @@ public:
      * @param speed (0-1000)
      */
     void moveWithSpeed(int angle, int speed);
+
+    // Opt-in hardware-timed target. SCS drivers honour duration in hardware;
+    // other drivers fall back to an immediate, bounded set_angle_impl call.
+    void moveWithDuration(int angle, std::uint16_t duration_ms);
+    bool timedMotionActive() const noexcept { return _timed_active; }
 
     /**
      * @brief Rotate servo with given velocity
@@ -189,6 +195,13 @@ protected:
      * @param angle
      */
     virtual void set_angle_impl(int angle) = 0;
+    virtual void set_angle_with_duration_impl(int angle, std::uint16_t duration_ms)
+    {
+        set_angle_impl(angle);
+    }
+    virtual void update_timed_motion_impl(int angle)
+    {
+    }
     virtual bool is_moving_impl()
     {
         return false;
@@ -203,6 +216,11 @@ protected:
     bool _snap_to_target_on_rest      = false;
     bool _auto_torque_release_enabled = true;
     bool _auto_angle_sync_enabled     = true;
+    bool _timed_active = false;
+    std::uint32_t _timed_start_tick = 0;
+    std::uint16_t _timed_duration_ms = 0;
+    int _timed_start_angle = 0;
+    int _timed_target_angle = 0;
 
     void apply_default_spring_options();
     void update_angle_anim_target(int angle);
