@@ -133,6 +133,10 @@ void Hal::updateHeapStatusLog()
 #include "board/hal_bridge.h"
 #include <stackchan/stackchan.h>
 #include <apps/common/common.h>
+#include <apps/common/idle_program/service.h>
+#include <apps/common/idle_program/view.h>
+#include <distance_sensor/service.h>
+#include <application.h>
 #include <assets/assets.h>
 
 void Hal::xiaozhi_board_init()
@@ -151,28 +155,35 @@ static void _stackchan_update_task(void* param)
 
         tools::update_reminders();
 
-        LvglLockGuard lock;
+        bool ai_idle = false;
+        {
+            LvglLockGuard lock;
+            const bool idle_ready = hal_bridge::is_xiaozhi_mode() && hal_bridge::is_xiaozhi_ready();
+            ai_idle = idle_ready && Application::GetInstance().GetDeviceState() == kDeviceStateIdle;
+            idle_program::set_context({
+                .surface_available = idle_ready,
+                .foreground_busy = !ai_idle || view::ReminderView::is_active_locked(),
+                .distance_alert = distance_sensor::alert_active(),
+            });
+            GetStackChan().update();
+            idle_program::render_locked(idle_program::snapshot());
 
-        if (!hal_bridge::is_xiaozhi_idle()) {
+            if (idle_ready) {
+                if (!is_setup_done) {
+                    // Setup when xiaozhi ready.
+                    GetHAL().startSntp();
+                    view::create_home_indicator([]() { GetHAL().requestWarmReboot(0); }, 0x81DBBD, 0x134233);
+                    view::create_status_bar(0x81DBBD, 0x134233);
+                    is_setup_done = true;
+                }
+                view::update_home_indicator();
+                view::update_status_bar();
+            }
+        }
+
+        if (!ai_idle) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
-
-        GetStackChan().update();
-
-        if (!hal_bridge::is_xiaozhi_ready()) {
-            continue;
-        }
-
-        if (!is_setup_done) {
-            // Setup when xiaozhi ready
-            GetHAL().startSntp();
-            view::create_home_indicator([]() { GetHAL().requestWarmReboot(0); }, 0x81DBBD, 0x134233);
-            view::create_status_bar(0x81DBBD, 0x134233);
-            is_setup_done = true;
-        }
-
-        view::update_home_indicator();
-        view::update_status_bar();
     }
 }
 
@@ -190,6 +201,8 @@ void Hal::startXiaozhi()
         mclog::tagInfo(_tag, "reminder triggered: id: {}, msg: {}", id, msg);
         {
             LvglLockGuard lock;
+            idle_program::note_activity();
+            idle_program::clear_locked();
             auto& avatar = GetStackChan().avatar();
             avatar.addDecorator(std::make_unique<view::ReminderView>(lv_screen_active(), msg));
         }

@@ -66,11 +66,16 @@ public:
         _btn_ok->label().setTextColor(lv_color_hex(0x26206A));
         _btn_ok->label().setText("OK");
         _btn_ok->onClick().connect([this]() { requestDestroy(); });
+        ++_active_count;
     }
 
     ~ReminderView()
     {
+        --_active_count;
     }
+
+    // Construction, destruction and this query run under the display lock.
+    static bool is_active_locked() { return _active_count != 0; }
 
     void _update() override
     {
@@ -86,6 +91,7 @@ public:
     }
 
 private:
+    inline static std::uint32_t _active_count = 0;
     std::unique_ptr<uitk::lvgl_cpp::Container> _panel;
     std::unique_ptr<uitk::lvgl_cpp::Container> _msg_panel;
     std::unique_ptr<uitk::lvgl_cpp::Image> _bell;

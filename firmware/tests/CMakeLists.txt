@@ -73,3 +73,13 @@ add_executable(nfc_gate_test nfc_gate_test.cpp)
 target_include_directories(nfc_gate_test PRIVATE ../main)
 target_compile_features(nfc_gate_test PRIVATE cxx_std_17)
 add_test(NAME nfc_gate_test COMMAND $<TARGET_FILE:nfc_gate_test>)
+
+add_executable(idle_program_test idle_program_test.cpp)
+target_include_directories(idle_program_test PRIVATE ../main)
+target_compile_features(idle_program_test PRIVATE cxx_std_17)
+add_test(NAME idle_program_test COMMAND $<TARGET_FILE:idle_program_test>)
+
+add_executable(idle_wire_test idle_wire_test.cpp)
+target_include_directories(idle_wire_test PRIVATE ../main)
+target_compile_features(idle_wire_test PRIVATE cxx_std_17)
+add_test(NAME idle_wire_test COMMAND $<TARGET_FILE:idle_wire_test>)

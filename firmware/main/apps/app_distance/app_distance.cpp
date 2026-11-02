@@ -4,6 +4,8 @@
 #include "intro_player.h"
 
 #include <assets/assets.h>
+#include <apps/common/idle_program/service.h>
+#include <apps/common/idle_program/view.h>
 #include <distance_sensor/service.h>
 #include <hal/hal.h>
 #include <smooth_lvgl.hpp>
@@ -116,7 +118,7 @@ std::uint32_t state_color(distance_sensor::ProximityState state)
 }  // namespace
 
 struct AppDistance::View {
-    enum class Mode { Live, Tune, Nfc };
+    enum class Mode { Live, Tune, Nfc, Idle };
 
     struct Row {
         std::unique_ptr<Label> label;
@@ -154,7 +156,9 @@ struct AppDistance::View {
     Mode requested_mode = Mode::Live;
     DistancePetAvatar* live_avatar = nullptr;
     bool save_requested = false;
+    bool save_idle_requested = false;
     std::uint32_t edit_revision = 0;
+    std::uint32_t idle_edit_revision = 0;
     bool intro_visible = false;
 
     explicit View(AppDistance& app)
@@ -179,7 +183,7 @@ struct AppDistance::View {
         live_button->onClick().connect([this]() { requested_mode = Mode::Live; });
         mode_button = make_button(*tune_page, 96, 4, 128, "NFC");
         mode_button->onClick().connect([this]() {
-            requested_mode = mode == Mode::Nfc ? Mode::Tune : Mode::Nfc;
+            requested_mode = mode == Mode::Tune ? Mode::Nfc : mode == Mode::Nfc ? Mode::Idle : Mode::Tune;
         });
         telemetry = make_label(*tune_page, 8, 47, 304, &lv_font_montserrat_14);
         telemetry->setTextAlign(LV_TEXT_ALIGN_CENTER);
@@ -213,6 +217,7 @@ struct AppDistance::View {
         nfc_uid->addFlag(LV_OBJ_FLAG_HIDDEN);
         save_button->onClick().connect([this]() {
             save_requested = true;
+            save_idle_requested = mode == Mode::Idle;
             set_enabled(*save_button, false);
             set_save_status("SAVING...", kNear);
         });
@@ -271,8 +276,10 @@ struct AppDistance::View {
             tune_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(tune_page->get());
             const bool nfc = mode == Mode::Nfc;
-            mode_button->label().setText(nfc ? "DISTANCE" : "NFC");
-            const char* names[] = {nfc ? "READER" : "TRIP cm", "CLEAR +cm", "WAIT sec"};
+            const bool idle = mode == Mode::Idle;
+            mode_button->label().setText(nfc ? "PROGRAMS" : idle ? "DISTANCE" : "NFC");
+            const char* names[] = {nfc ? "READER" : idle ? "PROGRAMS" : "TRIP cm",
+                                   idle ? "EYE min" : "CLEAR +cm", idle ? "REST sec" : "WAIT sec"};
             for (std::size_t i = 0; i < rows.size(); ++i) rows[i].label->setText(names[i]);
             for (std::size_t i = 1; i < rows.size(); ++i) {
                 for (auto* object : {rows[i].label->get(), rows[i].value->get(),
@@ -289,6 +296,7 @@ struct AppDistance::View {
                 if (nfc) lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
                 else lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
             }
+            if (!nfc) set_save_status("SAVE to keep", kMuted);
         }
     }
 
@@ -393,6 +401,25 @@ struct AppDistance::View {
 
     void adjust(std::size_t row, int direction)
     {
+        if (mode == Mode::Idle) {
+            auto next = idle_program::config();
+            if (row == 0) next.enabled = direction > 0;
+            else if (row == 1) next.eye_interval_ms = static_cast<std::uint32_t>(
+                std::clamp(static_cast<int>(next.eye_interval_ms / 60000) + direction, 1, 120)) * 60000u;
+            else next.rest_duration_ms = static_cast<std::uint32_t>(
+                std::clamp(static_cast<int>(next.rest_duration_ms / 1000) + direction, 1, 120)) * 1000u;
+            const auto error = idle_program::set_config(next);
+            if (error == ESP_OK) {
+                ++idle_edit_revision;
+                show_idle(next);
+                set_save_status("UNSAVED", kNear);
+            } else {
+                char text[40];
+                std::snprintf(text, sizeof(text), "SET ERR 0x%X", static_cast<unsigned>(error));
+                set_save_status(text, kAlert);
+            }
+            return;
+        }
         if (mode == Mode::Nfc) {
             if (row != 0) return;
             auto next = nfc_sense::config();
@@ -428,6 +455,25 @@ struct AppDistance::View {
             std::snprintf(text, sizeof(text), "SET ERR 0x%X", static_cast<unsigned int>(error));
             set_save_status(text, kAlert);
         }
+    }
+
+    void show_idle(const idle_program::Config& config)
+    {
+        char text[24];
+        telemetry->setText("IDLE ROTATION");
+        telemetry->setTextColor(lv_color_hex(kForeground));
+        rows[0].value->setText(config.enabled ? "ON" : "OFF");
+        std::snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(config.eye_interval_ms / 60000));
+        rows[1].value->setText(text);
+        std::snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(config.rest_duration_ms / 1000));
+        rows[2].value->setText(text);
+        set_enabled(*rows[0].minus, config.enabled);
+        set_enabled(*rows[0].plus, !config.enabled);
+        set_enabled(*rows[1].minus, config.eye_interval_ms > 60000);
+        set_enabled(*rows[1].plus, config.eye_interval_ms < 120u * 60000u);
+        set_enabled(*rows[2].minus, config.rest_duration_ms > 1000);
+        set_enabled(*rows[2].plus, config.rest_duration_ms < 120000);
+        apply_status->setText("AUTO - WHEN IDLE");
     }
 
     void show_nfc(const nfc_sense::Snapshot& scanned)
@@ -474,6 +520,10 @@ struct AppDistance::View {
             show_nfc(scanned);
             return;
         }
+        if (mode == Mode::Idle) {
+            show_idle(idle_program::config());
+            return;
+        }
         format_cm(raw_centimeters, sizeof(raw_centimeters), snapshot.stale ? -1 : snapshot.raw_mm);
         std::snprintf(text, sizeof(text), "F%s R%scm %s %s", centimeters, raw_centimeters,
                       state_text(snapshot.proximity_state), quality);
@@ -490,11 +540,12 @@ struct AppDistance::View {
         }
     }
 
-    void finish_save(esp_err_t error, std::uint32_t saved_revision)
+    void finish_save(esp_err_t error, std::uint32_t saved_revision, bool idle)
     {
         set_enabled(*save_button, true);
+        if ((mode == Mode::Idle) != idle) return;
         if (error == ESP_OK) {
-            const bool newer_edits = saved_revision != edit_revision;
+            const bool newer_edits = saved_revision != (idle ? idle_edit_revision : edit_revision);
             set_save_status(newer_edits ? "SAVED; NEWER EDITS" : "SAVED", newer_edits ? kNear : kSafe);
         } else {
             char text[40];
@@ -546,7 +597,9 @@ void AppDistance::onRunning()
     }
     const bool new_event = scanned.accepted != _last_nfc_event;
     _last_nfc_event = scanned.accepted; // Busy events are consumed, never queued.
-    if (!playback.busy && new_event && now - scanned.last_accepted_ms <= 500) {
+    const bool nfc_activity = !playback.busy && new_event && now - scanned.last_accepted_ms <= 500;
+    if (nfc_activity) {
+        idle_program::note_activity();
         if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
     }
     const bool refresh = now - _last_refresh_ms >= kRefreshMs;
@@ -555,6 +608,7 @@ void AppDistance::onRunning()
     }
 
     bool save = false;
+    bool save_idle = false;
     std::uint32_t saved_revision = 0;
     {
         LvglLockGuard lock;
@@ -567,28 +621,38 @@ void AppDistance::onRunning()
         GetStackChan().update();
         _view->show_intro(playback);
         _view->raise_controls();
+        idle_program::set_context({
+            _view->mode == View::Mode::Live,
+            playback.busy || _view->mode != View::Mode::Live,
+            current.valid && !current.stale && current.proximity_state == distance_sensor::ProximityState::Alert});
+        if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
+            (current.valid && !current.stale && current.proximity_state == distance_sensor::ProximityState::Alert)) {
+            idle_program::clear_locked();
+        }
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), scanned);
             _view->show_reader_status(current, scanned);
         }
         save = _view->save_requested;
+        save_idle = _view->save_idle_requested;
         _view->save_requested = false;
-        saved_revision = _view->edit_revision;
+        saved_revision = save_idle ? _view->idle_edit_revision : _view->edit_revision;
     }
 
     if (save) {
         // NVS work runs on the app task, outside both the event callback and
         // the LVGL lock. Parameter button edits never write flash implicitly.
-        const auto error = distance_sensor::save_config();
+        const auto error = save_idle ? idle_program::save_config() : distance_sensor::save_config();
         LvglLockGuard lock;
         if (_view) {
-            _view->finish_save(error, saved_revision);
+            _view->finish_save(error, saved_revision, save_idle);
         }
     }
 }
 
 void AppDistance::onClose()
 {
+    idle_program::set_context({false, false, false});
     // Never hold the display lock while waiting for input or playback workers.
     nfc_sense::stop();
     intro_player::stop();
@@ -596,5 +660,6 @@ void AppDistance::onClose()
         return;
     }
     LvglLockGuard lock;
+    idle_program::clear_locked();
     _view.reset();
 }

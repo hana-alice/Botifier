@@ -17,6 +17,7 @@
 #include <mutex>
 #include <assets.h>
 #include <settings.h>
+#include <apps/common/idle_program/service.h>
 
 static const char* _tag = "HAL_BRIDGE";
 
@@ -52,10 +53,15 @@ Data_t& get_data()
 
 void set_touch_point(int num, int x, int y)
 {
-    std::lock_guard<std::mutex> lock(_mutex);
-    _data.touchPoint.num = num;
-    _data.touchPoint.x   = x;
-    _data.touchPoint.y   = y;
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _data.touchPoint.num = num;
+        _data.touchPoint.x   = x;
+        _data.touchPoint.y   = y;
+    }
+    if (num > 0) {
+        idle_program::note_activity();
+    }
 }
 
 TouchPoint_t get_touch_point()

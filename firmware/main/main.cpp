@@ -10,6 +10,8 @@
 #include <apps/apps.h>
 #include <hal/hal.h>
 #include <distance_sensor/service.h>
+#include <apps/common/idle_program/service.h>
+#include <apps/common/idle_program/view.h>
 
 using namespace mooncake;
 using namespace smooth_ui_toolkit;
@@ -27,6 +29,11 @@ extern "C" void app_main(void)
     const esp_err_t distance_result = distance_sensor::start();
     if (distance_result != ESP_OK) {
         mclog::tagError("distance", "sampler could not start: {}", esp_err_to_name(distance_result));
+    }
+
+    const esp_err_t idle_result = idle_program::start();
+    if (idle_result != ESP_OK) {
+        mclog::tagError("idle", "program service could not start: {}", esp_err_to_name(idle_result));
     }
 
     // Setup ui hal
@@ -55,6 +62,11 @@ extern "C" void app_main(void)
 
             GetMooncake().update();
 
+            {
+                LvglLockGuard lock;
+                idle_program::render_locked(idle_program::snapshot());
+            }
+
             if (GetHAL().isXiaozhiStartRequested()) {
                 break;
             }
@@ -63,6 +75,12 @@ extern "C" void app_main(void)
         // Uninstall all apps and destroy mooncake
         GetMooncake().uninstallAllApps();
         DestroyMooncake();
+    }
+
+    idle_program::set_context({});
+    {
+        LvglLockGuard lock;
+        idle_program::clear_locked();
     }
 
     // Start xiaozhi, never returns

@@ -189,6 +189,12 @@ void DistancePetAvatar::init(lv_obj_t* parent)
     _key_elements.mouth = std::make_unique<PetMouth>(_view->panel);
 }
 
+void DistancePetAvatar::setMood(distance_pet::Mood mood, std::uint32_t now_ms)
+{
+    _controller.play(mood, now_ms);
+    _started = false;
+}
+
 void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react)
 {
     if (!react && _started && signal == _last_signal && now_ms - _last_tick < 33) return;

@@ -8,6 +8,8 @@
 #include <mooncake.h>
 #include <mooncake_log.h>
 #include <stackchan/stackchan.h>
+#include <apps/common/idle_program/service.h>
+#include <distance_sensor/service.h>
 #include <cstdint>
 
 using namespace mooncake;
@@ -54,10 +56,16 @@ void AppLauncher::onLauncherRunning()
     }
 
     GetStackChan().update();
+    idle_program::set_context({
+        .surface_available = !_startup_worker,
+        .foreground_busy = static_cast<bool>(_startup_worker),
+        .distance_alert = distance_sensor::alert_active(),
+    });
 }
 
 void AppLauncher::onLauncherClose()
 {
+    idle_program::set_context({});
     mclog::tagInfo(getAppInfo().name, "on close");
 
     LvglLockGuard lock;
