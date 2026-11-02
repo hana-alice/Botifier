@@ -5,35 +5,70 @@
   "fps": 10,
   "duration_ms": 3800,
   "frames": 38,
-  "bytes": 324546,
-  "sha256": "fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af",
-  "max_frame_bytes": 10889,
+  "bytes": 422532,
+  "sha256": "5a67997f01f8be973bd1f3d9b0b05785c89bb78b227ed679751bcc5f364155ab",
+  "max_frame_bytes": 13857,
   "source": "official-profile-03.gif",
+  "source_bytes": 7597976,
   "source_sha256": "43a9d89d15d8c5e8b9b65287c02cf3cfad146e7a0c196d5bde1de2505691df2b",
+  "source_url": "https://hw-media-cdn-mingchao.kurogame.com/object/1727366400000/i3h37xv61wxlu49nxy-1727430153729.gif",
+  "source_article": "https://wutheringwaves.kurogames.com/en/main/news/detail/1419",
+  "time_range_seconds": [
+    0,
+    3.8
+  ],
   "crop": {
-    "x": 68,
+    "x": 150,
     "y": 208,
-    "width": 664,
+    "width": 500,
     "height": 374
   },
   "scaled_video": {
     "width": 320,
-    "height": 184
+    "height": 240
   },
-  "pad": {
-    "width": 320,
-    "height": 240,
-    "x": 0,
-    "y": 0,
-    "color": "black"
-  },
-  "time_range_seconds": [
-    0.0,
-    3.8
-  ],
+  "pad": null,
+  "presentation": "Full-screen video; no menu area or black padding",
+  "filter": "crop=500:374:150:208,scale=320:240:flags=lanczos,fps=10",
   "jpeg_quality_scale": 5,
   "jpeg_sampling": "yuvj420p",
   "jpeg_baseline_validated": true,
   "audio": false,
-  "reuse": "Imported existing scripts/Prepare-KuroIntro.py make_pack and validate_jpeg; globals adjusted only for 10fps/3800ms/500000-byte ceiling"
+  "ffmpeg_version": "ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+  "ffmpeg_args": [
+    "ffmpeg.EXE",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-nostdin",
+    "-threads",
+    "1",
+    "-filter_threads",
+    "1",
+    "-protocol_whitelist",
+    "file,pipe",
+    "-ss",
+    "0",
+    "-i",
+    "official-profile-03.gif",
+    "-t",
+    "3.8",
+    "-an",
+    "-sn",
+    "-dn",
+    "-vf",
+    "crop=500:374:150:208,scale=320:240:flags=lanczos,fps=10",
+    "-c:v",
+    "mjpeg",
+    "-q:v",
+    "5",
+    "-pix_fmt",
+    "yuvj420p",
+    "-threads",
+    "1",
+    "-y",
+    "frame-%03d.jpg"
+  ],
+  "packer": "Prepare-KuroIntro.py make_pack and validate_jpeg",
+  "rights": "Prerecorded official 3D footage remains KURO GAMES property; no redistribution license is asserted."
 }

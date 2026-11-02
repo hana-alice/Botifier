@@ -23,10 +23,11 @@ constexpr std::uint32_t kMint = 0x74E4B5;
 constexpr std::uint32_t kAmber = 0xFFD37A;
 constexpr std::uint32_t kRose = 0xFF91AE;
 constexpr auto kNoBeat = std::numeric_limits<std::uint32_t>::max();
-constexpr std::array<distance_pet::Mood, 9> kBeatMoods{
-    distance_pet::Mood::Happy, distance_pet::Mood::Curious, distance_pet::Mood::Happy,
-    distance_pet::Mood::Wink, distance_pet::Mood::Affection, distance_pet::Mood::Surprise,
-    distance_pet::Mood::Happy, distance_pet::Mood::Shy, distance_pet::Mood::Relief};
+constexpr std::array<distance_pet::Mood, kMotionBeats.size()> kBeatMoods{
+    distance_pet::Mood::Curious, distance_pet::Mood::Happy, distance_pet::Mood::Relief,
+    distance_pet::Mood::Wink, distance_pet::Mood::Happy, distance_pet::Mood::Relief,
+    distance_pet::Mood::Surprise, distance_pet::Mood::Affection, distance_pet::Mood::Relief,
+    distance_pet::Mood::Shy, distance_pet::Mood::Affection, distance_pet::Mood::Happy};
 
 lv_obj_t* plain(lv_obj_t* parent, int width, int height)
 {
@@ -95,7 +96,7 @@ struct View {
     lv_obj_t* codex_mark = nullptr;
     std::array<lv_obj_t*, 10> quota_cells{};
     std::array<lv_obj_t*, 10> quota_fill{};
-    std::array<lv_obj_t*, 9> beat_dots{};
+    std::array<lv_obj_t*, kMotionBeats.size()> beat_dots{};
     std::unique_ptr<DistancePetAvatar> pet;
     Program previous_program = Program::Pet;
     EyePhase previous_phase = EyePhase::Intro;
@@ -108,7 +109,7 @@ struct View {
 
     View()
     {
-        root = plain(lv_layer_top(), 320, 184);
+        root = plain(lv_layer_top(), 320, 240);
         lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
         face_host = plain(root, 320, 240);
         lv_obj_set_style_transform_pivot_x(face_host, 0, 0);
@@ -120,7 +121,7 @@ struct View {
         lv_obj_remove_flag(clock_ring, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
         lv_obj_remove_style(clock_ring, nullptr, LV_PART_KNOB);
         lv_obj_set_size(clock_ring, 58, 58);
-        lv_obj_set_pos(clock_ring, 20, 54);
+        lv_obj_set_pos(clock_ring, 20, 83);
         lv_arc_set_bg_angles(clock_ring, 0, 360);
         lv_arc_set_rotation(clock_ring, 270);
         lv_arc_set_range(clock_ring, 0, 1000);
@@ -131,7 +132,7 @@ struct View {
         clock_hands = lv_line_create(root);
         lv_obj_remove_style_all(clock_hands);
         lv_obj_remove_flag(clock_hands, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-        lv_obj_set_pos(clock_hands, 20, 54);
+        lv_obj_set_pos(clock_hands, 20, 83);
         lv_obj_set_size(clock_hands, 58, 58);
         static constexpr std::array<lv_point_precise_t, 3> hands{{{29, 12}, {29, 29}, {41, 36}}};
         lv_line_set_points(clock_hands, hands.data(), hands.size());
@@ -141,7 +142,7 @@ struct View {
 
         for (std::size_t i = 0; i < quota_cells.size(); ++i) {
             quota_cells[i] = plain(root, 26, 14);
-            lv_obj_set_pos(quota_cells[i], 16 + static_cast<int>(i) * 29, 113);
+            lv_obj_set_pos(quota_cells[i], 16 + static_cast<int>(i) * 29, 151);
             lv_obj_set_style_border_width(quota_cells[i], 1, 0);
             lv_obj_set_style_border_color(quota_cells[i], lv_color_hex(0x355365), 0);
             lv_obj_set_style_radius(quota_cells[i], 3, 0);
@@ -152,13 +153,13 @@ struct View {
         }
         for (std::size_t i = 0; i < beat_dots.size(); ++i) {
             beat_dots[i] = plain(root, 8, 6);
-            lv_obj_set_pos(beat_dots[i], 96 + static_cast<int>(i) * 15, 150);
+            lv_obj_set_pos(beat_dots[i], 74 + static_cast<int>(i) * 15, 203);
             lv_obj_set_style_radius(beat_dots[i], 3, 0);
             lv_obj_set_style_bg_opa(beat_dots[i], LV_OPA_COVER, 0);
         }
         codex_mark = label(root, &MontserratSemiBold26, kMint);
         lv_label_set_text(codex_mark, ">_");
-        place(codex_mark, 16, 7, 46);
+        place(codex_mark, 16, 19, 46);
         title = label(root, &BUILTIN_TEXT_FONT, kText);
         number = label(root, &MontserratSemiBold26, kText);
         lv_obj_set_style_transform_pivot_x(number, 0, 0);
@@ -168,7 +169,7 @@ struct View {
         progress = lv_bar_create(root);
         lv_obj_remove_flag(progress, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
         lv_obj_set_size(progress, 288, 6);
-        lv_obj_set_pos(progress, 16, 177);
+        lv_obj_set_pos(progress, 16, 230);
         lv_obj_set_style_bg_color(progress, lv_color_hex(0x343B78), LV_PART_MAIN);
         lv_obj_set_style_radius(progress, 3, LV_PART_MAIN);
         lv_obj_set_style_radius(progress, 3, LV_PART_INDICATOR);
@@ -189,7 +190,8 @@ struct View {
         const bool rest = eye && value.eye_phase == EyePhase::Rest;
         const bool countdown = value.program == Program::EyeCountdown;
         const bool weekly = value.program == Program::Weekly;
-        const auto beat = motion ? std::min<std::uint32_t>(value.phase_elapsed_ms / kMotionBeatMs, 8) : kNoBeat;
+        const auto beat = motion ? std::min<std::uint32_t>(value.phase_elapsed_ms / kMotionBeatMs,
+                                                       kMotionBeats.size() - 1) : kNoBeat;
         if (rendered && value.program == previous_program && value.generation == previous_generation &&
             value.eye_phase == previous_phase && beat == previous_beat && now - last_render_ms < 33) return;
         rendered = true;
@@ -229,11 +231,11 @@ struct View {
         lv_obj_set_style_text_align(unit, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(detail, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(detail, lv_color_hex(kMuted), 0);
-        place(title, weekly ? 66 : 16, 8, weekly ? 238 : 288);
-        place(number, 78, 49, 82, 512);
-        place(unit, 16, 112, 288);
-        place(detail, 16, 153, 288);
-        place(face_host, weekly ? 200 : 50, weekly ? 35 : 9, 320, weekly ? 80 : 176);
+        place(title, weekly ? 66 : 16, 20, weekly ? 238 : 288);
+        place(number, 78, 78, 82, 512);
+        place(unit, 16, 151, 288);
+        place(detail, 16, 205, 288);
+        place(face_host, weekly ? 200 : 30, weekly ? 60 : 12, 320, weekly ? 80 : 208);
         char text[64];
         if (countdown) {
             lv_label_set_text(title, "NEXT EYE BREAK");
@@ -241,7 +243,7 @@ struct View {
             std::snprintf(text, sizeof(text), "%02lu:%02lu", static_cast<unsigned long>(seconds / 60),
                           static_cast<unsigned long>(seconds % 60));
             lv_label_set_text(number, text);
-            place(number, 78, 57, 110, 384);
+            place(number, 78, 88, 110, 384);
             lv_obj_set_style_text_color(number, lv_color_hex(kAmber), 0);
             lv_label_set_text(unit, "UNTIL REST");
             lv_obj_set_style_text_color(unit, lv_color_hex(0xE6C8A0), 0);
@@ -253,7 +255,7 @@ struct View {
                              static_cast<std::uint64_t>(value.eye_remaining_ms) * 1000 / duration)));
         } else if (weekly) {
             lv_label_set_text(title, "CODEX WEEKLY");
-            place(number, 16, 47, 82, 512);
+            place(number, 16, 73, 82, 512);
             const bool available = value.weekly_left >= 0 && value.weekly_left <= 100 && value.weekly_status == WeeklyStatus::Fresh;
             const auto color = value.weekly_status == WeeklyStatus::Stale ? kAmber : !available ? kMuted :
                                value.weekly_left <= 20 ? kRose : kMint;
@@ -267,10 +269,10 @@ struct View {
             else format_time(text, sizeof(text), value.weekly_observed_at, "FRESH");
             lv_label_set_text(unit, text);
             lv_obj_set_style_text_color(unit, lv_color_hex(color), 0);
-            place(unit, 16, 136, 288);
+            place(unit, 16, 185, 288);
             format_time(text, sizeof(text), value.weekly_reset_at, "RESET");
             lv_label_set_text(detail, text);
-            place(detail, 16, 159, 288);
+            place(detail, 16, 210, 288);
             for (std::size_t i = 0; i < quota_fill.size(); ++i) {
                 const int fill = available ? std::clamp(value.weekly_left - static_cast<int>(i) * 10, 0, 10) : 0;
                 show(quota_fill[i], fill > 0);
@@ -280,11 +282,19 @@ struct View {
         } else if (motion) {
             lv_label_set_text(title, "FOLLOW THE BEAT");
             lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
+            place(title, 16, 8, 288);
             const auto target = motion_beat(value.phase_elapsed_ms);
-            place(face_host, 50 + target.yaw_delta / 10, 9 + target.pitch_delta / 10, 320, 176);
-            lv_label_set_text(detail, target.yaw_delta < 0 ? "LEFT" : target.yaw_delta > 0 ? "RIGHT" :
-                                      target.pitch_delta != 0 ? "NOD" : "WITH ME");
-            place(detail, 16, 163, 288);
+            place(face_host, 15 + target.yaw_delta / 10, 10 + target.pitch_delta / 10, 320, 232);
+            const auto group = motion_group(value.phase_elapsed_ms);
+            const auto step = motion_step(value.phase_elapsed_ms);
+            const char* direction = group == 1 ? "LEFT" : group == 2 ? "RIGHT" : group == 3 ? "NOD A" : "NOD B";
+            if (motion_is_center(value.phase_elapsed_ms))
+                std::snprintf(text, sizeof(text), "%lu / 4  CENTER", static_cast<unsigned long>(group));
+            else
+                std::snprintf(text, sizeof(text), "%lu / 4  %s %lu / 2", static_cast<unsigned long>(group),
+                              direction, static_cast<unsigned long>(step));
+            lv_label_set_text(detail, text);
+            place(detail, 16, 215, 288);
             for (std::size_t i = 0; i < beat_dots.size(); ++i)
                 lv_obj_set_style_bg_color(beat_dots[i], lv_color_hex(i == beat ? kMint : 0x283A3A), 0);
             lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,
@@ -292,6 +302,9 @@ struct View {
             lv_obj_set_style_bg_color(progress, lv_color_hex(kMint), LV_PART_INDICATOR);
         } else if (rest) {
             lv_label_set_text(title, "REST");
+            place(number, 37, 69, 82, 768);
+            place(unit, 16, 164, 288);
+            place(detail, 16, 200, 288);
             std::snprintf(text, sizeof(text), "%lu", static_cast<unsigned long>(value.remaining_ms / 1000 +
                           (value.remaining_ms % 1000 != 0)));
             lv_label_set_text(number, text);
@@ -306,9 +319,9 @@ struct View {
             lv_obj_set_style_bg_color(progress, lv_color_hex(0x88FFEC), LV_PART_INDICATOR);
         } else if (eye) {
             lv_label_set_text(title, "GET READY");
-            place(title, 16, 48, 288);
+            place(title, 16, 75, 288);
             lv_label_set_text(unit, "SHOREKEEPER");
-            place(unit, 16, 90, 288);
+            place(unit, 16, 119, 288);
             lv_obj_set_style_text_color(unit, lv_color_hex(kMint), 0);
             lv_label_set_text(detail, "Starting eye break...");
         } else {

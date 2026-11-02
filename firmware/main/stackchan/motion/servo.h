@@ -16,7 +16,36 @@ namespace stackchan::motion {
  */
 class Servo {
 public:
+    // Cached hardware observations only. Reading this snapshot never performs
+    // bus I/O; unsupported drivers retain -1 values and supported=false.
+    struct Diagnostics {
+        bool supported = false;
+        int raw_position = -1;
+        int raw_moving = -1;
+        int raw_torque = -1;
+        int torque_before = -1;
+        int torque_requested = -1;
+        int write_ack = -1;
+        int torque_ack = -1;
+        int last_error = -1;
+        int last_state = -1;
+        int position_error = -1;
+        int moving_error = -1;
+        int write_error = -1;
+        int write_state = -1;
+        int torque_before_error = -1;
+        int torque_write_error = -1;
+        int torque_write_state = -1;
+        int torque_read_error = -1;
+        std::uint32_t position_reads = 0;
+        std::uint32_t moving_reads = 0;
+        std::uint32_t position_writes = 0;
+        std::uint32_t torque_writes = 0;
+    };
+
     virtual ~Servo() = default;
+
+    virtual Diagnostics diagnostics() const { return {}; }
 
     /**
      * @brief

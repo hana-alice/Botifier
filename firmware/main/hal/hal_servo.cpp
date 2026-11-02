@@ -32,7 +32,10 @@ public:
 
     ScsServo(const ServoConfig_t& config) : _config(config), _runtime_raw_pos_limit(config.rawPosLimit)
     {
+        _diagnostics.supported = true;
     }
+
+    Diagnostics diagnostics() const override { return _diagnostics; }
 
     void init() override
     {
@@ -83,12 +86,20 @@ public:
         }
 
         check_mode(Mode::Position);
-        _scs_bus.WritePos(_config.id, mapped_angle, 20, 0);
+        _diagnostics.write_ack = _scs_bus.WritePos(_config.id, mapped_angle, 20, 0);
+        ++_diagnostics.position_writes;
+        cache_bus_status();
+        _diagnostics.write_error = _diagnostics.last_error;
+        _diagnostics.write_state = _diagnostics.last_state;
     }
 
     int getCurrentAngle() override
     {
         int current_pos = _scs_bus.ReadPos(_config.id);
+        _diagnostics.raw_position = current_pos;
+        ++_diagnostics.position_reads;
+        cache_bus_status();
+        _diagnostics.position_error = _diagnostics.last_error;
         if (!is_raw_pos_valid(current_pos)) {
             int fallback_angle = uitk::clamp(Servo::getCurrentAngle(), getAngleLimit().x, getAngleLimit().y);
             mclog::tagWarn(_tag, "id: {} ignore invalid current pos: {}, fallback angle: {}", _config.id, current_pos,
@@ -105,6 +116,10 @@ public:
     bool is_moving_impl() override
     {
         int moving = _scs_bus.ReadMove(_config.id);
+        _diagnostics.raw_moving = moving;
+        ++_diagnostics.moving_reads;
+        cache_bus_status();
+        _diagnostics.moving_error = _diagnostics.last_error;
         // mclog::tagInfo(_tag, "id: {} moving: {}", _id, moving);
         return moving != 0;
     }
@@ -112,13 +127,31 @@ public:
     void setTorqueEnabled(bool enabled) override
     {
         Servo::setTorqueEnabled(enabled);
-        _scs_bus.EnableTorque(_config.id, enabled ? 1 : 0);
+        _diagnostics.torque_requested = enabled ? 1 : 0;
+        if (enabled) {
+            _diagnostics.torque_before = _scs_bus.readByte(_config.id, SCSCL_TORQUE_ENABLE);
+            cache_bus_status();
+            _diagnostics.torque_before_error = _diagnostics.last_error;
+        }
+        _diagnostics.torque_ack = _scs_bus.EnableTorque(_config.id, enabled ? 1 : 0);
+        ++_diagnostics.torque_writes;
+        cache_bus_status();
+        _diagnostics.torque_write_error = _diagnostics.last_error;
+        _diagnostics.torque_write_state = _diagnostics.last_state;
+        if (enabled) {
+            _diagnostics.raw_torque = _scs_bus.readByte(_config.id, SCSCL_TORQUE_ENABLE);
+            cache_bus_status();
+            _diagnostics.torque_read_error = _diagnostics.last_error;
+        }
         // mclog::tagInfo(_tag, "id: {} set torque: {}", _id, enabled);
     }
 
     bool getTorqueEnabled() override
     {
-        int torque_enable = _scs_bus.ReadToqueEnable(_config.id);
+        int torque_enable = _scs_bus.readByte(_config.id, SCSCL_TORQUE_ENABLE);
+        _diagnostics.raw_torque = torque_enable;
+        cache_bus_status();
+        _diagnostics.torque_read_error = _diagnostics.last_error;
         // mclog::tagInfo(_tag, "id: {} torque enable: {}", _id, torque_enable);
         return torque_enable > 0;
     }
@@ -170,9 +203,17 @@ private:
     enum class Mode { Position = 0, PWM = 1 };
 
     ServoConfig_t _config;
+    Diagnostics _diagnostics;
     Vector2i _runtime_raw_pos_limit;
     int _zero_pos      = 0;
     Mode _current_mode = Mode::Position;
+
+    void cache_bus_status()
+    {
+        _diagnostics.last_error = _scs_bus.getLastError();
+        // The protocol can retain its previous status on a no-reply error.
+        _diagnostics.last_state = _diagnostics.last_error == 0 ? _scs_bus.getState() : -1;
+    }
 
     static constexpr uint32_t kStallFeedbackIntervalMs = 50;
     static constexpr int kStallMinTargetDeltaRaw       = 8;
@@ -310,7 +351,11 @@ private:
         reset_stall_detection();
 
         check_mode(Mode::Position);
-        _scs_bus.WritePos(_config.id, raw_pos, 20, 0);
+        _diagnostics.write_ack = _scs_bus.WritePos(_config.id, raw_pos, 20, 0);
+        ++_diagnostics.position_writes;
+        cache_bus_status();
+        _diagnostics.write_error = _diagnostics.last_error;
+        _diagnostics.write_state = _diagnostics.last_state;
 
         mclog::tagWarn(_tag,
                        "id: {} stall detected, raw: {}, angle: {}, dir: {}, current: {}, load: {}, limit: [{}, {}]",

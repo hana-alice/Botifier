@@ -90,3 +90,8 @@ add_executable(rest_head_motion_test rest_head_motion_test.cpp)
 target_include_directories(rest_head_motion_test PRIVATE ../main)
 target_compile_features(rest_head_motion_test PRIVATE cxx_std_17)
 add_test(NAME rest_head_motion_test COMMAND $<TARGET_FILE:rest_head_motion_test>)
+
+add_executable(edge_swipe_test edge_swipe_test.cpp)
+target_include_directories(edge_swipe_test PRIVATE ../main)
+target_compile_features(edge_swipe_test PRIVATE cxx_std_17)
+add_test(NAME edge_swipe_test COMMAND $<TARGET_FILE:edge_swipe_test>)

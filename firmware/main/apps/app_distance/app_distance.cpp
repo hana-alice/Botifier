@@ -3,6 +3,7 @@
 #include "nfc_service.h"
 #include "intro_player.h"
 #include "rest_head_motion.h"
+#include "edge_swipe.h"
 
 #include <assets/assets.h>
 #include <apps/common/idle_program/service.h>
@@ -16,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cinttypes>
 
 using namespace smooth_ui_toolkit::lvgl_cpp;
 
@@ -130,22 +132,24 @@ struct AppDistance::View {
     };
 
     // Parents precede their child wrappers so destruction releases children first.
-    std::unique_ptr<Container> live_controls;
     std::unique_ptr<Container> tune_page;
     std::unique_ptr<Container> intro_page;
+    std::unique_ptr<Container> drawer_root;
+    std::unique_ptr<Container> drawer_panel;
     lv_obj_t* intro_image = nullptr;
-    std::unique_ptr<Button> intro_home;
     std::unique_ptr<Label> intro_status;
     std::shared_ptr<LvglAllocatedImage> intro_frame;
-    std::unique_ptr<Button> live_home;
-    std::unique_ptr<Button> tune_button;
+    std::unique_ptr<Button> menu_home;
+    std::unique_ptr<Button> menu_live;
+    std::unique_ptr<Button> menu_distance;
+    std::unique_ptr<Button> menu_nfc;
+    std::unique_ptr<Button> menu_programs;
+    std::unique_ptr<Button> menu_close;
+    std::unique_ptr<Label> menu_title;
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
     std::unique_ptr<Label> live_nfc_status;
     std::unique_ptr<Label> live_eye_status;
-    std::unique_ptr<Button> tune_home;
-    std::unique_ptr<Button> live_button;
-    std::unique_ptr<Button> mode_button;
     std::unique_ptr<Label> telemetry;
     std::array<Row, 3> rows;
     std::unique_ptr<Button> save_button;
@@ -166,34 +170,67 @@ struct AppDistance::View {
     distance_pet::RestHeadMotion rest_head;
     bool rest_head_active = false;
     std::uint32_t rest_head_intro_generation = 0;
+    bool drawer_open = false;
+    bool close_requested = false;
+    bool stop_playback_requested = false;
+    bool consume_touch = false;
+    lv_indev_t* touch_input = nullptr;
+    distance_ui::EdgeSwipe edge_swipe;
+    int head_log_phase = -2;
+    int head_log_beat = -2;
+    int head_log_flags = -1;
 
     explicit View(AppDistance& app)
     {
-        live_controls = make_page(true);
-        live_home = make_button(*live_controls, 12, 190, 92, "HOME");
-        live_home->onClick().connect([&app]() { app.close(); });
-        tune_button = make_button(*live_controls, 216, 190, 92, "TUNE");
-        tune_button->onClick().connect([this]() { requested_mode = Mode::Tune; });
-        live_distance = make_label(*live_controls, 108, 193, 104, &lv_font_montserrat_16);
-        live_state = make_label(*live_controls, 108, 214, 104, &lv_font_montserrat_14);
-        live_distance->setTextAlign(LV_TEXT_ALIGN_CENTER);
-        live_state->setTextAlign(LV_TEXT_ALIGN_CENTER);
-        live_nfc_status = make_label(*live_controls, 8, 8, 304, &lv_font_montserrat_14, kMuted);
-        live_nfc_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        (void)app;
+        drawer_root = std::make_unique<Container>(lv_layer_sys());
+        drawer_root->setPos(0, 0);
+        drawer_root->setSize(320, 240);
+        drawer_root->setPaddingAll(0);
+        drawer_root->setBorderWidth(0);
+        drawer_root->setRadius(0);
+        drawer_root->setBgColor(lv_color_black());
+        drawer_root->setBgOpa(160);
+        drawer_root->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
+        drawer_root->addFlag(LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(drawer_root->get(), [](lv_event_t* event) {
+            auto* self = static_cast<View*>(lv_event_get_user_data(event));
+            if (lv_event_get_target(event) == self->drawer_root->get()) self->close_drawer();
+        }, LV_EVENT_CLICKED, this);
+        drawer_panel = std::make_unique<Container>(*drawer_root);
+        drawer_panel->setPos(6, 10);
+        drawer_panel->setSize(308, 220);
+        drawer_panel->setPaddingAll(0);
+        drawer_panel->setRadius(12);
+        drawer_panel->setBorderWidth(1);
+        drawer_panel->setBgColor(lv_color_hex(0x14202B));
+        drawer_panel->setBgOpa(LV_OPA_COVER);
+        drawer_panel->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
+        menu_title = make_label(*drawer_panel, 12, 8, 280, &MontserratSemiBold26);
+        menu_title->setText("BOTIFIER");
+        live_distance = make_label(*drawer_panel, 12, 42, 120, &lv_font_montserrat_16);
+        live_state = make_label(*drawer_panel, 142, 42, 152, &lv_font_montserrat_14);
+        live_nfc_status = make_label(*drawer_panel, 12, 64, 280, &lv_font_montserrat_14, kMuted);
         live_nfc_status->setText("NFC STARTING");
-        live_eye_status = make_label(*live_controls, 8, 28, 304, &lv_font_montserrat_14, kMuted);
-        live_eye_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        live_eye_status = make_label(*drawer_panel, 12, 84, 280, &lv_font_montserrat_14, kMuted);
         live_eye_status->setText("EYE OFF");
+        menu_home = make_button(*drawer_panel, 8, 112, 92, "HOME");
+        menu_live = make_button(*drawer_panel, 108, 112, 92, "LIVE");
+        menu_close = make_button(*drawer_panel, 208, 112, 92, "CLOSE");
+        menu_distance = make_button(*drawer_panel, 8, 164, 92, "DISTANCE");
+        menu_nfc = make_button(*drawer_panel, 108, 164, 92, "NFC");
+        menu_programs = make_button(*drawer_panel, 208, 164, 92, "PROGRAMS");
+        for (auto* button : {menu_home.get(), menu_live.get(), menu_close.get(), menu_distance.get(),
+                             menu_nfc.get(), menu_programs.get()}) button->label().setTextFont(&lv_font_montserrat_14);
+        menu_home->onClick().connect([this]() { close_requested = true; });
+        menu_live->onClick().connect([this]() { request_mode(Mode::Live); });
+        menu_distance->onClick().connect([this]() { request_mode(Mode::Tune); });
+        menu_nfc->onClick().connect([this]() { request_mode(Mode::Nfc); });
+        menu_programs->onClick().connect([this]() { request_mode(Mode::Idle); });
+        menu_close->onClick().connect([this]() { close_drawer(); });
+        close_drawer();
 
         tune_page = make_page();
-        tune_home = make_button(*tune_page, 8, 4, 80, "HOME");
-        tune_home->onClick().connect([&app]() { app.close(); });
-        live_button = make_button(*tune_page, 232, 4, 80, "LIVE");
-        live_button->onClick().connect([this]() { requested_mode = Mode::Live; });
-        mode_button = make_button(*tune_page, 96, 4, 128, "NFC");
-        mode_button->onClick().connect([this]() {
-            requested_mode = mode == Mode::Tune ? Mode::Nfc : mode == Mode::Nfc ? Mode::Idle : Mode::Tune;
-        });
         telemetry = make_label(*tune_page, 8, 47, 304, &lv_font_montserrat_14);
         telemetry->setTextAlign(LV_TEXT_ALIGN_CENTER);
 
@@ -235,23 +272,87 @@ struct AppDistance::View {
         intro_image = lv_image_create(intro_page->get());
         lv_obj_center(intro_image);
         lv_obj_remove_flag(intro_image, LV_OBJ_FLAG_CLICKABLE);
-        intro_home = make_button(*intro_page, 12, 190, 92, "HOME");
-        intro_home->onClick().connect([&app]() { app.close(); });
         intro_status = make_label(*intro_page, 8, 100, 304, &lv_font_montserrat_16);
         intro_status->setTextAlign(LV_TEXT_ALIGN_CENTER);
         intro_status->setText("KURO GAMES");
         intro_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         apply_mode();
+        touch_input = GetHAL().lvTouchpad;
+        if (touch_input) lv_indev_add_event_cb(touch_input, touch_event, LV_EVENT_ALL, this);
     }
 
     ~View()
     {
+        if (touch_input) lv_indev_remove_event_cb_with_user_data(touch_input, touch_event, this);
+        lv_anim_delete(drawer_panel->get(), nullptr);
         // The LVGL object borrows its source descriptor. Delete it before
         // releasing the final shared image reference.
         lv_obj_delete(intro_image);
         intro_image = nullptr;
         intro_frame.reset();
         stop_live();
+    }
+
+    static void touch_event(lv_event_t* event)
+    {
+        auto* self = static_cast<View*>(lv_event_get_user_data(event));
+        const auto code = lv_event_get_code(event);
+        if (code == LV_EVENT_PRESSED) {
+            self->consume_touch = false;
+            lv_point_t point{};
+            lv_indev_get_point(self->touch_input, &point);
+            self->edge_swipe.press(point.x, point.y, GetHAL().millis());
+        } else if (code == LV_EVENT_RELEASED) {
+            lv_point_t point{};
+            lv_indev_get_point(self->touch_input, &point);
+            const auto edge = self->edge_swipe.release(point.x, point.y, GetHAL().millis());
+            if (edge != distance_ui::SwipeEdge::None) {
+                self->consume_touch = true;
+                // The consumed release never reaches the original object.
+                // Cancel its press without emitting a click or toggling it.
+                if (auto* pressed = lv_indev_get_active_obj()) {
+                    lv_obj_send_event(pressed, LV_EVENT_PRESS_LOST, self->touch_input);
+                }
+                self->open_drawer(edge);
+            }
+            if (self->consume_touch) lv_indev_stop_processing(self->touch_input);
+        } else if ((code == LV_EVENT_CLICKED || code == LV_EVENT_SHORT_CLICKED) && self->consume_touch) {
+            // RELEASED and the subsequent click are separate indev events.
+            lv_indev_stop_processing(self->touch_input);
+        } else if (code == LV_EVENT_INDEV_RESET) {
+            self->edge_swipe.reset();
+        }
+    }
+
+    void open_drawer(distance_ui::SwipeEdge edge)
+    {
+        drawer_open = true;
+        drawer_root->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(drawer_root->get());
+        lv_anim_delete(drawer_panel->get(), nullptr);
+        lv_anim_t animation;
+        lv_anim_init(&animation);
+        lv_anim_set_var(&animation, drawer_panel->get());
+        lv_anim_set_exec_cb(&animation, [](void* object, std::int32_t y) {
+            lv_obj_set_y(static_cast<lv_obj_t*>(object), y);
+        });
+        lv_anim_set_values(&animation, edge == distance_ui::SwipeEdge::Top ? -220 : 240, 10);
+        lv_anim_set_duration(&animation, 160);
+        lv_anim_start(&animation);
+    }
+
+    void close_drawer()
+    {
+        drawer_open = false;
+        lv_anim_delete(drawer_panel->get(), nullptr);
+        drawer_root->addFlag(LV_OBJ_FLAG_HIDDEN);
+    }
+
+    void request_mode(Mode next)
+    {
+        requested_mode = next;
+        stop_playback_requested = next != Mode::Live;
+        close_drawer();
     }
 
     void stop_live()
@@ -280,15 +381,12 @@ struct AppDistance::View {
             live_avatar = avatar.get();
             GetStackChan().attachAvatar(std::move(avatar));
             tune_page->addFlag(LV_OBJ_FLAG_HIDDEN);
-            live_controls->removeFlag(LV_OBJ_FLAG_HIDDEN);
             raise_controls();
         } else {
-            live_controls->addFlag(LV_OBJ_FLAG_HIDDEN);
             tune_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(tune_page->get());
             const bool nfc = mode == Mode::Nfc;
             const bool idle = mode == Mode::Idle;
-            mode_button->label().setText(nfc ? "PROGRAMS" : idle ? "DISTANCE" : "NFC");
             const char* names[] = {nfc ? "READER" : idle ? "PROGRAMS" : "TRIP cm",
                                    idle ? "EYE min" : "CLEAR +cm", idle ? "REST sec" : "WAIT sec"};
             for (std::size_t i = 0; i < rows.size(); ++i) rows[i].label->setText(names[i]);
@@ -319,10 +417,6 @@ struct AppDistance::View {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
-        for (auto* label : {live_nfc_status.get(), live_eye_status.get()}) {
-            if (signal == distance_pet::Signal::Alert) label->addFlag(LV_OBJ_FLAG_HIDDEN);
-            else label->removeFlag(LV_OBJ_FLAG_HIDDEN);
-        }
         live_avatar->tick(now, signal);
     }
 
@@ -330,7 +424,6 @@ struct AppDistance::View {
     {
         intro_visible = playback.busy;
         intro_status->setText(playback.clip == intro_player::ClipId::Shorekeeper ? "EYE BREAK" : "KURO GAMES");
-        if (intro_visible) live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
         if (!intro_visible) {
             lv_image_set_src(intro_image, nullptr);
             intro_frame.reset();
@@ -353,7 +446,10 @@ struct AppDistance::View {
         const bool eligible = mode == Mode::Live && idle.active && !idle.blocked &&
                               idle.program == idle_program::Program::EyeRest;
         if (!eligible) {
-            if (rest_head_active) rest_head.cancel(GetStackChan().motion());
+            if (rest_head_active) {
+                rest_head.cancel(GetStackChan().motion());
+                log_head(idle, true);
+            }
             rest_head_active = false;
             return;
         }
@@ -368,28 +464,67 @@ struct AppDistance::View {
             rest_head = distance_pet::RestHeadMotion{};
             rest_head_active = true;
             rest_head_intro_generation = idle.generation;
+            head_log_phase = head_log_beat = -2;
+            head_log_flags = -1;
         }
         if (idle.eye_phase == idle_program::EyePhase::Intro) {
             // Reserve against ordinary idle motion while the video plays; any
             // already-moving idle target can finish before the rhythm starts.
             rest_head.reserve(GetStackChan().motion());
+            log_head(idle);
             return;
         }
         rest_head.tick(GetStackChan().motion(), idle.eye_phase == idle_program::EyePhase::Motion ?
                        idle.phase_elapsed_ms : idle_program::kMotionDurationMs);
+        log_head(idle);
+    }
+
+    void log_head(const idle_program::Snapshot& idle, bool exit = false)
+    {
+        const auto phase = exit ? -1 : static_cast<int>(idle.eye_phase);
+        const auto beat = rest_head.last_beat();
+        const int flags = (rest_head.started() ? 1 : 0) | (rest_head.skipped() ? 2 : 0) |
+                          (rest_head.owns_lock() ? 4 : 0) | (rest_head.ownership_lost() ? 8 : 0) |
+                          (rest_head.limits_unavailable() ? 16 : 0);
+        if (phase == head_log_phase && beat == head_log_beat && flags == head_log_flags) return;
+        head_log_phase = phase;
+        head_log_beat = beat;
+        head_log_flags = flags;
+        // These snapshots perform no bus reads; their raw fields and counters
+        // identify the most recent actual driver transactions, including -1.
+        auto& motion = GetStackChan().motion();
+        const auto yaw = motion.yawServo().diagnostics();
+        const auto pitch = motion.pitchServo().diagnostics();
+        std::printf("SC_HEAD {\"v\":1,\"uptime_ms\":%" PRIu32 ",\"generation\":%" PRIu32
+                    ",\"phase\":\"%s\",\"elapsed_ms\":%" PRIu32 ",\"beat\":%d,\"flags\":%d,"
+                    "\"target_yaw\":%d,\"target_pitch\":%d,\"cached_feedback\":true,"
+                    "\"yaw\":{\"supported\":%s,\"position\":%d,\"moving\":%d,\"torque_before\":%d,\"torque\":%d,"
+                    "\"position_reads\":%" PRIu32 ",\"position_writes\":%" PRIu32 ",\"write_ack\":%d,"
+                    "\"write_error\":%d,\"write_state\":%d,\"torque_ack\":%d,"
+                    "\"torque_write_error\":%d,\"torque_write_state\":%d,\"torque_read_error\":%d},"
+                    "\"pitch\":{\"supported\":%s,\"position\":%d,\"moving\":%d,\"torque_before\":%d,\"torque\":%d,"
+                    "\"position_reads\":%" PRIu32 ",\"position_writes\":%" PRIu32 ",\"write_ack\":%d,"
+                    "\"write_error\":%d,\"write_state\":%d,\"torque_ack\":%d,"
+                    "\"torque_write_error\":%d,\"torque_write_state\":%d,\"torque_read_error\":%d}}\n",
+                    static_cast<std::uint32_t>(GetHAL().millis()), idle.generation,
+                    exit ? "exit" : idle_program::eye_phase_text(idle.eye_phase), idle.phase_elapsed_ms, beat, flags,
+                    rest_head.target_yaw(), rest_head.target_pitch(),
+                    yaw.supported ? "true" : "false", yaw.raw_position, yaw.raw_moving, yaw.torque_before, yaw.raw_torque,
+                    yaw.position_reads, yaw.position_writes, yaw.write_ack, yaw.write_error, yaw.write_state,
+                    yaw.torque_ack, yaw.torque_write_error, yaw.torque_write_state, yaw.torque_read_error,
+                    pitch.supported ? "true" : "false", pitch.raw_position, pitch.raw_moving, pitch.torque_before, pitch.raw_torque,
+                    pitch.position_reads, pitch.position_writes, pitch.write_ack, pitch.write_error, pitch.write_state,
+                    pitch.torque_ack, pitch.torque_write_error, pitch.torque_write_state, pitch.torque_read_error);
     }
 
     void raise_controls()
     {
         if (intro_visible) {
             lv_obj_move_foreground(intro_page->get());
-            return;
         }
-        // A newly created global warning is a later screen child. Keep the
-        // two bottom controls above it without changing the warning itself.
-        if (mode == Mode::Live && lv_obj_get_child(lv_screen_active(), -1) != live_controls->get()) {
-            lv_obj_move_foreground(live_controls->get());
-        }
+        // The hidden sys-layer drawer is independent of the full-screen media
+        // and top-layer programmes; opening it never changes playback context.
+        if (drawer_open) lv_obj_move_foreground(drawer_root->get());
     }
 
     void set_save_status(const char* text, std::uint32_t color)
@@ -398,15 +533,9 @@ struct AppDistance::View {
         save_status->setTextColor(lv_color_hex(color));
     }
 
-    void show_reader_status(const distance_sensor::Snapshot& distance,
+    void show_reader_status(const distance_sensor::Snapshot&,
                             const nfc_sense::Snapshot& scanned)
     {
-        // Leave the global TOO CLOSE title unobstructed.
-        if (distance.valid && !distance.stale &&
-            distance.proximity_state == distance_sensor::ProximityState::Alert) {
-            live_nfc_status->addFlag(LV_OBJ_FLAG_HIDDEN);
-            return;
-        }
         live_nfc_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
         const char* text = "NFC TAP CARD";
         auto color = kSafe;
@@ -427,14 +556,9 @@ struct AppDistance::View {
         live_nfc_status->setTextColor(lv_color_hex(color));
     }
 
-    void show_eye_status(const idle_program::Snapshot& idle, const distance_sensor::Snapshot& distance,
-                         bool playback_busy)
+    void show_eye_status(const idle_program::Snapshot& idle, const distance_sensor::Snapshot&,
+                         bool)
     {
-        if (playback_busy || (distance.valid && !distance.stale &&
-            distance.proximity_state == distance_sensor::ProximityState::Alert)) {
-            live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
-            return;
-        }
         live_eye_status->removeFlag(LV_OBJ_FLAG_HIDDEN);
         char text[32];
         if (!idle.active) {
@@ -661,6 +785,20 @@ void AppDistance::onOpen()
 
 void AppDistance::onRunning()
 {
+    bool close_requested = false;
+    bool stop_playback_requested = false;
+    {
+        LvglLockGuard lock;
+        close_requested = _view && _view->close_requested;
+        stop_playback_requested = _view && _view->stop_playback_requested;
+        if (_view) _view->stop_playback_requested = false;
+    }
+    if (close_requested) {
+        // The input callback only requests this action. Worker cancellation and
+        // app teardown run outside LVGL's event-dispatch lock.
+        close();
+        return;
+    }
     auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
     auto scanned = nfc_sense::snapshot();
@@ -686,8 +824,8 @@ void AppDistance::onRunning()
         live_requested = _view && _view->mode == View::Mode::Live &&
                          _view->requested_mode == View::Mode::Live;
     }
-    if (_eye_intro_started && (!eye_intro_owned || !live_requested ||
-        pending_eye.generation != _eye_intro_generation)) {
+    if ((playback.busy && stop_playback_requested) || (_eye_intro_started &&
+        (!eye_intro_owned || !live_requested || pending_eye.generation != _eye_intro_generation))) {
         // Explicit exit/OFF must not leave a self-owned clip blocking the app.
         intro_player::stop();
         playback = intro_player::snapshot();
@@ -751,10 +889,6 @@ void AppDistance::onRunning()
         const auto idle = idle_program::snapshot();
         _view->update_rest_head(idle);
         const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
-        // Keep the whole warning behind the animation, including the bottom
-        // control area outside its top-layer card. Controls remain usable.
-        _view->live_controls->setBgColor(lv_color_hex(0x6E35CB));
-        _view->live_controls->setBgOpa(rest_animation ? LV_OPA_COVER : LV_OPA_TRANSP);
         if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
             (distance_alert && !rest_animation)) {
             idle_program::clear_locked();
@@ -767,10 +901,6 @@ void AppDistance::onRunning()
             _view->update(current, distance_sensor::config(), scanned);
             _view->show_reader_status(current, scanned);
             _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
-        }
-        if (distance_alert) {
-            _view->live_nfc_status->addFlag(LV_OBJ_FLAG_HIDDEN);
-            _view->live_eye_status->addFlag(LV_OBJ_FLAG_HIDDEN);
         }
         save = _view->save_requested;
         save_idle = _view->save_idle_requested;

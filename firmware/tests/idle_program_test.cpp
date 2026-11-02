@@ -146,14 +146,14 @@ void only_current_eligible_intro_acknowledgement_advances_the_sequence()
     check(policy.finish_eye_intro(intro_generation, now), "eligible current intro acknowledgement failed");
     auto state = policy.snapshot(now);
     check(state.eye_phase == EyePhase::Motion && state.generation == intro_generation + 1u &&
-              state.phase_elapsed_ms == 0 && state.remaining_ms == 4500,
+              state.phase_elapsed_ms == 0 && state.remaining_ms == kMotionDurationMs,
           "real intro acknowledgement did not start motion exactly once");
     check(!policy.finish_eye_intro(intro_generation, now) && !policy.finish_eye_intro(state.generation, now),
           "duplicate or motion-generation acknowledgement restarted motion");
-    run(policy, now, 4499);
+    run(policy, now, kMotionDurationMs - 1u);
     state = policy.snapshot(now);
-    check(state.eye_phase == EyePhase::Motion && state.remaining_ms == 1 && state.phase_elapsed_ms == 4499,
-          "motion finished before all nine rhythm beats");
+    check(state.eye_phase == EyePhase::Motion && state.remaining_ms == 1 && state.phase_elapsed_ms == kMotionDurationMs - 1u,
+          "motion finished before all twelve rhythm beats");
     const auto readonly = policy.snapshot(now + 1u);
     check(readonly.eye_phase == EyePhase::Motion && readonly.remaining_ms == 0 &&
               readonly.generation == intro_generation + 1u && readonly.completed_rests == 0,
@@ -212,19 +212,28 @@ void delayed_worker_tick_never_borrows_time_from_rest()
 
 void motion_timeline_is_bounded_and_returns_to_centre()
 {
-    static_assert(kMotionBeatMs == 500 && kMotionDurationMs == 4500 && kMotionBeats.size() == 9);
-    constexpr std::array<std::int16_t, 9> yaw{{0, -80, 80, -60, 60, 0, 0, 0, 0}};
-    constexpr std::array<std::int16_t, 9> pitch{{0, 0, 0, 0, 0, -40, 40, -25, 0}};
+    static_assert(kMotionBeatMs == 1000 && kMotionDurationMs == 12000 && kMotionBeats.size() == 12);
+    constexpr std::array<std::int16_t, 12> yaw{{-40, -80, 0, 40, 80, 0, 0, 0, 0, 0, 0, 0}};
+    constexpr std::array<std::int16_t, 12> pitch{{0, 0, 0, 0, 0, 0, -20, -40, 0, 20, 40, 0}};
     for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
-        for (const auto edge : {0u, 499u}) {
-            const auto pose = motion_beat(beat * 500u + edge);
+        for (const auto edge : {0u, kMotionBeatMs - 1u}) {
+            const auto elapsed = beat * kMotionBeatMs + edge;
+            const auto pose = motion_beat(elapsed);
             check(pose.yaw_delta == yaw[beat] && pose.pitch_delta == pitch[beat],
-                  "motion timeline did not preserve the complete half-second beat");
+                  "motion timeline did not preserve the complete one-second beat");
+            check(motion_group(elapsed) == beat / 3u + 1u &&
+                      motion_step(elapsed) == (beat + 1u) % 3u &&
+                      motion_is_center(elapsed) == (beat % 3u == 2u),
+                  "motion display ordinals disagreed with the one-two-centre groups");
+            check((pose.yaw_delta == 0 && pose.pitch_delta == 0) == motion_is_center(elapsed),
+                  "a group's third beat did not hold the head at centre");
         }
     }
-    for (const auto elapsed : {4500u, 4501u, std::numeric_limits<std::uint32_t>::max()}) {
+    for (const auto elapsed : {kMotionDurationMs, kMotionDurationMs + 1u, std::numeric_limits<std::uint32_t>::max()}) {
         const auto pose = motion_beat(elapsed);
         check(pose.yaw_delta == 0 && pose.pitch_delta == 0, "completed motion did not remain at centre");
+        check(motion_group(elapsed) == 0 && motion_step(elapsed) == 0 && motion_is_center(elapsed),
+              "completed motion exposed a current group or movement step");
     }
 }
 
@@ -244,9 +253,9 @@ void intro_and_motion_boundaries_survive_uint32_wrap()
                   policy.snapshot(now).generation == intro_generation,
               "intro elapsed time or generation failed across uint32 wrap");
         check(policy.finish_eye_intro(intro_generation, now), "wrapped intro acknowledgement rejected");
-        run(policy, now, 4499);
+        run(policy, now, kMotionDurationMs - 1u);
         auto state = policy.snapshot(now);
-        check(state.eye_phase == EyePhase::Motion && state.phase_elapsed_ms == 4499 && state.remaining_ms == 1,
+        check(state.eye_phase == EyePhase::Motion && state.phase_elapsed_ms == kMotionDurationMs - 1u && state.remaining_ms == 1,
               "motion beat timing failed across uint32 wrap");
         run(policy, now, 1);
         state = policy.snapshot(now);
@@ -280,13 +289,14 @@ void ordinary_activity_preserves_started_animation_and_holds_idle_cards()
     }
     check(policy.finish_eye_intro(generation, now), "touch test intro acknowledgement rejected");
     generation = policy.snapshot(now).generation;
-    for (unsigned touch = 0; touch < 225; ++touch) {
+    constexpr auto motion_touches = kMotionDurationMs / 20u;
+    for (unsigned touch = 0; touch < motion_touches; ++touch) {
         now += 20;
         policy.note_activity(now);
         policy.set_context(eligible, now);
         policy.tick(now);
         const auto state = policy.snapshot(now);
-        if (touch < 224) {
+        if (touch + 1u < motion_touches) {
             check(state.eye_phase == EyePhase::Motion && state.generation == generation &&
                       state.remaining_ms == kMotionDurationMs - (touch + 1u) * 20u,
                   "ordinary touch interrupted or prolonged the motion");

@@ -61,7 +61,7 @@ public:
                                    : elapsed_ms / idle_program::kMotionBeatMs;
         if (_last_beat == static_cast<int>(beat)) return;
         // An expired phase still sends its final centre target if the frame at
-        // 4000 ms was missed. Earlier beats are never replayed to catch up.
+        // its scheduled frame was missed. Earlier beats are never replayed.
         int yaw = 0, pitch = 0;
         if (!targets(motion, idle_program::motion_beat(elapsed_ms), yaw, pitch)) {
             if (!_started) _skipped = true;
@@ -73,7 +73,13 @@ public:
             motion.setModifyLock(true);
             _owns_lock = true;
         }
+        // The generic servo releases torque at rest. A zero/centre beat can
+        // finish before the next beat, so every fresh target must re-enable it.
+        // Reservation and duplicate ticks deliberately leave torque untouched.
+        motion.setTorqueEnabled(true);
         motion.moveWithSpeed(yaw, pitch, 300);
+        _target_yaw = yaw;
+        _target_pitch = pitch;
         _started = true;
         _last_beat = static_cast<int>(beat);
         // Retain ownership through REST 20; the caller releases it on completion
@@ -92,6 +98,9 @@ public:
     bool owns_lock() const noexcept { return _owns_lock; }
     bool ownership_lost() const noexcept { return _ownership_lost; }
     bool limits_unavailable() const noexcept { return _limits_unavailable; }
+    int last_beat() const noexcept { return _last_beat; }
+    int target_yaw() const noexcept { return _target_yaw; }
+    int target_pitch() const noexcept { return _target_pitch; }
 
 private:
     template <typename Motion>
@@ -149,6 +158,8 @@ private:
     int _base_yaw = 0;
     int _base_pitch = 0;
     int _last_beat = -1;
+    int _target_yaw = 0;
+    int _target_pitch = 0;
 };
 
 } // namespace distance_pet

@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-11-02T13:47:26.756399+08:00",
+  "recorded_at": "2026-11-02T15:09:22.286452+08:00",
   "type": "official game-rendered 3D character footage, converted from official animated GIF to baseline JPEG frames; playback is pre-rendered video, not native 3D rendering on StackChan",
   "character": "The Shorekeeper / 守岸人",
   "official_source_page": "https://wutheringwaves.kurogames.com/en/main/",
@@ -26,34 +26,28 @@
     3.8
   ],
   "crop": {
-    "x": 68,
+    "x": 150,
     "y": 208,
-    "width": 664,
+    "width": 500,
     "height": 374
   },
   "resize": {
     "width": 320,
-    "height": 184
+    "height": 240
   },
-  "padding": {
-    "width": 320,
-    "height": 240,
-    "x": 0,
-    "y": 0,
-    "color": "black"
-  },
+  "padding": null,
   "output": {
     "file": "shorekeeper_intro.bin",
     "format": "KINTRO1",
-    "bytes": 324546,
-    "sha256": "fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af",
+    "bytes": 422532,
+    "sha256": "5a67997f01f8be973bd1f3d9b0b05785c89bb78b227ed679751bcc5f364155ab",
     "frames": 38,
     "fps": 10,
     "duration_ms": 3800,
     "baseline_jpeg": true,
     "audio": false
   },
-  "ffmpeg_filter": "crop=664:374:68:208,scale=320:184:flags=lanczos,fps=10,pad=320:240:0:0:black",
+  "ffmpeg_filter": "crop=500:374:150:208,scale=320:240:flags=lanczos,fps=10",
   "conversion_flags": [
     "-ss",
     "0",
@@ -65,13 +59,16 @@
     "-q:v",
     "5",
     "-pix_fmt",
-    "yuvj420p"
+    "yuvj420p",
+    "-threads",
+    "1"
   ],
   "packer": "scripts/Prepare-Shorekeeper3D.py reuses scripts/Prepare-KuroIntro.py make_pack and validate_jpeg; exact GIF SHA enforced, FPS10/DURATION3800/MAX_PACK500000",
   "visual_verification": [
     "profile-03-original.png shows original official branded card and animated gameplay window",
     "profile-03-contact.png shows game-rendered animated 3D character, butterfly, facial close-up and 3D camera movement",
-    "shorekeeper-3d-320x240-contact.png shows final crop/scale/pad at 0.5-second sampling"
+    "fullbleed/fullbleed-jpeg-contact.png shows the final 320x240 baseline-JPEG center crop at 0.5-second sampling; no padding",
+    "fullbleed/center-150-contact.png and left-112-contact.png compare framing; centered x150 crop was selected for aspect-fill"
   ],
   "rights": "Copyright belongs to KURO GAMES and respective owners. Public access does not assert a Creative Commons or redistribution license. This is a short derivative crop for the user-requested personal device demonstration. No ownership or native 3D engine claim is made.",
   "other_attempt": {
@@ -84,5 +81,16 @@
     "direct_stream_result": "HTTP 403 on muxed itag18 and adaptive itag134; not used in candidate",
     "yt_dlp": "not present; no dependency installed"
   },
-  "not_used": "The mistaken behind-the-scenes orchestra thumbnail rANvK8sxqho from previous work was neither used nor copied."
+  "not_used": "The mistaken behind-the-scenes orchestra thumbnail rANvK8sxqho from previous work was neither used nor copied.",
+  "previous_seq49_presentation": {
+    "pack_bytes": 324546,
+    "pack_sha256": "fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af",
+    "video": [
+      320,
+      184
+    ],
+    "bottom_black_pixels": 56,
+    "historical_backup": ".tools/shorekeeper-3d/fullbleed/seq49-shorekeeper_intro.bin"
+  },
+  "presentation": "320x240 full-screen prerecorded video, center aspect-fill crop; no black padding or reserved menu area"
 }
