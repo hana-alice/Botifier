@@ -382,3 +382,20 @@ OTA读回并重启后，默认20分钟周期启动待机采集49.266秒：50个i
 受保护更新已完成：`logs/device-update-shorekeeper47.log`校验新app及原厂固件、配置、bootloader、分区和资源保护区；匹配bin/ELF/map归档`.tools/device-backups/20261102-shorekeeper47/shorekeeper-deployed.*`。同端口40秒早期启动采集后，独立只读`ota-confirmation.json`确认 **seq47/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**。
 
 本轮启动窗口仅证明启动与遥测：`logs/device-shorekeeper47-boot-report.json`记录375个距离快照，373有效、2个启动无效样本保留；38个idle快照全部blocked，未进入BOTIFIER播放；0观察到的panic/assert/watchdog标记。未发送短周期配置，仍为默认20分钟/20秒。PC额度助手已隐藏启动并恢复COM38连接，启动摘要为真实72%；记录`logs/codex-weekly-shorekeeper-helper.log`及`.err.log`，不将PC查询结果当作本轮设备显示验收。这些检查不替代新LCD动画帧率实测、物理NFC验证或长期运行测试；按用户此前要求不再安排重复限时确认。
+
+## 三阶段护眼、实体摇头与不同栏目视觉（2026-11-02）
+
+源码提交 **d927abe93a464229a82625512af2fd6948796c96**。20分钟到期后依次播放 **3.8秒守岸人3D短片 → 4.5秒半秒一拍的左右/上下动作与表情 → 完整REST20秒**。只有真实播放器完成或启动失败后，generation匹配确认才进入动作；REST由动作结束时的实际tick重新开始计时，不扣除前两段或调度延迟。整段EyeRest与NFC并列最高，互不打断，刷卡不排队；距离采样独立运行，红底显示排在两者之后。仅BOTIFIER LIVE渲染，显式HOME/TUNE/OFF取消自有流程。
+
+3D素材取自[官方守岸人角色介绍](https://wutheringwaves.kurogames.com/en/main/news/detail/1419)中的技能GIF，裁出实际游戏3D画面，非静态图平移或设备端3D引擎。38帧、10fps、320×240（视频320×184，底部留黑），**324,546字节**，SHA256 **fa420d4e4620552d5a2fc3ee9306164fba24dc96adf698b3a24424a50ef6a7af**。媒体来源/原GIF摘要/裁剪和所有权在`media/shorekeeper-3d-source.json`；`scripts/Prepare-Shorekeeper3D.py`复用已有打包器，实测重建逐字节一致，默认拒绝覆盖/错误输入SHA亦通过。使用原JPEG单worker/两个weak RGB槽；停止链接旧614,400字节BGRA和删除其无调用方运行时代码，历史PNG/提示/pack保留。无新依赖。
+
+实体动作以进入Motion时实际姿态为中心，左右±8°、俯仰±4°、speed300，并与实时动态硬限取交集；最后回到起始姿态。Intro只预占协作锁，让已发生idle移动自行完成；其它持锁或未完成动作不被抢占，改为跳过本轮实体动作。丢锁不夺；取消只stop自身已发起的运动。原bool协作锁缺少owner token的限制保留，不扩展全局运动架构。View独立pet按同一九拍变表情，不伪造ToF状态。Countdown采用暖琥珀钟环与居中MM:SS；Weekly采用冷蓝仪表盘、>_标识、百分比与十格额度条。
+
+- CTest **13/13**，含Policy **25组**与Motion **14组**；两份真实内嵌pack也经生产C++解析器检查。日志`logs/eye-sequence-host-final.log`。PC未改，保留历史77/77，不冒充本轮重跑。
+- 实际生产App/View/Pet/Policy与LVGL **6,950项断言**（1,975行为/4,975几何），138独立帧，0裁切/缺字；100轮生命周期覆盖Intro/Motion/Rest/Countdown/Weekly，可用内存8,374,448→8,374,448，16次图片释放/0借用中释放。保留旧红底、NFC、Safe→Alert、HOME/TUNE回归。新增旧完成计数误ack新busy片段、立即decoder失败、stop期间新卡时间晚于帧入口、旧Motion/Rest替换为新Intro的真实App回归，以及三阶段各HOME/TUNE/OFF共九个显式退出用例。四个隔离负控制精确失败：ack baseline后置、漏stop后时钟刷新、漏head代际重置、漏Alert热读。JPEG第一帧fixture来自真实pack；codec worker/FreeRTOS/舵机硬件仍为替身，不等同实机帧率/角度测试。视觉最终96/pass，第一轮88/revise保留。
+- UI清单`.tools/idle-program-ui-probe/manifest-sequence.json`、最终视觉`visual-verdict-sequence-final.json`、31个新场景联系表`frames-sequence-final/sequence-contact.png`；22份生产源/资源摘要已与最终工作树逐一核对。复现`.tools/idle-program-ui-probe/run-sequence.ps1`；旧seq47证据不覆盖。
+- 完整ESP-IDF5.5.4构建`logs/eye-sequence-build-final.log`通过。镜像 **4,366,576字节**，SHA256 **c2f17a86a168f76e191ef9de0e2e6654b71fd10dcce41bf16115371d29d75dbc**，应用槽余 **810,768字节（约16%）**。匹配bin/ELF/map归档`.tools/firmware-artifacts/20261102-eye-sequence/`。
+
+受保护更新完成：`logs/device-update-eye-sequence49.log`校验仅app与OTA sector0更新，原厂固件槽、原sector1、配置、bootloader、分区表和资源均保留。归档`.tools/device-backups/20261102-eye-sequence49/eye-sequence-deployed.{bin,elf,map}`；40秒同端口启动采集后，独立`ota-confirmation.json`确认 **seq49/state2 VALID、CRC正确、sector1 seq2/state2逐字节保留**。读回日志`logs/device-eye-sequence49-ota-confirm.log`。
+
+启动报告`logs/device-eye-sequence49-boot-report.json`：376个距离快照，374有效、2个启动无效样本保留；37/37栏目blocked，未发生EyeRest播放；0观察到的崩溃/断言/看门狗标记。未发短周期配置，初始eye_remaining_ms=1,200,000，默认20分钟保留。隐藏额度助手PID90060已恢复COM38连接，安全摘要71%（epoch1793599642），日志`logs/codex-weekly-eye-sequence-helper.log`及`.err.log`，无OS自启动；PC查询不替代设备显示验收。按用户此前要求不再安排重复限时确认。新LCD播放帧率、机械角度/节奏、物理NFC与长期运行未以主机结果替代。

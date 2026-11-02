@@ -229,7 +229,13 @@ LIVE 显示 MOVE HAND OUT／SHOW HAND／HOLD HAND／READY，SNAP 页显示手置
 
 `try_begin_foreground_animation()`与服务tick共用state_mutex：已有有效EyeRest则拒绝且不改其时间，否则先占foreground_busy再由App调用片头start，同帧以真实播放结果覆盖context。刷卡事件在claim之前消费，失败或动画中被拒绝的事件不补播。距离Alert只阻挡普通栏目，不刷新idle活动时间，因此到期EyeRest能在持续Alert中开始并完整计时；NFC播中到期只留单due。EyeRest期间LIVE控制层用不透明蓝紫底遮住下层红底的底部区域，结束恢复透明，保留按钮。
 
-`shorekeeper_art.cpp`从应用槽嵌入614,400字节原始六帧160×160 BGRA，静态descriptor直接引用flash，尺寸/索引先校验；不新增线程、解码器或逐帧RGB分配。动画时钟与护眼计时独立，切换模式恢复黑底和原宠物布局；PNG原图与生成提示、pack/hash/透明度数据均保留在media目录。转换脚本只用标准库和已有FFmpeg，不新增Python依赖。
+当前EyeRest分为Intro→Motion→Rest，只有真实clip完成（或启动失败）才以generation匹配的`finish_eye_intro()`进入Motion；固定4,500ms动作结束后，以实际tick时间开始完整rest_duration_ms。worker延迟不会吞掉REST20。各阶段均递增generation、保留EyeRest最高优先级；普通触摸/NFC/Alert不能重置阶段。遥测追加eye_phase/phase_elapsed_ms，原Program和v1字段保留。
+
+`intro_player::ClipId`区分Kuro与Shorekeeper，共用原JPEG worker、两个weak RGB image slot与KINTRO1校验。App只把Kuro busy作为外部foreground，自己的Shorekeeper不取消EyeRest；完成确认要求!busy、completed_count变化且不同于start前baseline。同步stop后立即消费完成/RF边界并重新读scanned，防止旧完成误确认新一轮或旧卡重放。stop等待在LVGL锁之外。38帧预渲染3D pack占324,546字节；旧600KiB静态BGRA链接与无调用方art代码已删除，历史原图/提示与pack保留。
+
+`RestHeadMotion`在Intro仅预占协作锁，不发动作，已有idle移动可自然结束；Motion开始时才读取实际姿态。按500ms节拍只发当前目标，左右相对±8°、俯仰±4°，与实时硬限取交集，speed300；最后回起始位置。无法满足窗口、他人持锁或旧运动未结束则跳过实体动作；失锁不夺，取消只停止自身已发起动作。REST期间持锁抑制普通转头，退出后释放。既有bool锁没有owner token，未扩展全局运动架构；实际角度/方向/节奏须分别实测。View独立pet按同一节拍变表情，不伪造全局距离状态。
+
+普通Countdown用暖色钟环与居中MM:SS，Weekly用冷蓝底、>_标识与10格额度条；等待/过期/失败与0/100%保留。仅用既有LVGL/字体。转换只用标准库与已有FFmpeg，不新增依赖。
 
 护眼默认20分钟/20秒，完成短暂显示RestDone；中断不记完成，到期仅保留一次。用户追加要求信息主导，常规栏目按EyeCountdown12秒→Pet3秒→Weekly12秒→Pet3秒交替（正常约80%信息），到期休息可抢占普通栏目。EyeCountdown只读eye_remaining_ms，不把12秒卡片时长当工作计时。NVS v2保存新节奏，v1只迁移原开关/护眼间隔/休息时长。当前精简字库缺少护眼中文用字，经实际glyph查询与画面确认，采用已有英文文案，避免引入完整大字库。
 
