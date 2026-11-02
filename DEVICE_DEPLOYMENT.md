@@ -342,3 +342,22 @@ Codex周额度由PC只读`account/rateLimits/read`，按codex桶10080分钟窗�
 - 前两个未受打断的完整轮播周期，在约1Hz遥测相邻边界上分别为 **12.050/3.000/12.120/3.000秒**、**12.000/3.000/12.120/3.000秒**；对应信息约 **80.1%**。该比例排除开机空闲等待、后续距离干扰与末尾配置恢复，不能将全窗口快照占比当作连续正常轮播比例。全部104个快照的`uptime_ms + eye_remaining_ms`均为1,201,928，未观察到栏目切换重置护眼时钟。证据`logs/device-idle-carousel-cadence.json`。
 
 本次未产生NFC刷卡/播放样本；此前seq33用户确认与物理日志、实际LVGL抢占回归继续分别留存，不冒充seq43现场验收。默认参数以save=false恢复，未写入测试周期。PC额度助手以隐藏进程启动，USB连接成功，真实查询摘要为74%（epoch1793591318）；日志仅含安全摘要/固定状态，`logs/codex-weekly-helper.log`及`.err.log`，PID记录`.tools/codex-weekly-helper.pid`。每5分钟刷新，无系统自启动；关闭助手或断开USB后额度会过期，机器人护眼计时独立运行。长期稳定性与所有AI交互组合仍未全量实测。
+
+## 按用户纠正收回 BOTIFIER 应用（2026-11-02，seq45/VALID）
+
+上一版把“空闲轮播”扩展到启动菜单和AI待机，偏离用户意图。用户明确要求保留在原DISTANCE入口，并允许改名；现入口为 **BOTIFIER**，仅其LIVE页渲染栏目。删除main每轮全局render、launcher/AI的可展示上下文及render，另删随AI轮播失去调用方的ReminderView活动计数。退出应用清层，其他页面不显示栏目；没有自动打开或替换原厂主菜单。距离采样仍由`app_main`独立启动，原有全局脸部过近提醒保留。
+
+显示优先级为 **NFC > TOO CLOSE > 护眼及普通信息**。App在同一个LVGL锁内处理NFC/距离抢占并渲染栏目。另修复经源码审查确认的采样窗口：取到Safe快照后，后台采样可能已转Alert，原全局warning已创建但旧Safe仍允许top-layer栏目；在StackChan更新后以实时`alert_active()`和有效快照Alert取并集，统一阻止栏目并隐藏顶部状态。此举不修改阈值、采样、中值滤波、NFC RF或播放逻辑。
+
+源码提交 **e642522cc794dbc4e92f933d02e8917891553505**，5个生产文件增加15行、删除37行。完整IDF5.5.4构建`logs/botifier-app-only-build-final.log`通过；最终镜像 **4,037,008字节**，SHA256 **066a4163f881b0c56fba4dc893cd3e259411c8ccce2a5694920875fe86356d57**，应用槽余 **1,140,336字节**。候选与匹配ELF/map在`.tools/firmware-artifacts/20261102-botifier-app-final/`，受保护部署归档`.tools/device-backups/20261102-botifier45/botifier-deployed.{bin,elf,map}`。
+
+`logs/device-update-botifier45.log`记录原app/配置/原厂槽/资源等保护校验；同端口40秒启动捕获`logs/device-botifier-early-boot.log`后，独立只读`ota-confirmation.json`已确认 **seq45/state2 VALID、CRC正确、原sector1逐字节不变**。没有以启动日志替代OTA元数据读回。
+
+- 主机CTest **12/12**，日志`logs/botifier-app-only-host.log`；PC代码未改动，先前77/77证据保留。
+- 实际完整AppDistance/节目View/Pet、真实LVGL9.4、从生产源码原文提取的DistanceWarningDecorator及真实AngryDecorator/图片/24px字体，共 **4,724断言**（1,276行为/3,448几何）、0裁切/缺字、13图像释放/0借用中释放。100次面板循环LVGL free 8,374,448→8,374,448。服务数据和硬件StackChan外壳为替身，不冒充硬件测试。
+- 三种信息节目被Alert首帧清除；逐像素检查NFC覆盖真实过近图层，结束仍近恢复TOO CLOSE；三种非LIVE页/退出无残留，BOTIFIER入口名正确。Safe→Alert注入覆盖20ms非刷新帧和100ms刷新帧；只移除新实时读取的负控制准确失败，最终生产源码通过。底部距离/SAFE文字仍按既有100ms刷新，红色大提醒首帧已显示，不将旧底部文字当成提醒未生效。
+- 证据`.tools/idle-program-ui-probe/manifest-botifier.json`，104张独立图（15张新增优先级场景）、`frames-botifier-v1/botifier-contact.png`，视觉 **96/pass**。19份生产源摘要与最终工作树一致，旧89张/4,171断言证据逐一校验未覆盖。复现脚本`run-botifier.ps1`，全局渲染范围另见`logs/botifier-display-scope-audit.json`。
+
+OTA读回并重启后，默认20分钟周期启动待机采集49.266秒：50个idle快照全部blocked/Pet，未激活栏目；真实73%额度Fresh快照47个、3次安全额度包写入。距离496/498有效（2个启动无效样本保留），有5个Alert快照，说明栏目不展示期间测距与阈值判断仍运行；0畸形允许帧、0采集串口错误、0观察到的运行故障标记。证据`logs/device-botifier45-probe-report.json`；这是设备遥测，不是主菜单LCD录像。默认参数RAM恢复save=false，未改用户NVS。隐藏额度助手随后恢复，日志`logs/codex-weekly-botifier-helper.log`及`.err.log`。
+
+本版未重新进行物理刷卡；上述抢占为实际生产界面配合合成服务输入的回归，seq33物理验收保留。长期运行与所有AI交互组合仍未全量覆盖。
