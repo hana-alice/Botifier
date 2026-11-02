@@ -282,3 +282,15 @@ LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日�
 17:16尝试更新时COM38已不在Windows设备枚举中；`logs/device-update-nfc-trigger.log` 显示工具在 `port.open()` 即报找不到端口，尚未读取或写入设备。空的备份目标 `.tools/device-backups/20261031-171610-nfc-trigger/` 不是成功部署记录。最后已核验设备状态仍为 **seq29/VALID**，没有seq31更新或NFC硬件验收结果。
 
 接回USB数据线后，重新核验设备身份与旧镜像，使用新的备份目录完成受保护更新，再读回OTA状态。现场验收包括进入DISTANCE后的初始化、随附卡片读取、持卡不重复、移卡重触发、播放期间刷卡无影响及ToF告警抢占。日志审计工具 `.tools/audit_nfc_log.py` 的12组合成自检通过，但这不替代物理刷卡验证。
+
+### 2026-11-02：NFC 固件部署为 seq31/VALID
+
+用户接回USB后，Windows重新枚举COM38、VID303A/PID1001、序列号7C:4F:AD:AF:61:F0；更新器再通过ROM核验MAC、旧seq29/VALID、旧app摘要和原厂保护区域。继续使用此前已构建的 `d3014aa` 镜像，4,025,936字节、SHA256 `f337d8c73581b0272f9f9649cd133b8d1070fcb48069a4fada954b9cabe87e30`，未重新构建或修改固件代码。
+
+备份与部署归档 `.tools/device-backups/20261102-093531-nfc-trigger/` 包含更新前启动记录及配置、`nfc-trigger-deployed.bin`、匹配ELF和map。`logs/device-update-nfc-trigger-20261102.log`（另存为 `logs/device-update-nfc.log`）记录三阶段保护校验通过：只写ota_0应用和0xd000启动扇区0，当前NVS、bootloader、分区表、原厂ota_1、资源和启动扇区1保留。
+
+更新后采集25秒启动日志 `logs/device-nfc-boot.log`，随后独立进入ROM读回两启动扇区：**seq31/VALID、CRC正确**，原seq2/VALID扇区逐字节不变，见归档内 `ota-confirmation.json` 和 `logs/device-nfc-ota.log`。验证完成后复位并开始180秒 `logs/device-nfc.log` 采集；启动日志已有持续有效距离读数。NFC初始化、随附卡片兼容性、持卡去重、移卡重触发和播放期间忽略仍须以实际进入DISTANCE后的现场结果为准。
+
+用户进入DISTANCE后确认“播一次，持卡不重复，移开可再播”。完成的180秒采集有97个SC_NFC轮询快照，实际观测到1种UID，accepted从0增至3；3组accepted→playing→finished均error0/cancelled0。NFC初始化与本次随附卡片读出已有实机证据，持卡去重和移卡重触发另有用户现场确认；轮询快照数不等于独立刷卡次数，不据此计算识别率。
+
+同窗口SC_DISTANCE为seq178–1985，**1808/1808有效**，无缺帧、中值或规则复算不一致，未见panic/assert/watchdog。审计 `logs/device-nfc-audit.json` 仍标记 **attention_required**：读卡errors累计增加9次，其中3个轮询保留error=-1（ESP_FAIL），另有一次无法确认RF关场的警告，最终读卡状态恢复ready/error0。当前返回码不能区分具体失败步骤，错误根因未定位；不能将这次基本功能验收写成“全程零错误”或长期稳定性通过。播放中刷卡忽略、ToF/HOME抢占的独立现场试验与精确响应延迟仍未单独标注验收。

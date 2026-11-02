@@ -1,5 +1,5 @@
 {
-  "RecordedAt": "2026-10-31T17:21:41.956235+08:00",
+  "RecordedAt": "2026-11-02T09:43:54.324889+08:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
@@ -15,9 +15,9 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "USB serial absent at NFC update attempt; last verified device was COM38, MAC7c:4f:ad:af:61:f0, seq29/VALID. No NFC firmware writes occurred.",
-    "UpdatedThisIteration": false,
-    "CurrentOtaSequence": 29,
+    "ConnectionStatus": "COM38 USB VID303A/PID1001 and MAC7c:4f:ad:af:61:f0 reverified; protected NFC update and seq31/VALID readback completed.",
+    "UpdatedThisIteration": true,
+    "CurrentOtaSequence": 31,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -73,14 +73,14 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "Current NFC source: CTest 10/10 passed, logs/nfc-host.log; physical card behavior remains unverified.",
-  "FirmwareBuild": "NFC candidate built successfully: 4025936 bytes; unchanged app slot 5177344 bytes, remaining 1151408 bytes (22%). logs/nfc-firmware-build.log. Candidate is not flashed; FirmwareBinary describes the last deployed seq29 image.",
+  "HostTest": "CTest 10/10 passed; logs/nfc-host.log. Synthetic tests do not establish physical NFC reader/card performance.",
+  "FirmwareBuild": "OTA31/VALID; bundled card read and3 complete uncancelled KURO playbacks observed. User confirms one playback per presentation, held-card suppression and removal/re-presentation. Capture also records9 reader errors, with ready state restored; root cause and long-run stability remain unverified. Image4025936 bytes; unchanged slot5177344 bytes; remaining1151408 bytes.",
   "FirmwareBinary": {
-    "Path": ".tools/device-backups/20261031-163805-hand-hot-conv/hand-hot-conv-deployed.bin",
-    "Bytes": 5039248,
-    "SHA256": "b17cd70a1038497e1d1784ec571098f2722c7c9219dd3741677e6fda0b56af4d",
-    "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
-    "BuildLog": "logs/hand-hot-conv-build.log",
+    "Path": ".tools/device-backups/20261102-093531-nfc-trigger/nfc-trigger-deployed.bin",
+    "Bytes": 4025936,
+    "SHA256": "f337d8c73581b0272f9f9649cd133b8d1070fcb48069a4fada954b9cabe87e30",
+    "SourceCommit": "d3014aab3c78646aeb95e5db550a31343a10262e",
+    "BuildLog": "logs/nfc-firmware-build.log",
     "Flashed": true
   },
   "LastDeployedPetFirmwareBinary": {
@@ -106,7 +106,7 @@
     "Note": "App and sector0 only; original firmware slot, current configuration, bootloader, partitions, resources and original sector1 preserved. Activation/recognition not observed in the corrected capture."
   },
   "SnapPrototype": {
-    "Status": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed.",
+    "Status": "Retired at user request by the NFC replacement in sequence 31; no active hand inference or snap listening. All earlier failures, timings and verification limits below remain historical evidence, not NFC acceptance.",
     "InitialDeploymentFailure": {
       "SourceCommit": "e8cc8ec1c917df721d3ab794ee58cc250d3c46aa",
       "SHA256": "c9fd38285fd433febdba4fee19f5bd31adab0a8bb7a231a3935ea1a5c2b31cfc",
@@ -173,7 +173,11 @@
     "Flashed": true,
     "PreviousStatusSeq27": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified.",
     "TimeoutFixed": false,
-    "SupersededByNfc": true
+    "SupersededByNfc": true,
+    "PreviousStatusBeforeNfcRetirement": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed.",
+    "Active": false,
+    "Historical": true,
+    "RetiredByOtaSequence": 31
   },
   "BaselineFirmwareBinary": {
     "Bytes": 3730352,
@@ -1443,7 +1447,7 @@
     "Note": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed."
   },
   "HandDetection": {
-    "Status": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed.",
+    "Status": "Retired at user request by the NFC replacement in sequence 31; no active hand inference or snap listening. All earlier failures, timings and verification limits below remain historical evidence, not NFC acceptance.",
     "Acceptance": "Failed on seq29: CAMERA ERROR at idle; superseded by NFC at user request. No hand recognition accuracy established.",
     "OtaSequence": 29,
     "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
@@ -2140,7 +2144,11 @@
       "Flashed": false,
       "ReasonStopped": "User replaced snap/camera triggering with NFC card triggering and requested handdetect removal."
     },
-    "SupersededByNfc": true
+    "SupersededByNfc": true,
+    "PreviousStatusBeforeNfcRetirement": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed.",
+    "Active": false,
+    "Historical": true,
+    "RetiredByOtaSequence": 31
   },
   "PreviousHandDetectionFirmwareBinary": {
     "Path": ".tools/device-backups/20261031-154932-hand-detection/hand-detection-deployed.bin",
@@ -2186,34 +2194,471 @@
     "Note": "OTA 27 VALID: camera task moved from core 1 to core 0, priority 1 unchanged. Seq25 measurements confirmed successful inference exceeded the unchanged 500 ms freshness limit. Core-affinity A/B is installed; latency improvement, timeout resolution and labeled recognition trials remain unverified."
   },
   "NfcTrigger": {
-    "Status": "Ready for deployment. USB serial absent at 2026-10-31T17:16:40+08:00; updater failed opening COM38 before any hardware writes. Device remains seq29/VALID.",
-    "UserAuthorizedDependencies": [
-      "M5Unit-NFC",
-      "M5UnitUnified",
-      "M5HAL",
-      "M5Utility"
-    ],
-    "UserRequestedRemoval": [
-      "hand_detect",
-      "esp-dl hand model path"
-    ],
-    "Behavior": "One UID presentation starts one intro; ignore presentations during playback; require removal before another playback. ToF warning has priority.",
+    "Status": "OTA31/VALID; bundled card read and3 complete uncancelled KURO playbacks observed. User confirms one playback per presentation, held-card suppression and removal/re-presentation. Capture also records9 reader errors, with ready state restored; root cause and long-run stability remain unverified.",
+    "Active": true,
+    "Flashed": true,
+    "OtaSequence": 31,
     "SourceCommit": "d3014aab3c78646aeb95e5db550a31343a10262e",
-    "HardwareAcceptance": "Pending USB reconnection, first NFC activation, card-present/removal/playback trials",
-    "FailedDeploymentLog": "logs/device-update-nfc-trigger.log",
-    "LastAttemptWroteFlash": false,
-    "PreparedArchive": ".tools/firmware-artifacts/20261031-nfc-trigger/candidate.json"
+    "PhysicalAcceptance": "Basic bundled-card workflow passed by user report and3 logged playbacks; not a zero-error stability acceptance.",
+    "AccuracyPending": true,
+    "Hardware": "Built-in StackChan ST25R3916, shared internal I2C bus SDA GPIO12/SCL GPIO11 at address 0x50",
+    "Reaction": "One fresh card presentation starts the existing silent 3.4-second KURO intro; playback presentations are consumed without queuing. HOME/ToF Alert cancel playback.",
+    "Rearm": "Valid sustained card absence for at least 300 ms; errors and UID changes do not count as removal",
+    "PollTargetMs": 150,
+    "RemovalDwellMs": 300,
+    "ReaderTogglePersistence": "RAM only; no new NVS configuration",
+    "Controls": "DISTANCE -> TUNE -> NFC; READER ON/OFF; LIVE shows reader/removal/error status",
+    "AuthorizedDependencies": [
+      {
+        "Component": "m5stack/M5Unit-NFC",
+        "ManifestComponent": "m5stack/M5Unit-NFC",
+        "URL": "https://github.com/m5stack/M5Unit-NFC.git",
+        "Commit": "471a6e02e8052264d39b3ac97005ce4de9d1cb91",
+        "UserAuthorized": true
+      },
+      {
+        "Component": "m5stack/m5unitunified",
+        "ManifestComponent": "m5stack/M5UnitUnified",
+        "URL": "https://github.com/m5stack/M5UnitUnified.git",
+        "Commit": "68a8fa74959a3c18ffae5ce7f73ac61ecf651d4c",
+        "UserAuthorized": true
+      },
+      {
+        "Component": "m5stack/m5hal",
+        "ManifestComponent": "m5stack/M5HAL",
+        "URL": "https://github.com/m5stack/M5HAL.git",
+        "Commit": "e3a84320f21bb48062f8101301020e946182a71d",
+        "UserAuthorized": true
+      },
+      {
+        "Component": "m5stack/m5utility",
+        "ManifestComponent": "m5stack/M5Utility",
+        "URL": "https://github.com/m5stack/M5Utility.git",
+        "Commit": "336195d0f9466332552b337b94cab72f83c8d2ca",
+        "UserAuthorized": true
+      }
+    ],
+    "DependencyVerification": {
+      "Path": "logs/nfc-dependency-verification.json",
+      "SHA256": "9aef7bc817ec56a45acaa3726b245f593ba6236be033d01e27163770d92237c5",
+      "Data": {
+        "idf_version": "5.5.4",
+        "component_manager_version": "2.5.2",
+        "reconfigure_exit_code": 0,
+        "configure_log": "logs/nfc-dependency-reconfigure.log",
+        "added_components": [
+          "m5stack/M5Unit-NFC",
+          "m5stack/m5hal",
+          "m5stack/m5unitunified",
+          "m5stack/m5utility"
+        ],
+        "removed_components": [
+          "espressif/esp-dl",
+          "espressif/hand_detect"
+        ],
+        "existing_components_count": 60,
+        "existing_version_hash_dependencies_drift": [],
+        "registry_url_normalizations": [
+          "78/uart-uhci",
+          "espressif/dl_fft",
+          "espressif/esp_jpeg",
+          "espressif/esp_sccb_intf",
+          "espressif/i2c_bus",
+          "espressif/iot_usbh_cdc"
+        ],
+        "managed_component_hash_mismatches": [],
+        "git_sources": {
+          "m5stack/M5Unit-NFC": {
+            "commit": "471a6e02e8052264d39b3ac97005ce4de9d1cb91",
+            "reference_head": "471a6e02e8052264d39b3ac97005ce4de9d1cb91",
+            "source": "https://github.com/m5stack/M5Unit-NFC.git",
+            "compared_tracked_files": 233,
+            "package_omitted_non_build_files": [
+              ".clang-format",
+              ".github/ISSUE_TEMPLATE/bug-report.yml",
+              ".github/workflows/Arduino-Lint-Check.yml",
+              ".github/workflows/arduino-esp-v2-build-check.yml",
+              ".github/workflows/arduino-esp-v3-build-check.yml",
+              ".github/workflows/arduino-m5-build-check.yml",
+              ".github/workflows/clang-format-check.yml",
+              ".github/workflows/doxygen-gh-pages.yml",
+              ".github/workflows/esp-idf-build-check.yml",
+              ".github/workflows/platformio-build-check.yml",
+              ".github/workflows/wecom-digest-forward.yml",
+              ".gitignore",
+              "cap_cc1101_env.ini",
+              "library.json",
+              "library.properties",
+              "platformio.ini",
+              "unit_nfc_env.ini"
+            ],
+            "modified_files": [],
+            "build_source_manifest_and_cmake_match_reference": true
+          },
+          "m5stack/m5unitunified": {
+            "commit": "68a8fa74959a3c18ffae5ce7f73ac61ecf651d4c",
+            "reference_head": "68a8fa74959a3c18ffae5ce7f73ac61ecf651d4c",
+            "source": "https://github.com/m5stack/M5UnitUnified.git",
+            "compared_tracked_files": 74,
+            "package_omitted_non_build_files": [
+              ".github/ISSUE_TEMPLATE/bug-report.yml",
+              ".github/workflows/Arduino-Lint-Check.yml",
+              ".github/workflows/arduino-build-check.yml",
+              ".github/workflows/clang-format-check.yml",
+              ".github/workflows/doxygen-gh-pages.yml",
+              ".github/workflows/esp-idf-build-check.yml",
+              ".github/workflows/native-build-check.yml",
+              ".github/workflows/platformio-build-check.yml",
+              ".github/workflows/wecom-digest-forward.yml",
+              "library.json",
+              "library.properties",
+              "platformio.ini"
+            ],
+            "modified_files": [],
+            "build_source_manifest_and_cmake_match_reference": true
+          },
+          "m5stack/m5hal": {
+            "commit": "e3a84320f21bb48062f8101301020e946182a71d",
+            "reference_head": "e3a84320f21bb48062f8101301020e946182a71d",
+            "source": "https://github.com/m5stack/M5HAL.git",
+            "compared_tracked_files": 52,
+            "package_omitted_non_build_files": [
+              ".clang-format",
+              ".github/ISSUE_TEMPLATE/bug-report.yml",
+              ".github/workflows/Arduino-Lint-Check.yml",
+              ".github/workflows/clang-format-check.yml",
+              ".github/workflows/doxygen-gh-pages.yml",
+              ".github/workflows/native-build-check.yml",
+              ".github/workflows/platform-check.yml",
+              ".github/workflows/wecom-digest-forward.yml",
+              ".gitignore",
+              "library.json",
+              "library.properties"
+            ],
+            "modified_files": [],
+            "build_source_manifest_and_cmake_match_reference": true
+          },
+          "m5stack/m5utility": {
+            "commit": "336195d0f9466332552b337b94cab72f83c8d2ca",
+            "reference_head": "336195d0f9466332552b337b94cab72f83c8d2ca",
+            "source": "https://github.com/m5stack/M5Utility.git",
+            "compared_tracked_files": 121,
+            "package_omitted_non_build_files": [
+              ".clang-format",
+              ".github/ISSUE_TEMPLATE/bug-report.yml",
+              ".github/actions/doxygen/action.yml",
+              ".github/actions/pio_test_build/action.yml",
+              ".github/compile_check/compile_check.cpp",
+              ".github/esp_idf_check/CMakeLists.txt",
+              ".github/esp_idf_check/main/CMakeLists.txt",
+              ".github/esp_idf_check/main/main.cpp",
+              ".github/workflows/Arduino-Lint-Check.yml",
+              ".github/workflows/arduino-esp-v2-build-check.yml",
+              ".github/workflows/arduino-esp-v3-build-check.yml",
+              ".github/workflows/arduino-m5-build-check.yml",
+              ".github/workflows/arduino-non-esp32-build-check.yml",
+              ".github/workflows/clang-format-check.yml",
+              ".github/workflows/doxygen-gh-pages.yml",
+              ".github/workflows/esp-idf-build-check.yml",
+              ".github/workflows/native-cmake-check.yml",
+              ".github/workflows/platformio-build-check.yml",
+              ".github/workflows/wecom-digest-forward.yml",
+              ".gitignore",
+              "library.json",
+              "library.properties",
+              "platformio.ini"
+            ],
+            "modified_files": [],
+            "build_source_manifest_and_cmake_match_reference": true
+          }
+        },
+        "removed_production_files": {
+          "main/apps/app_distance/hand_model.cpp": true,
+          "main/apps/app_distance/hand_model.h": true,
+          "cmake/hand_model_espdl.cmake": true
+        },
+        "remaining_hand_build_references": {
+          "CMakeLists.txt": [],
+          "main/CMakeLists.txt": [],
+          "sdkconfig.defaults": [],
+          "sdkconfig": []
+        },
+        "limitations": [
+          "Full firmware compilation and hardware verification are owned by parent and were not run in this task.",
+          "CamelCase vendor requirements use project-side IDF 5.5.4 resolution mappings; recheck mapping with any future IDF upgrade."
+        ],
+        "generated_nfc_targets": [
+          "m5stack__M5Unit-NFC",
+          "m5stack__m5hal",
+          "m5stack__m5unitunified",
+          "m5stack__m5utility"
+        ],
+        "generated_hand_targets": [],
+        "ready_for_build": true
+      }
+    },
+    "RemovedActiveDependencies": [
+      "espressif/esp-dl",
+      "espressif/hand_detect"
+    ],
+    "Build": {
+      "Bytes": 4025936,
+      "AppSlotBytes": 5177344,
+      "RemainingBytes": 1151408,
+      "BuildLog": "logs/nfc-firmware-build.log",
+      "PartitionChanged": false
+    },
+    "HostTests": {
+      "SuitesPassed": 10,
+      "Log": "logs/nfc-host.log",
+      "Scope": "Synthetic fixtures; no physical NFC acceptance inferred"
+    },
+    "DesktopView": {
+      "Manifest": ".tools/intro-ui-probe/nfc-manifest.json",
+      "ManifestSHA256": "dc1c6b2e6f7612d405ae7520c762424d7e3b4e32bc6367228d319999c7bbe75f",
+      "Results": {
+        "total_assertions": 875,
+        "geometry_assertions": 787,
+        "behavior_assertions": 88,
+        "clipped_labels": 0,
+        "real_image_storage_frees": 6,
+        "freed_while_borrowed": 0,
+        "lvgl_heap_integrity": "PASS"
+      },
+      "VisualVerdict": ".omx/state/nfc-ui/ralph-progress.json",
+      "VisualVerdictSHA256": "fdb510cade3dd5a0d6252c74867603c463be64d9e41f01379443f749b9174f2a",
+      "VisualScore": 96,
+      "Scope": "Actual complete production AppDistance TU with real LVGL9.4/wrappers/fonts/pet/original LvglAllocatedImage; synthetic NFC/distance/player snapshots",
+      "Limits": [
+        "NFC reader hardware, service worker and physical card polling do not run; Snapshot values are synthetic trusted service outputs",
+        "Player worker/decoder/I2S/ToF hardware do not run; the original image ownership wrapper and actual UI do run",
+        "Global red warning decorator remains outside the minimal host StackChan adapter; actual pet Alert and top-label hiding are tested",
+        "Desktop XRGB8888 differs from physical RGB565; no physical recognition/latency claims"
+      ]
+    },
+    "StartupEvidence": {
+      "BootLog": "logs/device-nfc-boot.log",
+      "OtaVerificationLog": "logs/device-nfc-ota.log",
+      "Scope": "Boot and seq31/VALID readback only; actual NFC/card observations and user report are recorded separately."
+    },
+    "RemainingHardwareChecks": [
+      "Investigate9 transient reader error-counter increments and one RF-shutdown warning; generic ESP_FAIL does not identify cause.",
+      "Long-run stability and measured card response latency.",
+      "Explicit HOME/ToF Alert interruption while a clip is playing, beyond the existing synthetic UI tests."
+    ],
+    "Limitations": [
+      "Polling snapshots and UID sets are observations, not recognition rates or security identity.",
+      "Synthetic host/LVGL evidence does not exercise NFC RF, I2C errors or physical display/touch.",
+      "The firmware does not authenticate cards or write card memory."
+    ],
+    "HardwareCapture": {
+      "Path": "logs/device-nfc-audit.json",
+      "SHA256": "ca0e222390c4d368560178f923e4f44f896b733072af57b7f47771e435a66c3c",
+      "Data": {
+        "schema": 1,
+        "complete_scan": true,
+        "bytes_scanned": 473374,
+        "lines": 1937,
+        "source_prefix_sha256": "c6f3fdaa25be4c3200f70953a50108ee539a0808825fbb964b39a0649d90642d",
+        "limits": {
+          "max_bytes": 67108864,
+          "max_lines": 200000,
+          "max_line_bytes": 8192
+        },
+        "oversize_lines_ignored": 0,
+        "ordinary_lines_ignored": 1840,
+        "embedded_telemetry_lines_ignored": 1809,
+        "initial_mixed_or_partial_line_ignored": 1,
+        "trailing_incomplete_telemetry_lines_ignored": 0,
+        "boot_markers": 0,
+        "nfc": {
+          "polling_snapshots": 97,
+          "malformed": 0,
+          "malformed_reasons": {},
+          "statuses": {
+            "ready": 81,
+            "error": 3,
+            "card_present": 13
+          },
+          "error_codes": {
+            "0": 94,
+            "-1": 3
+          },
+          "nonzero_error_polling_snapshots": 3,
+          "waiting_for_removal_polling_snapshots": 37,
+          "card_present_polling_snapshots": 13,
+          "unique_observed_present_uid_count": 1,
+          "counter_deltas": {
+            "reads": 366,
+            "errors": 9,
+            "accepted": 3
+          },
+          "counter_wraps": {
+            "reads": 0,
+            "errors": 0,
+            "accepted": 0
+          },
+          "counter_reset_boundaries": 0,
+          "clock_wraps": 0,
+          "clock_reset_boundaries": 0,
+          "first": {
+            "uptime_ms": 138430,
+            "status": "ready",
+            "error": 0,
+            "reads": 1,
+            "errors": 0,
+            "accepted": 0,
+            "last_accepted_ms": 0,
+            "waiting_for_removal": false
+          },
+          "last": {
+            "uptime_ms": 199442,
+            "status": "ready",
+            "error": 0,
+            "reads": 367,
+            "errors": 9,
+            "accepted": 3,
+            "last_accepted_ms": 169089,
+            "waiting_for_removal": true
+          },
+          "invariant_violations": {}
+        },
+        "player": {
+          "accepted_markers": 3,
+          "finished_markers": 3,
+          "unambiguous_pairs": 3,
+          "successful_uncancelled_pairs": 3,
+          "cancelled_pairs": 0,
+          "error_pairs": 0,
+          "finished_error_codes": {
+            "0": 3
+          },
+          "orphan_finished": 0,
+          "overlapping_accepted": 0,
+          "ambiguous_finished": 0,
+          "unpaired_accepted_before_boundary": 0,
+          "unfinished_accepted_at_eof": 0,
+          "malformed_markers": 0,
+          "pair_details": [
+            {
+              "segment": 0,
+              "request": 1,
+              "accepted_line": 1459,
+              "finished_line": 1502,
+              "error": 0,
+              "cancelled": false
+            },
+            {
+              "segment": 0,
+              "request": 2,
+              "accepted_line": 1522,
+              "finished_line": 1564,
+              "error": 0,
+              "cancelled": false
+            },
+            {
+              "segment": 0,
+              "request": 3,
+              "accepted_line": 1580,
+              "finished_line": 1623,
+              "error": 0,
+              "cancelled": false
+            }
+          ]
+        },
+        "events": {},
+        "limitations": [
+          "SC_NFC records are repeated polling snapshots, not independent card presentations or recognition trials; no recognition rate is calculated.",
+          "Counter deltas exclude each segment baseline and never cross boot, backwards-clock or non-wrap counter-reset boundaries.",
+          "UID sets count distinct reported identifiers, not distinct cards or security identities. UID values are omitted unless explicitly requested for a local file.",
+          "Player pairs require actual accepted/finished log markers within one segment; finishes carry no request ID, so overlapping requests are treated as ambiguous.",
+          "Initial embedded or mixed telemetry fragments are ignored whole, not joined or salvaged into complete frames.",
+          "The existing bounded SC_DISTANCE auditor is reused separately; its own sequence, median, policy and stream limits remain explicit."
+        ],
+        "distance": {
+          "frames": 1808,
+          "malformed": 0,
+          "valid": 1808,
+          "states": {
+            "ranging": 1808
+          },
+          "errors": {},
+          "first_seq": 178,
+          "last_seq": 1985,
+          "sequence_gaps": 0,
+          "sequence_duplicates": 0,
+          "clock_wraps": 0,
+          "reset_or_backward_boundaries": 0,
+          "median_mismatches": 0,
+          "policy_mismatches": 0,
+          "raw_min_mm": 56,
+          "raw_max_mm": 655
+        },
+        "distance_auditor": {
+          "complete_scan": true,
+          "bytes_scanned": 473374,
+          "lines": 1937,
+          "boot_markers": 0,
+          "limits": {
+            "max_bytes": 67108864,
+            "max_lines": 200000,
+            "max_line_bytes": 8192
+          },
+          "scope": "SC_DISTANCE validation/median/policy only; old SC_SNAP absence is not an NFC failure."
+        },
+        "nfc_observation": "polling_observed",
+        "audit_result": "attention_required"
+      },
+      "Scope": "Complete180-second capture:97 NFC polling snapshots,9 error-counter increments,3 successful playback pairs. Polls are not independent card trials; no recognition rate calculated."
+    },
+    "HardwareAcceptance": "Basic bundled-card workflow passed by user report and3 logged playbacks; not a zero-error stability acceptance.",
+    "PhysicalUserReport": {
+      "RecordedAt": "2026-11-02T09:43:54.324889+08:00",
+      "Report": "播一次，持卡不重复，移开可再播",
+      "Scope": "User-observed basic presentation/hold/removal behavior; no measured latency or error cause inferred."
+    }
   },
   "PreparedNfcFirmwareBinary": {
     "Path": ".tools/firmware-artifacts/20261031-nfc-trigger/nfc-trigger-candidate.bin",
     "Bytes": 4025936,
     "SHA256": "f337d8c73581b0272f9f9649cd133b8d1070fcb48069a4fada954b9cabe87e30",
     "SourceCommit": "d3014aab3c78646aeb95e5db550a31343a10262e",
-    "Flashed": false,
+    "Flashed": true,
     "BuildLog": "logs/nfc-firmware-build.log",
     "HostTests": "logs/nfc-host.log",
     "UiEvidence": ".tools/intro-ui-probe/nfc-manifest.json",
     "DependencyEvidence": "logs/nfc-dependency-verification.json",
-    "Status": "Ready for deployment. USB serial absent at 2026-10-31T17:16:40+08:00; updater failed opening COM38 before any hardware writes. Device remains seq29/VALID."
+    "Status": "Prepared on 2026-10-31 and subsequently deployed on 2026-11-02; sequence31/VALID independently read back. See LastDeployedNfcFirmwareBinary for deployment evidence.",
+    "Historical": true,
+    "OtaSequence": 31,
+    "OtaState": "VALID"
+  },
+  "PreviousHandTriggerBinary": {
+    "Path": ".tools/device-backups/20261031-163805-hand-hot-conv/hand-hot-conv-deployed.bin",
+    "Bytes": 5039248,
+    "SHA256": "b17cd70a1038497e1d1784ec571098f2722c7c9219dd3741677e6fda0b56af4d",
+    "SourceCommit": "ac43a385fd7663813d805e965b3f004df2c06dfb",
+    "BuildLog": "logs/hand-hot-conv-build.log",
+    "Flashed": true,
+    "OtaSequence": 29,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261031-163805-hand-hot-conv/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261031-163805-hand-hot-conv/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-hand-hot-conv.log",
+    "Note": "Seq29/VALID remains last verified device firmware; user still observed CAMERA ERROR at idle. Sampled totals884-1136ms exceeded the unchanged 500ms guard with underlying error0. User switched to NFC; hand/snap runtime and ESP-DL dependencies removed in current source, candidate not yet flashed."
+  },
+  "LastDeployedNfcFirmwareBinary": {
+    "Path": ".tools/device-backups/20261102-093531-nfc-trigger/nfc-trigger-deployed.bin",
+    "Bytes": 4025936,
+    "SHA256": "f337d8c73581b0272f9f9649cd133b8d1070fcb48069a4fada954b9cabe87e30",
+    "SourceCommit": "d3014aab3c78646aeb95e5db550a31343a10262e",
+    "BuildLog": "logs/nfc-firmware-build.log",
+    "Flashed": true,
+    "OtaSequence": 31,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-093531-nfc-trigger/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-093531-nfc-trigger/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-nfc.log",
+    "Note": "OTA31/VALID; bundled card read and3 complete uncancelled KURO playbacks observed. User confirms one playback per presentation, held-card suppression and removal/re-presentation. Capture also records9 reader errors, with ready state restored; root cause and long-run stability remain unverified."
   }
 }

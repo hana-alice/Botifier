@@ -7,7 +7,7 @@
 当前设备已部署，实际 ToF 与 USB 数据接收通过；原厂固件槽和配置区保留。
 备份与实测记录见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 
-**NFC 刷卡版本已完成代码、构建和桌面验证，尚未刷入。** 已移除生产响指服务、hand_detect 和 ESP-DL；刷卡播一次，播放中忽略，移开卡片后才能再次触发。当前 USB 串口未连接，设备最后核验版本仍为 seq29/VALID，其手检测超时未解决；接回数据线后继续更新与读卡实测。版本与证据见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
+**NFC 刷卡版本已部署，2026-11-02 独立读回核验为 seq31/VALID。** 已移除生产响指服务、hand_detect 和 ESP-DL；用户确认刷卡播一次、持卡不重复、移开后可再播，日志记录3次完整正常播放。原厂固件槽和配置保留，启动与测距通路已核验。本次也记录9次短暂读卡错误，随后恢复，长期稳定性与错误原因尚未确认。版本与证据见 [DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)。
 
 ## 接线与摆放
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ## NFC 刷卡播放 KURO GAMES 片头
 
-以下为待部署 NFC 版本的操作。使用机身内置 ST25R3916 读取 NFC-A 卡片 UID，不写卡片存储。一次新刷卡全屏播放 **3.4 秒黑底 KURO GAMES Logo**，结束后返回原页面。素材取自[库洛 PGR 官网](https://pgr.kurogame.net/)公开宣传片，保留原始淡入淡出；该片头区间静音。来源、转换方法与文件摘要见 [media/README.md](StackChan/firmware/main/apps/app_distance/media/README.md)。随附卡片的实际兼容性和感应位置仍需实测。
+使用机身内置 ST25R3916 读取 NFC-A 卡片 UID，不写卡片存储。一次新刷卡全屏播放 **3.4 秒黑底 KURO GAMES Logo**，结束后返回原页面。素材取自[库洛 PGR 官网](https://pgr.kurogame.net/)公开宣传片，保留原始淡入淡出；该片头区间静音。来源、转换方法与文件摘要见 [media/README.md](StackChan/firmware/main/apps/app_distance/media/README.md)。本机随附卡片已读到，精确感应距离与其他卡片兼容性未测。
 
 进入 **DISTANCE → TUNE → NFC**，确认 **READER ON** 后按 **LIVE**。测距保持安全，看到 **NFC TAP CARD** 后将卡片靠近机身 NFC 感应区。持续持卡只触发一次；播放期间的刷卡被忽略，不排队、不重播或延长。播放结束后移开卡片约1秒，等再次显示 TAP CARD 才重新刷卡。程序要求至少两次有效无卡读数、跨度达到300ms；读卡错误不算移卡。
 
