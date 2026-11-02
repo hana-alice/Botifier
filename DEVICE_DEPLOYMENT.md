@@ -294,3 +294,17 @@ LIVE 顶部增加 READY、WARMING、SOUND FILTERED 和画面/距离状态，日�
 用户进入DISTANCE后确认“播一次，持卡不重复，移开可再播”。完成的180秒采集有97个SC_NFC轮询快照，实际观测到1种UID，accepted从0增至3；3组accepted→playing→finished均error0/cancelled0。NFC初始化与本次随附卡片读出已有实机证据，持卡去重和移卡重触发另有用户现场确认；轮询快照数不等于独立刷卡次数，不据此计算识别率。
 
 同窗口SC_DISTANCE为seq178–1985，**1808/1808有效**，无缺帧、中值或规则复算不一致，未见panic/assert/watchdog。审计 `logs/device-nfc-audit.json` 仍标记 **attention_required**：读卡errors累计增加9次，其中3个轮询保留error=-1（ESP_FAIL），另有一次无法确认RF关场的警告，最终读卡状态恢复ready/error0。当前返回码不能区分具体失败步骤，错误根因未定位；不能将这次基本功能验收写成“全程零错误”或长期稳定性通过。播放中刷卡忽略、ToF/HOME抢占的独立现场试验与精确响应延迟仍未单独标注验收。
+
+### seq33：按用户要求取消 NFC 与测距的联动
+
+用户指出刷卡无需距离限制。提交 `e3f8cdd613a1dca15d88a1a642c6fd4bbb5327ba` 删除NFC服务对测距状态的依赖、App触发入口的有效距离/安全距离门槛，以及距离Alert自动停止片头的逻辑；移除错误的NFC NEEDS DISTANCE提示。正常距离采样、宠物提醒、参数保存、持卡去重、播放忙时不补播和HOME退出保留。未改读卡底层、依赖、分区或测距阈值；此前seq31的短暂读卡错误不据此视为已修复。
+
+完整目标增量构建 `logs/nfc-no-distance-build.log` 与主机CTest10/10 `logs/nfc-no-distance-host.log` 通过。镜像 **4,025,600字节**，SHA256 `ca75828fbe9505db0d546d4511a0ab9faf0d0bfd8e6deff2f369a5465626923e`；应用槽仍为5,177,344字节，余1,151,744字节。
+
+实际生产View/LVGL回归 **1,275断言**（146行为/1,129几何）、0裁切、12次图像释放/0借用中释放、heap PASS；invalid、stale、Near、Alert、filtered=-1均可新刷卡启动，播放中切换距离状态不取消，持卡/忙时不补播与移卡重触发、HOME退出通过。旧seq31距离取消逻辑作为负例按预期失败，旧时钟顺序负例exit42。证据 `.tools/intro-ui-probe/nfc-unrestricted-manifest.json`、44场景联系表与97/pass视觉记录，父级归档 `.omx/state/nfc-unrestricted-ui/ralph-progress.json`。这些是合成服务输入下的实际界面验证，未运行RF硬件或播放器解码线程。
+
+核对COM38、设备MAC、seq31/VALID和旧镜像摘要后，仅写ota_0及启动扇区0。备份与镜像/ELF/map归档 `.tools/device-backups/20261102-095058-nfc-unrestricted/`；三阶段保护校验见 `logs/device-update-nfc-unrestricted.log`。启动25秒后独立读回 **seq33/VALID、CRC正确**，原seq2/VALID扇区逐字节不变，见归档 `ota-confirmation.json` 与 `logs/device-nfc-unrestricted-ota.log`。开始120秒 `logs/device-nfc-unrestricted.log` 采集，等待用户现场近距离刷卡结果；不复用seq31的3次播放作为新版验收。
+
+用户随后确认“过近也能触发，距离变化不打断”。本版120秒窗口有 **2组完整播放，均error0/cancelled0**：第一组接受日志前最近测距为124mm/Alert，播放中34个测距样本全为Alert；第二组接受前为72mm/Alert，播放中12个Alert样本及23个Safe样本，仍正常结束。关联逐行证据见 `logs/device-nfc-unrestricted-distance-playback.json`，未对采样点之间距离插值。近距离启动和播放中距离变化已有实机与用户确认，invalid/stale/未接ToF的情形仍仅有合成界面回归与源码证据。
+
+`logs/device-nfc-unrestricted-audit.json` 记录98个SC_NFC轮询、accepted增2、读卡errors增8（3个快照保留ESP_FAIL）、最终恢复ready/error0。审计仍为attention_required，未隐去或宣称修复底层读卡错误。SC_DISTANCE seq414–1617，**1204/1204有效**，无缺帧、中值或规则不一致，未见panic/assert/watchdog。保留seq31所有历史采集与验收记录，不将不同版本轮询快照合并为刷卡成功率。
