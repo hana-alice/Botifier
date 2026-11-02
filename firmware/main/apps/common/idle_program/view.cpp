@@ -152,7 +152,7 @@ struct View {
         }
         for (std::size_t i = 0; i < beat_dots.size(); ++i) {
             beat_dots[i] = plain(root, 8, 6);
-            lv_obj_set_pos(beat_dots[i], 44 + static_cast<int>(i) * 15, 203);
+            lv_obj_set_pos(beat_dots[i], 36 + static_cast<int>(i) * 15, 203);
             lv_obj_set_style_radius(beat_dots[i], 3, 0);
             lv_obj_set_style_bg_opa(beat_dots[i], LV_OPA_COVER, 0);
         }
@@ -194,7 +194,8 @@ struct View {
             value.eye_phase == previous_phase && beat == previous_beat && now - last_render_ms < 33) return;
         rendered = true;
         last_render_ms = now;
-        const auto mood = motion ? kGroupMoods[std::min<std::uint32_t>(3, beat / 4)] : value.program == Program::RestDone ? distance_pet::Mood::Happy :
+        const auto mood = motion ? (beat == 0 ? distance_pet::Mood::Idle :
+                          kGroupMoods[std::min<std::uint32_t>(3, (beat - 1) / 4)]) : value.program == Program::RestDone ? distance_pet::Mood::Happy :
                           eye ? distance_pet::Mood::Affection : countdown ? distance_pet::Mood::Curious :
                           value.weekly_status != WeeklyStatus::Fresh || value.weekly_left < 0 ? distance_pet::Mood::Sad :
                           value.weekly_left <= 20 ? distance_pet::Mood::Sad :
@@ -228,18 +229,18 @@ struct View {
         lv_obj_set_style_bg_color(root, lv_color_hex(countdown ? 0x291B0D : weekly ? 0x0B1F2A : rest ? 0x172D96 : 0), 0);
         lv_obj_set_style_bg_grad_color(root, lv_color_hex(0x6E35CB), 0);
         lv_obj_set_style_bg_grad_dir(root, rest ? LV_GRAD_DIR_VER : LV_GRAD_DIR_NONE, 0);
-        lv_obj_set_style_text_font(title, &BUILTIN_TEXT_FONT, 0);
+        lv_obj_set_style_text_font(title, motion ? &lv_font_montserrat_14 : &BUILTIN_TEXT_FONT, 0);
         lv_obj_set_style_text_color(title, lv_color_hex(countdown ? kAmber : kText), 0);
         lv_obj_set_style_text_align(title, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(number, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(unit, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(detail, weekly ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(detail, lv_color_hex(kMuted), 0);
-        place(title, weekly ? 66 : 16, 20, weekly ? 238 : 288);
+        place(title, weekly ? 66 : 16, motion ? 8 : 20, weekly ? 238 : 288);
         place(number, 78, 78, 82, 512);
         place(unit, 16, 151, 288);
-        place(detail, 16, 205, 288);
-        place(face_host, weekly ? 200 : 30, weekly ? 60 : 12, 320, weekly ? 80 : 208);
+        place(detail, 16, motion ? 215 : 205, 288);
+        if (!motion) place(face_host, weekly ? 200 : 30, weekly ? 60 : 12, 320, weekly ? 80 : 208);
         char text[64];
         if (countdown) {
             lv_label_set_text(title, "NEXT EYE BREAK");
@@ -284,16 +285,19 @@ struct View {
                 lv_obj_set_style_bg_color(quota_fill[i], lv_color_hex(color), 0);
             }
         } else if (motion) {
-            lv_label_set_text(title, "FOLLOW THE BEAT");
-            lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
-            place(title, 16, 8, 288);
+            const bool preparing = value.phase_elapsed_ms < kMotionPrepareMs;
+            lv_label_set_text(title, preparing ? "FACE FORWARD" : "FOLLOW THE BEAT");
             const auto target = motion_visual_offset(value.phase_elapsed_ms);
-            place(face_host, 15 + static_cast<int>(std::lround(target.yaw_delta / 10)),
-                  10 + static_cast<int>(std::lround(target.pitch_delta / 10)), 320, 232);
+            // Keep the animated parent at native scale. A transformed full-face
+            // parent makes LVGL redraw and composite an intermediate layer.
+            place(face_host, static_cast<int>(std::lround(target.yaw_delta / 10)),
+                  static_cast<int>(std::lround(target.pitch_delta / 10)), 320);
             const auto group = motion_group(value.phase_elapsed_ms);
             const auto step = motion_step(value.phase_elapsed_ms);
             const char* direction = group == 1 ? "LEFT" : group == 2 ? "RIGHT" : group == 3 ? "UP" : "DOWN";
-            if (motion_is_pause(value.phase_elapsed_ms))
+            if (preparing)
+                std::snprintf(text, sizeof(text), "GET READY");
+            else if (motion_is_pause(value.phase_elapsed_ms))
                 std::snprintf(text, sizeof(text), "%lu / 4  BREATHE", static_cast<unsigned long>(group));
             else if (motion_is_center(value.phase_elapsed_ms))
                 std::snprintf(text, sizeof(text), "%lu / 4  CENTER", static_cast<unsigned long>(group));
@@ -301,7 +305,6 @@ struct View {
                 std::snprintf(text, sizeof(text), "%lu / 4  %s %lu / 2", static_cast<unsigned long>(group),
                               direction, static_cast<unsigned long>(step));
             lv_label_set_text(detail, text);
-            place(detail, 16, 215, 288);
             for (std::size_t i = 0; i < beat_dots.size(); ++i)
                 lv_obj_set_style_bg_color(beat_dots[i], lv_color_hex(i == beat ? kMint : 0x283A3A), 0);
             lv_bar_set_value(progress, static_cast<int>(std::min<std::uint64_t>(1000,

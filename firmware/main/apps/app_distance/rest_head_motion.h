@@ -36,8 +36,6 @@ public:
     {
         if (_cancelled || _skipped || _ownership_lost || _limits_unavailable) return;
         if (_owns_lock && !check_ownership(motion)) return;
-        // The first 120 ms belong to the anticipatory gaze, with no servo goal.
-        if (elapsed_ms < idle_program::kMotionBeats.front().start_ms) return;
         if (!_started) {
             if (!_owns_lock) {
                 if (_attempted) return;
@@ -54,7 +52,13 @@ public:
                 return;
             }
             const auto current = motion.getCurrentAngles();
-            _base_yaw = current.x;
+            // The first timed goal faces the calibrated home. Do not attempt
+            // a large repositioning from an arbitrary previous pose.
+            if (current.x < -300 || current.x > 300) {
+                _skipped = true;
+                release(motion);
+                return;
+            }
             _base_pitch = current.y;
         }
 
@@ -121,8 +125,19 @@ private:
     {
         const auto yaw_limit = motion.yawServo().getAngleLimit();
         const auto pitch_limit = motion.pitchServo().getAngleLimit();
-        return bounded_target(_base_yaw, offset.yaw_delta, 80, yaw_limit.x, yaw_limit.y, yaw) &&
+        return home_yaw_target(offset.yaw_delta, yaw_limit.x, yaw_limit.y, yaw) &&
                bounded_target(_base_pitch, offset.pitch_delta, 40, pitch_limit.x, pitch_limit.y, pitch);
+    }
+
+    static bool home_yaw_target(int offset, int minimum, int maximum, int& result)
+    {
+        const auto low = std::max(minimum, -80);
+        const auto high = std::min(maximum, 80);
+        // A one-sided range cannot perform left and right around home. Do not
+        // manufacture another off-centre neutral from its midpoint.
+        if (low >= 0 || high <= 0) return false;
+        result = std::clamp(offset, low, high);
+        return true;
     }
 
     static bool bounded_target(int base, int offset, int radius, int minimum, int maximum, int& result)
@@ -163,7 +178,6 @@ private:
     bool _ownership_lost = false;
     bool _limits_unavailable = false;
     bool _cancelled = false;
-    int _base_yaw = 0;
     int _base_pitch = 0;
     int _last_beat = -1;
     int _target_yaw = 0;

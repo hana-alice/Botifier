@@ -154,7 +154,7 @@ void only_current_eligible_intro_acknowledgement_advances_the_sequence()
     run(policy, now, kMotionDurationMs - 1u);
     state = policy.snapshot(now);
     check(state.eye_phase == EyePhase::Motion && state.remaining_ms == 1 && state.phase_elapsed_ms == kMotionDurationMs - 1u,
-          "motion finished before all sixteen rhythm targets");
+          "motion finished before its preparation and sixteen rhythm targets");
     const auto readonly = policy.snapshot(now + 1u);
     check(readonly.eye_phase == EyePhase::Motion && readonly.remaining_ms == 0 &&
               readonly.generation == intro_generation + 1u && readonly.completed_rests == 0,
@@ -213,20 +213,22 @@ void delayed_worker_tick_never_borrows_time_from_rest()
 
 void motion_timeline_is_bounded_and_returns_to_centre()
 {
-    static_assert(kMotionDurationMs == 12000 && kMotionBeats.size() == 16 && kMotionCueLeadMs == 120);
-    constexpr std::array<std::int16_t, 16> yaw{{-60, 0, -80, 0, 60, 0, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
-    constexpr std::array<std::int16_t, 16> pitch{{0, 0, 0, 0, 0, 0, 0, 0, -30, 0, -40, 0, 30, 0, 40, 0}};
+    static_assert(kMotionPrepareMs == 700 && kMotionDurationMs == 12700 && kMotionBeats.size() == 17 && kMotionCueLeadMs == 120);
+    constexpr std::array<std::int16_t, 17> yaw{{0, -60, 0, -80, 0, 60, 0, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+    constexpr std::array<std::int16_t, 17> pitch{{0, 0, 0, 0, 0, 0, 0, 0, 0, -30, 0, -40, 0, 30, 0, 40, 0}};
     constexpr std::array<std::uint32_t, 4> starts{{120, 720, 1400, 2100}};
     constexpr std::array<std::uint16_t, 4> moves{{360, 300, 420, 340}};
-    for (const auto elapsed : {0u, 119u}) {
+    for (const auto elapsed : {0u, kMotionPrepareMs - 1u}) {
         check(motion_index(elapsed) == 0 && motion_beat(elapsed).yaw_delta == 0 &&
                   motion_beat(elapsed).pitch_delta == 0,
-              "head anticipation exposed an early servo target or invalid index");
+              "home preparation exposed an early excursion or invalid index");
     }
-    for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
+    for (std::uint32_t beat = 1; beat < kMotionBeats.size(); ++beat) {
+        const auto performance = beat - 1u;
         const auto frame = kMotionBeats[beat];
         const auto next = beat + 1u < kMotionBeats.size() ? kMotionBeats[beat + 1u].start_ms : kMotionDurationMs;
-        check(frame.start_ms == (beat / 4u) * 3000u + starts[beat % 4u] && frame.move_ms == moves[beat % 4u] &&
+        check(frame.start_ms == kMotionPrepareMs + (performance / 4u) * 3000u + starts[performance % 4u] &&
+                  frame.move_ms == moves[performance % 4u] &&
                   frame.start_ms + frame.move_ms <= next,
               "target schedule lost its nonuniform start, travel duration, or settle interval");
         check(motion_index(frame.start_ms - 1u) == (beat ? beat - 1u : 0u),
@@ -241,9 +243,9 @@ void motion_timeline_is_bounded_and_returns_to_centre()
         const auto cue_end = beat + 1u < kMotionBeats.size() ? next - kMotionCueLeadMs : kMotionDurationMs;
         if (beat) check(motion_cue_index(cue_start - 1u) == beat - 1u, "eye cue began earlier than the 120 ms lead");
         for (const auto elapsed : {cue_start, cue_end - 1u}) {
-            const auto expected_step = beat % 4u == 0 ? 1u : beat % 4u == 2 ? 2u : 0u;
-            check(motion_cue_index(elapsed) == beat && motion_group(elapsed) == beat / 4u + 1u &&
-                      motion_step(elapsed) == expected_step && motion_is_center(elapsed) == (beat % 2u == 1u),
+            const auto expected_step = performance % 4u == 0 ? 1u : performance % 4u == 2 ? 2u : 0u;
+            check(motion_cue_index(elapsed) == beat && motion_group(elapsed) == performance / 4u + 1u &&
+                      motion_step(elapsed) == expected_step && motion_is_center(elapsed) == (performance % 2u == 1u),
                   "eye cue ordinals disagreed with two complete out-and-back excursions");
         }
     }
@@ -252,7 +254,7 @@ void motion_timeline_is_bounded_and_returns_to_centre()
         check(pose.yaw_delta == 0 && pose.pitch_delta == 0, "completed motion did not remain at centre");
         check(motion_group(elapsed) == 0 && motion_step(elapsed) == 0 && motion_is_center(elapsed),
               "completed motion exposed a current group or movement step");
-        check(motion_index(elapsed) == 15 && motion_cue_index(elapsed) == 15 && !motion_is_pause(elapsed),
+        check(motion_index(elapsed) == 16 && motion_cue_index(elapsed) == 16 && !motion_is_pause(elapsed),
               "oversized time exposed an invalid target index or an active pause");
     }
 }
@@ -260,7 +262,7 @@ void motion_timeline_is_bounded_and_returns_to_centre()
 void motion_pause_and_blink_have_explicit_group_boundaries()
 {
     for (std::uint32_t group = 0; group < 4; ++group) {
-        const auto start = group * 3000u;
+        const auto start = kMotionPrepareMs + group * 3000u;
         check(!motion_is_pause(start + 2439u) && motion_is_pause(start + 2440u) &&
                   motion_is_pause(start + 2999u) && !motion_is_pause(start + 3000u),
               "centre pause did not retain exactly its designed 560 ms interval");
@@ -277,6 +279,26 @@ void motion_pause_and_blink_have_explicit_group_boundaries()
     }
     check(motion_blink_open(kMotionDurationMs) == 1 && motion_blink_open(UINT32_MAX) == 1,
           "completed sequence left the eyes shut");
+}
+
+void home_preparation_is_a_separate_timed_target_without_eye_cue_underflow()
+{
+    const auto preparation = kMotionBeats.front();
+    check(preparation.start_ms == 0 && preparation.move_ms == kMotionPrepareMs &&
+              preparation.yaw_delta == 0 && preparation.pitch_delta == 0,
+          "home preparation was not represented by its own 700 ms target");
+    for (std::uint32_t elapsed = 0; elapsed < kMotionPrepareMs; ++elapsed) {
+        const auto head = motion_visual_offset(elapsed);
+        const auto gaze = motion_gaze_offset(elapsed);
+        check(motion_index(elapsed) == 0 && motion_cue_index(elapsed) == 0 && motion_group(elapsed) == 0 &&
+                  motion_step(elapsed) == 0 && motion_is_center(elapsed) && !motion_is_pause(elapsed) &&
+                  motion_blink_open(elapsed) == 1 && head.yaw_delta == 0 && head.pitch_delta == 0 &&
+                  gaze.yaw_delta == 0 && gaze.pitch_delta == 0,
+              "preparation exposed a performance cue, blink, gaze or unsigned-underflow index");
+    }
+    check(motion_index(kMotionPrepareMs) == 0 && motion_cue_index(kMotionPrepareMs) == 1 &&
+              motion_group(kMotionPrepareMs) == 1 && motion_step(kMotionPrepareMs) == 1,
+          "first gaze did not begin after the complete home preparation");
 }
 
 void intro_and_motion_boundaries_survive_uint32_wrap()
@@ -821,7 +843,7 @@ void visual_motion_is_continuous_and_holds_each_completed_target()
         previous = current;
         previous_gaze = gaze;
     }
-    for (std::uint32_t beat = 0; beat < kMotionBeats.size(); ++beat) {
+    for (std::uint32_t beat = 1; beat < kMotionBeats.size(); ++beat) {
         const auto target = kMotionBeats[beat];
         const auto next = beat + 1u < kMotionBeats.size() ? kMotionBeats[beat + 1u].start_ms : kMotionDurationMs;
         const auto from = beat ? kMotionBeats[beat - 1u] : MotionBeat{0, 0, 0, 0};
@@ -901,6 +923,7 @@ int main()
         only_current_eligible_intro_acknowledgement_advances_the_sequence,
         delayed_worker_tick_never_borrows_time_from_rest, motion_timeline_is_bounded_and_returns_to_centre,
         motion_pause_and_blink_have_explicit_group_boundaries,
+        home_preparation_is_a_separate_timed_target_without_eye_cue_underflow,
         intro_and_motion_boundaries_survive_uint32_wrap,
         blocked_context_and_asynchronous_staleness_cancel, overdue_intervals_never_form_a_backlog,
         persistent_distance_alert_allows_and_cannot_interrupt_due_rest,

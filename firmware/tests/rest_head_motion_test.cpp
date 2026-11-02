@@ -73,12 +73,12 @@ void normal_beats_and_centre_hold()
     check(motion.current_reads == 1 && motion.lock_writes == 1, "scene re-read its origin or reacquired its lock");
     for (std::size_t i = 0; i < motion.commands.size(); ++i) {
         const auto& command = motion.commands[i];
-        check(command.yaw == motion.current.x + idle_program::kMotionBeats[i].yaw_delta &&
+        check(command.yaw == idle_program::kMotionBeats[i].yaw_delta &&
               command.pitch == motion.current.y + idle_program::kMotionBeats[i].pitch_delta &&
               command.duration_ms == idle_program::kMotionBeats[i].move_ms,
               "normal beat disagreed with the shared relative choreography");
     }
-    check(motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150, "final beat failed to centre");
+    check(motion.commands.back().yaw == 0 && motion.commands.back().pitch == 150, "final beat failed to face calibrated home");
     head.tick(motion, kDurationMs + 20000);
     check(motion.commands.size() == kBeatCount && motion.locked && motion.stops == 0, "REST hold emitted or released early");
     head.cancel(motion);
@@ -90,15 +90,15 @@ void skipped_frames_do_not_replay()
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
     head.tick(motion, at(0));
-    head.tick(motion, at(4) + 150u);
-    head.tick(motion, at(4) + 150u);
-    head.tick(motion, at(5) - 1u);
+    head.tick(motion, at(5) + 150u);
+    head.tick(motion, at(5) + 150u);
+    head.tick(motion, at(6) - 1u);
     head.tick(motion, at(0));
-    check(motion.commands.size() == 2 && motion.commands.back().yaw == 75 &&
+    check(motion.commands.size() == 2 && motion.commands.back().yaw == 60 &&
               motion.commands.back().duration_ms == 360, "jump or backdated tick replayed an old beat or changed the current duration");
     head.tick(motion, kDurationMs);
     head.tick(motion, 2 * kDurationMs);
-    check(motion.commands.size() == 3 && motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150,
+    check(motion.commands.size() == 3 && motion.commands.back().yaw == 0 && motion.commands.back().pitch == 150,
           "missed final beat did not force one centre command");
     head.cancel(motion);
 }
@@ -107,7 +107,7 @@ void delayed_first_tick_uses_current_beat()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    head.tick(motion, at(10) + 100u);
+    head.tick(motion, at(11) + 100u);
     check(motion.commands.size() == 1 && motion.commands[0].pitch == 110, "late start replayed the beginning");
     head.cancel(motion);
     distance_pet::RestHeadMotion expired;
@@ -118,7 +118,7 @@ void delayed_first_tick_uses_current_beat()
 
 void explicit_exit_is_idempotent_and_terminal()
 {
-    for (const auto elapsed : {0u, at(0), at(1), kDurationMs - 200u, kDurationMs + 20000u}) {
+    for (const auto elapsed : {0u, 350u, at(1), kDurationMs - 200u, kDurationMs + 20000u}) {
         distance_pet::RestHeadMotion head;
         FakeMotion motion;
         head.tick(motion, elapsed);
@@ -164,18 +164,18 @@ void dynamic_limits_are_read_on_each_new_beat()
     head.tick(motion, at(0));
     motion.yaw.limits = {-30, 25};
     motion.pitch.limits = {140, 160};
-    head.tick(motion, at(2));
+    head.tick(motion, at(3));
     check(motion.commands.back().yaw == -30, "new yaw minimum was not applied");
-    head.tick(motion, at(6));
+    head.tick(motion, at(7));
     check(motion.commands.back().yaw == 25, "new yaw maximum was not applied");
-    head.tick(motion, at(10));
+    head.tick(motion, at(11));
     check(motion.commands.back().pitch == 140, "new pitch minimum was not applied");
-    head.tick(motion, at(14));
+    head.tick(motion, at(15));
     check(motion.commands.back().pitch == 160, "new pitch maximum was not applied");
     motion.yaw.limits = {-30, 10};
     motion.pitch.limits = {140, 145};
     head.tick(motion, kDurationMs);
-    check(motion.commands.back().yaw == -10 && motion.commands.back().pitch == 142,
+    check(motion.commands.back().yaw == 0 && motion.commands.back().pitch == 142,
           "final centre ignored the current narrowed limits");
     head.cancel(motion);
 }
@@ -229,15 +229,22 @@ void unsatisfiable_limits_fail_without_larger_movement()
 
 void boundary_arithmetic_is_defined()
 {
+  for (const auto yaw : {std::numeric_limits<int>::min(), std::numeric_limits<int>::max()}) {
+    distance_pet::RestHeadMotion outside;
+    FakeMotion extreme;
+    extreme.current.x = yaw;
+    outside.tick(extreme, 0);
+    check(outside.skipped() && !outside.started() && extreme.commands.empty() && extreme.lock_writes == 0 &&
+              extreme.torque_enables == 0, "extreme initial yaw overflowed the bounded-home guard");
+  }
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    motion.current = {std::numeric_limits<int>::max(), std::numeric_limits<int>::min()};
-    motion.yaw.limits = {std::numeric_limits<int>::max() - 10, std::numeric_limits<int>::max()};
+    motion.current = {0, std::numeric_limits<int>::min()};
     motion.pitch.limits = {std::numeric_limits<int>::min(), std::numeric_limits<int>::min() + 10};
     head.tick(motion, at(0));
-    head.tick(motion, at(6));
-    head.tick(motion, at(10));
-    check(motion.commands.size() == 3 && motion.commands[1].yaw == std::numeric_limits<int>::max() &&
+    head.tick(motion, at(7));
+    head.tick(motion, at(11));
+    check(motion.commands.size() == 3 && motion.commands[1].yaw == 80 &&
           motion.commands[2].pitch == std::numeric_limits<int>::min(), "boundary arithmetic overflowed");
     head.cancel(motion);
 }
@@ -255,11 +262,11 @@ void reservation_leaves_previous_motion_running_and_captures_late_base()
     motion.current = {40, 250}; // The previous movement finishes during the intro.
     motion.moving = false;
     head.tick(motion, at(0));
-    head.tick(motion, at(2));
+    head.tick(motion, at(3));
     head.reserve(motion);
     check(head.started() && !head.skipped() && motion.lock_writes == 1 && motion.current_reads == 1 &&
-          motion.commands.size() == 2 && motion.commands[0].yaw == -20 && motion.commands[0].pitch == 250 &&
-          motion.commands[1].yaw == -40 && motion.commands[1].pitch == 250,
+          motion.commands.size() == 2 && motion.commands[0].yaw == 0 && motion.commands[0].pitch == 250 &&
+          motion.commands[1].yaw == -80 && motion.commands[1].pitch == 250,
           "reserved scene rejected its own lock or used the pre-intro origin");
     head.cancel(motion);
     check(motion.stops == 1 && !motion.locked, "started reservation did not stop and release on exit");
@@ -424,19 +431,21 @@ void lost_ownership_or_limits_never_reenable_torque()
 
 void four_directions_repeat_two_complete_excursions()
 {
-    check(kDurationMs == 12000 && kBeatCount == 16,
-          "head sequence must have sixteen targets in twelve seconds");
-    constexpr std::array<Angles, 16> expected{{
-        {-60, 0}, {0, 0}, {-80, 0}, {0, 0}, {60, 0}, {0, 0}, {80, 0}, {0, 0},
+    check(kDurationMs == 12700 && kBeatCount == 17,
+          "head sequence must prepare home then perform sixteen targets");
+    constexpr std::array<Angles, 17> expected{{
+        {0, 0}, {-60, 0}, {0, 0}, {-80, 0}, {0, 0}, {60, 0}, {0, 0}, {80, 0}, {0, 0},
         {0, -30}, {0, 0}, {0, -40}, {0, 0}, {0, 30}, {0, 0}, {0, 40}, {0, 0},
     }};
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
     for (std::uint32_t i = 0; i < expected.size(); ++i) {
-        head.tick(motion, at(i) - 1u);
-        check(motion.commands.size() == i, "a head target began before its actual start boundary");
+        if (i) {
+            head.tick(motion, at(i) - 1u);
+            check(motion.commands.size() == i, "a head target began before its actual start boundary");
+        }
         head.tick(motion, at(i));
-        check(motion.commands.back().yaw == 15 + expected[i].x && motion.commands.back().pitch == 150 + expected[i].y,
+        check(motion.commands.back().yaw == expected[i].x && motion.commands.back().pitch == 150 + expected[i].y,
               "a direction did not return to centre between its two excursions");
         check(motion.commands.back().duration_ms == idle_program::kMotionBeats[i].move_ms,
               "a target did not use its own specified travel duration");
@@ -444,7 +453,7 @@ void four_directions_repeat_two_complete_excursions()
         check(motion.commands.size() == i + 1u, "duplicate frame resent a head target");
     }
     head.tick(motion, kDurationMs - 1);
-    check(motion.commands.size() == 16 && motion.commands.back().yaw == 15 && motion.commands.back().pitch == 150,
+    check(motion.commands.size() == 17 && motion.commands.back().yaw == 0 && motion.commands.back().pitch == 150,
           "final centre did not retain its complete pause");
     head.cancel(motion);
 }
@@ -453,18 +462,18 @@ void starting_at_pitch_edge_uses_both_directions_inside_original_window()
 {
     distance_pet::RestHeadMotion head;
     FakeMotion motion;
-    motion.current = {1270, 31};
+    motion.current = {128, 31};
     for (std::uint32_t i = 0; i < kBeatCount; ++i) {
         head.tick(motion, at(i));
         const auto& command = motion.commands.back();
-        check(command.yaw >= 1190 && command.yaw <= 1280 && command.pitch >= 30 && command.pitch <= 71,
-              "edge neutral escaped the original actual-angle envelope or physical limits");
+        check(command.yaw >= -80 && command.yaw <= 80 && command.pitch >= 30 && command.pitch <= 71,
+              "yaw escaped the home window or pitch escaped its original actual-angle envelope");
     }
-    check(motion.commands[8].pitch == 35 && motion.commands[10].pitch == 30 &&
-          motion.commands[12].pitch == 65 && motion.commands[14].pitch == 71 && motion.commands[15].pitch == 50,
+    check(motion.commands[9].pitch == 35 && motion.commands[11].pitch == 30 &&
+          motion.commands[13].pitch == 65 && motion.commands[15].pitch == 71 && motion.commands[16].pitch == 50,
           "pitch near its stop did not have two visible beats in both directions and a bounded centre");
-    check(motion.commands[2].yaw == 1190 && motion.commands[6].yaw == 1280 && motion.commands[15].yaw == 1235,
-          "yaw near its stop did not use the bounded window centre");
+    check(motion.commands[3].yaw == -80 && motion.commands[7].yaw == 80 && motion.commands[16].yaw == 0,
+          "an off-centre starting yaw prevented a real crossing of calibrated home");
     head.cancel(motion);
 }
 
@@ -475,45 +484,122 @@ void shrinking_limits_recentre_without_expanding_original_window()
     motion.current.y = 31;
     head.tick(motion, at(0));
     motion.pitch.limits = {45, 65};
-    head.tick(motion, at(10));
-    check(motion.commands.back().pitch == 45, "tightened pitch minimum was not honoured");
     head.tick(motion, at(11));
+    check(motion.commands.back().pitch == 45, "tightened pitch minimum was not honoured");
+    head.tick(motion, at(12));
     check(motion.commands.back().pitch == 55, "tightened pitch window did not retain a bounded neutral");
-    head.tick(motion, at(14));
+    head.tick(motion, at(15));
     check(motion.commands.back().pitch == 65, "tightened pitch maximum was not honoured");
     motion.pitch.limits = {100, 110};
-    head.tick(motion, at(15));
+    head.tick(motion, at(16));
     check(head.limits_unavailable() && !head.owns_lock() && motion.stops == 1,
           "shifted physical limits caused an expanded movement envelope");
     head.cancel(motion);
 }
 
-void anticipation_sends_no_servo_goal_and_can_be_cancelled()
+void home_preparation_is_timed_after_reservation_and_can_be_cancelled()
 {
     for (const bool reserve : {false, true}) {
         distance_pet::RestHeadMotion head;
         FakeMotion motion;
-        motion.moving = true;
         if (reserve) head.reserve(motion);
-        for (std::uint32_t elapsed = 0; elapsed < at(0); ++elapsed) head.tick(motion, elapsed);
-        check(!head.started() && !head.skipped() && motion.current_reads == 0 && motion.commands.empty() &&
+        check(!head.started() && motion.current_reads == 0 && motion.commands.empty() &&
                   motion.lock_writes == (reserve ? 1 : 0) && motion.torque_enables == 0 && motion.stops == 0,
-              "eye anticipation touched the servo or captured an unfinished prior position");
-        motion.moving = false;
-        head.tick(motion, at(0));
-        check(head.started() && motion.commands.size() == 1 && motion.commands.front().duration_ms == 360,
-              "first actual head start did not begin its own movement");
+              "intro reservation began centring before the video finished");
+        head.tick(motion, 0);
+        head.tick(motion, 699);
+        head.tick(motion, 700);
+        check(head.started() && motion.commands.size() == 1 && motion.commands.front().duration_ms == 700 &&
+                  motion.commands.front().yaw == 0 && motion.commands.front().pitch == 150 &&
+                  motion.torque_enables == 1 && motion.current_reads == 1,
+              "home preparation did not send exactly one 700 ms calibrated-centre target");
+        head.tick(motion, at(1));
+        check(motion.commands.size() == 2 && motion.commands.back().yaw == -60,
+              "first excursion did not wait until after the complete preparation");
         head.cancel(motion);
     }
     distance_pet::RestHeadMotion cancelled;
     FakeMotion motion;
     cancelled.reserve(motion);
-    cancelled.tick(motion, at(0) - 1u);
+    cancelled.tick(motion, 0);
+    cancelled.tick(motion, 350);
     cancelled.cancel(motion);
-    cancelled.tick(motion, at(0));
-    check(motion.commands.empty() && motion.stops == 0 && motion.torque_enables == 0 && !motion.locked &&
+    cancelled.tick(motion, at(1));
+    check(motion.commands.size() == 1 && motion.stops == 1 && motion.torque_enables == 1 && !motion.locked &&
               motion.lock_writes == 2,
-          "cancelling anticipation moved the head or leaked its reservation");
+          "cancelling home preparation failed to stop it once or leaked its reservation");
+}
+
+void positive_and_negative_initial_yaw_share_calibrated_home()
+{
+    for (const auto initial : {-300, -128, 0, 128, 300}) {
+        distance_pet::RestHeadMotion head;
+        FakeMotion motion;
+        motion.current.x = initial;
+        for (std::size_t i = 0; i < kBeatCount; ++i) head.tick(motion, at(i));
+        check(motion.commands.size() == 17 && motion.commands.front().yaw == 0 &&
+                  motion.commands.front().duration_ms == 700,
+              "bounded off-centre initial yaw did not first move to calibrated home");
+        for (std::size_t i = 0; i < kBeatCount; ++i)
+            check(motion.commands[i].yaw == idle_program::kMotionBeats[i].yaw_delta,
+                  "performance still used its off-centre starting pose as the yaw neutral");
+        check(motion.commands[1].yaw < 0 && motion.commands[3].yaw < 0 && motion.commands[5].yaw > 0 &&
+                  motion.commands[7].yaw > 0 && motion.commands.back().yaw == 0,
+              "yaw span did not represent actual negative and positive sides of home");
+        head.cancel(motion);
+    }
+    for (const bool reserve : {false, true}) {
+        for (const auto initial : {-301, 301}) {
+            distance_pet::RestHeadMotion head;
+            FakeMotion motion;
+            motion.current.x = initial;
+            if (reserve) head.reserve(motion);
+            head.tick(motion, 0);
+            head.tick(motion, at(1));
+            head.cancel(motion);
+            check(head.skipped() && !head.started() && !head.owns_lock() && motion.commands.empty() &&
+                      motion.torque_enables == 0 && motion.stops == 0 && !motion.locked &&
+                      motion.lock_writes == (reserve ? 2 : 0),
+                  "initial yaw outside thirty degrees attempted a large recenter or leaked its reservation");
+        }
+    }
+}
+
+void yaw_limits_must_cross_home_and_never_redefine_neutral()
+{
+    distance_pet::RestHeadMotion head;
+    FakeMotion motion;
+    motion.current.x = 128;
+    motion.yaw.limits = {-30, 10};
+    for (std::size_t i = 0; i < kBeatCount; ++i) head.tick(motion, at(i));
+    for (std::size_t i = 0; i < kBeatCount; ++i)
+        check(motion.commands[i].yaw == std::clamp<int>(idle_program::kMotionBeats[i].yaw_delta, -30, 10),
+              "tight asymmetric yaw limits changed home or escaped their permitted sides");
+    check(motion.commands[3].yaw == -30 && motion.commands[7].yaw == 10 && motion.commands.back().yaw == 0,
+          "tight crossing limits did not preserve both signs and calibrated neutral");
+    head.cancel(motion);
+
+    for (const auto limits : {Angles{0, 80}, Angles{-80, 0}, Angles{10, 80}, Angles{-80, -1}, Angles{0, 0}}) {
+        distance_pet::RestHeadMotion blocked;
+        FakeMotion invalid;
+        invalid.yaw.limits = limits;
+        blocked.reserve(invalid);
+        blocked.tick(invalid, 0);
+        blocked.tick(invalid, at(1));
+        blocked.cancel(invalid);
+        check(blocked.skipped() && blocked.limits_unavailable() && !blocked.started() &&
+                  invalid.commands.empty() && invalid.torque_enables == 0 && invalid.stops == 0 && !invalid.locked,
+              "one-sided yaw limits manufactured another off-centre neutral");
+    }
+    distance_pet::RestHeadMotion changed;
+    FakeMotion dynamic;
+    changed.tick(dynamic, 0);
+    dynamic.yaw.limits = {0, 80};
+    changed.tick(dynamic, at(1));
+    check(changed.limits_unavailable() && !changed.owns_lock() && dynamic.commands.size() == 1 &&
+              dynamic.stops == 1 && !dynamic.locked,
+          "a newly one-sided yaw range did not stop an already-started preparation");
+    changed.cancel(dynamic);
 }
 
 } // namespace
@@ -541,8 +627,10 @@ int main()
         four_directions_repeat_two_complete_excursions();
         starting_at_pitch_edge_uses_both_directions_inside_original_window();
         shrinking_limits_recentre_without_expanding_original_window();
-        anticipation_sends_no_servo_goal_and_can_be_cancelled();
-        std::cout << "rest head motion: 21 groups passed\n";
+        home_preparation_is_timed_after_reservation_and_can_be_cancelled();
+        positive_and_negative_initial_yaw_share_calibrated_home();
+        yaw_limits_must_cross_home_and_never_redefine_neutral();
+        std::cout << "rest head motion: 23 groups passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

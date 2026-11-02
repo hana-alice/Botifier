@@ -296,8 +296,9 @@ void ordinary_spring_still_uses_its_existing_fixed_delta()
 void actual_controller_and_motion_keep_nonuniform_targets_at_two_hz()
 {
   for (const auto cadence : {20u, 500u}) {
+   for (const auto initial_yaw : {-128, 128}) {
     clock_ms = 0;
-    auto yaw = std::make_unique<HardwareServo>(87);
+    auto yaw = std::make_unique<HardwareServo>(initial_yaw);
     auto pitch = std::make_unique<HardwareServo>(31, uitk::Vector2i{30, 870});
     auto* y = yaw.get();
     auto* p = pitch.get();
@@ -315,17 +316,19 @@ void actual_controller_and_motion_keep_nonuniform_targets_at_two_hz()
         head.tick(motion, elapsed);
         motion.update();
     }
-    check(y->writes.size() == 16 && p->writes.size() == 16, "real controller/motion did not issue sixteen timed targets");
+    check(y->writes.size() == 17 && p->writes.size() == 17, "real controller/motion did not issue home preparation plus sixteen targets");
     for (const auto* servo : {y, p}) {
         for (std::size_t i = 0; i < servo->writes.size(); ++i)
             check(servo->writes[i].duration == idle_program::kMotionBeats[i].move_ms,
                   "a software spring overwrote the target's own hardware duration");
     }
-    check(y->writes[2].angle == 7 && y->writes[6].angle == 167 && p->writes[10].angle == 30 && p->writes[14].angle == 71,
+    check(y->writes.front().angle == 0 && y->writes.front().duration == 700 &&
+              y->writes[3].angle == -80 && y->writes[7].angle == 80 && p->writes[11].angle == 30 && p->writes[15].angle == 71,
           "sparse production choreography failed to reach bounded endpoints in both directions");
-    check(y->physical == 87 && p->physical == 50, "sparse choreography did not finish at its bounded neutral");
+    check(y->physical == 0 && p->physical == 50, "sparse choreography did not finish at calibrated yaw home and feasible pitch neutral");
     head.cancel(motion);
     check(!motion.isModifyLocked(), "controller completion retained its cooperative lock");
+   }
   }
 }
 
@@ -345,7 +348,7 @@ void actual_controller_skips_expired_targets_instead_of_replaying()
     distance_pet::RestHeadMotion head;
     head.reserve(motion);
     const auto start = clock_ms;
-    constexpr std::array<std::size_t, 12> selected{{1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15}};
+    constexpr std::array<std::size_t, 12> selected{{1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16}};
     for (std::uint32_t elapsed = 1000; elapsed <= idle_program::kMotionDurationMs; elapsed += 1000) {
         clock_ms = start + elapsed;
         head.tick(motion, elapsed);
@@ -357,13 +360,13 @@ void actual_controller_skips_expired_targets_instead_of_replaying()
     for (std::size_t i = 0; i < selected.size(); ++i) {
         const auto target = idle_program::kMotionBeats[selected[i]];
         check(y->writes[i].duration == target.move_ms && p->writes[i].duration == target.move_ms &&
-                  y->writes[i].angle == 87 + target.yaw_delta,
+                  y->writes[i].angle == target.yaw_delta,
               "slow production updates changed the current goal or its own travel duration");
     }
     clock_ms = start + idle_program::kMotionDurationMs + idle_program::kMotionBeats.back().move_ms;
     head.tick(motion, idle_program::kMotionDurationMs + idle_program::kMotionBeats.back().move_ms);
     motion.update();
-    check(y->physical == 87 && p->physical == 50 && y->writes.size() == selected.size() &&
+    check(y->physical == 0 && p->physical == 50 && y->writes.size() == selected.size() &&
               p->writes.size() == selected.size(), "expired final centre did not finish once while retaining REST ownership");
     head.cancel(motion);
 }
