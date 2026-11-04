@@ -12,6 +12,8 @@
 #include <distance_sensor/service.h>
 #include <apps/common/idle_program/service.h>
 #include <apps/common/idle_program/view.h>
+#include <apps/common/codex_weekly/service.h>
+#include <apps/common/codex_weekly/network_debug.h>
 
 using namespace mooncake;
 using namespace smooth_ui_toolkit;
@@ -34,6 +36,13 @@ extern "C" void app_main(void)
     const esp_err_t idle_result = idle_program::start();
     if (idle_result != ESP_OK) {
         mclog::tagError("idle", "program service could not start: {}", esp_err_to_name(idle_result));
+    }
+
+    const esp_err_t weekly_result = codex_weekly::start();
+    if (weekly_result != ESP_OK) {
+        mclog::tagError("weekly", "native account service could not start: {}", esp_err_to_name(weekly_result));
+    } else {
+        codex_weekly::network_debug::start();
     }
 
     // Setup ui hal

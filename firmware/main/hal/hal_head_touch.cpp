@@ -158,7 +158,9 @@ void Hal::head_touch_init()
     si12t_init(&si12t_cfg, &si12t);
     si12t_setup(si12t, SI12T_TYPE_LOW, SI12T_SENSITIVITY_LEVEL_3);
 
-    // xTaskCreateWithCaps(_head_touch_update_task, "headtouch", 1024 * 6, si12t, 2, NULL, MALLOC_CAP_SPIRAM);
+    // Keep the periodic touch worker's stack internal during local OTA flash
+    // writes. Wi-Fi upload exposed a headtouch stack-canary failure with the
+    // same 6 KiB stack in PSRAM; the gesture logic and polling stay unchanged.
     xTaskCreatePinnedToCoreWithCaps(_head_touch_update_task, "headtouch", 1024 * 6, si12t, 2, NULL, 1,
-                                    MALLOC_CAP_SPIRAM);
+                                    MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 }

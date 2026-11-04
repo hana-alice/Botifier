@@ -7,6 +7,7 @@
 #include "content_timing.h"
 
 #include <assets/assets.h>
+#include <apps/common/codex_weekly/service.h>
 #include <apps/common/idle_program/service.h>
 #include <apps/common/idle_program/view.h>
 #include <distance_sensor/service.h>
@@ -19,6 +20,7 @@
 #include <array>
 #include <cstdio>
 #include <cinttypes>
+#include <cstring>
 
 using namespace smooth_ui_toolkit::lvgl_cpp;
 
@@ -149,10 +151,48 @@ std::uint32_t state_color(distance_sensor::ProximityState state)
     }
 }
 
+const char* codex_state_label(codex_weekly::State state)
+{
+    using State = codex_weekly::State;
+    switch (state) {
+        case State::Starting: return "STARTING";
+        case State::WaitingWifi: return "WAITING FOR WI-FI";
+        case State::WaitingClock: return "WAITING FOR CLOCK";
+        case State::SignedOut: return "SIGNED OUT";
+        case State::StartingLogin: return "STARTING LOGIN";
+        case State::AwaitingLogin: return "ENTER THIS CODE IN YOUR BROWSER";
+        case State::Refreshing: return "REFRESHING LOGIN";
+        case State::Fetching: return "CHECKING WEEKLY QUOTA";
+        case State::Ready: return "SIGNED IN";
+        case State::Unavailable: return "WEEKLY QUOTA UNAVAILABLE";
+        case State::LoginExpired: return "LOGIN CODE EXPIRED";
+        case State::Error: return "ERROR";
+    }
+    return "UNAVAILABLE";
+}
+
+const char* codex_error_label(codex_weekly::Error error)
+{
+    using Error = codex_weekly::Error;
+    switch (error) {
+        case Error::Network: return "ERROR: NETWORK";
+        case Error::Clock: return "ERROR: CLOCK";
+        case Error::Tls: return "ERROR: TLS";
+        case Error::Http: return "ERROR: HTTP";
+        case Error::RateLimited: return "ERROR: RATE LIMITED";
+        case Error::InvalidResponse: return "ERROR: INVALID RESPONSE";
+        case Error::AuthExpired: return "ERROR: LOGIN EXPIRED";
+        case Error::LoginDisabled: return "ERROR: LOGIN DISABLED";
+        case Error::Storage: return "ERROR: STORAGE";
+        case Error::Internal: return "ERROR: INTERNAL";
+        default: return "ERROR";
+    }
+}
+
 }  // namespace
 
 struct AppDistance::View {
-    enum class Mode { Live, Tune, Nfc, Idle };
+    enum class Mode { Live, Tune, Nfc, Idle, Codex };
 
     struct Row {
         std::unique_ptr<Label> label;
@@ -163,6 +203,7 @@ struct AppDistance::View {
 
     // Parents precede their child wrappers so destruction releases children first.
     std::unique_ptr<Container> tune_page;
+    std::unique_ptr<Container> codex_page;
     std::unique_ptr<Container> intro_page;
     std::unique_ptr<Container> drawer_root;
     std::unique_ptr<Container> drawer_panel;
@@ -175,6 +216,7 @@ struct AppDistance::View {
     std::unique_ptr<Button> menu_nfc;
     std::unique_ptr<Button> menu_programs;
     std::unique_ptr<Button> menu_close;
+    std::unique_ptr<Button> menu_codex;
     std::unique_ptr<Label> menu_title;
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
@@ -188,6 +230,16 @@ struct AppDistance::View {
     std::unique_ptr<Label> nfc_hint;
     std::unique_ptr<Label> nfc_counts;
     std::unique_ptr<Label> nfc_uid;
+    std::unique_ptr<Label> codex_title;
+    std::unique_ptr<Label> codex_status;
+    std::unique_ptr<Label> codex_timing;
+    std::unique_ptr<Label> codex_code;
+    std::unique_ptr<Label> codex_url;
+    std::unique_ptr<Label> codex_ip;
+    std::unique_ptr<Label> codex_key;
+    std::unique_ptr<Button> codex_sign_in;
+    std::unique_ptr<Button> codex_refresh;
+    std::unique_ptr<Button> codex_forget;
 
     Mode mode = Mode::Tune;
     Mode requested_mode = Mode::Live;
@@ -237,8 +289,12 @@ struct AppDistance::View {
         drawer_panel->setBgColor(lv_color_hex(0x14202B));
         drawer_panel->setBgOpa(LV_OPA_COVER);
         drawer_panel->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
-        menu_title = make_label(*drawer_panel, 12, 8, 280, &MontserratSemiBold26);
+        menu_title = make_label(*drawer_panel, 12, 8, 190, &MontserratSemiBold26);
         menu_title->setText("BOTIFIER");
+        menu_codex = make_button(*drawer_panel, 208, 6, 92, "CODEX");
+        menu_codex->setSize(92, 30);
+        menu_codex->label().setTextFont(&lv_font_montserrat_14);
+        menu_codex->onClick().connect([this]() { request_mode(Mode::Codex); });
         live_distance = make_label(*drawer_panel, 12, 42, 120, &lv_font_montserrat_16);
         live_state = make_label(*drawer_panel, 142, 42, 152, &lv_font_montserrat_14);
         live_nfc_status = make_label(*drawer_panel, 12, 64, 280, &lv_font_montserrat_14, kMuted);
@@ -298,6 +354,29 @@ struct AppDistance::View {
             set_enabled(*save_button, false);
             set_save_status("SAVING...", kNear);
         });
+
+        codex_page = make_page();
+        codex_title = make_label(*codex_page, 8, 8, 304, &MontserratSemiBold26);
+        codex_title->setText("CODEX");
+        codex_status = make_label(*codex_page, 8, 40, 304, &lv_font_montserrat_14);
+        codex_timing = make_label(*codex_page, 8, 58, 304, &lv_font_montserrat_14, kMuted);
+        codex_code = make_label(*codex_page, 8, 75, 304, &MontserratSemiBold26, kSafe);
+        codex_code->setTextAlign(LV_TEXT_ALIGN_CENTER);
+        codex_url = make_label(*codex_page, 8, 110, 304, &lv_font_montserrat_14, kMuted);
+        codex_ip = make_label(*codex_page, 8, 128, 304, &lv_font_montserrat_14, kMuted);
+        codex_key = make_label(*codex_page, 8, 148, 304, &lv_font_montserrat_14, kMuted);
+        codex_sign_in = make_button(*codex_page, 8, 196, 96, "SIGN IN");
+        codex_refresh = make_button(*codex_page, 112, 196, 96, "REFRESH");
+        codex_forget = make_button(*codex_page, 216, 196, 96, "FORGET");
+        for (auto* button : {codex_sign_in.get(), codex_refresh.get(), codex_forget.get()}) {
+            button->setSize(96, 36);
+            button->label().setTextFont(&lv_font_montserrat_14);
+        }
+        // These APIs only enqueue worker actions; no TLS or flash work runs here.
+        codex_sign_in->onClick().connect([]() { codex_weekly::begin_login(); });
+        codex_refresh->onClick().connect([]() { codex_weekly::request_refresh(); });
+        codex_forget->onClick().connect([]() { codex_weekly::logout(); });
+        codex_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         intro_page = make_page();
         intro_page->setBgColor(lv_color_hex(0x000000));
         intro_image = lv_image_create(intro_page->get());
@@ -404,9 +483,14 @@ struct AppDistance::View {
         }
         stop_live();
         mode = requested_mode;
+        if (mode == Mode::Codex) codex_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        else codex_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         if (mode == Mode::Nfc) nfc_hint->removeFlag(LV_OBJ_FLAG_HIDDEN);
         else nfc_hint->addFlag(LV_OBJ_FLAG_HIDDEN);
-        if (mode == Mode::Live) {
+        if (mode == Mode::Codex) {
+            tune_page->addFlag(LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_foreground(codex_page->get());
+        } else if (mode == Mode::Live) {
             auto avatar = std::make_unique<DistancePetAvatar>();
             avatar->init(lv_screen_active());
             live_avatar = avatar.get();
@@ -731,6 +815,60 @@ struct AppDistance::View {
         nfc_uid->setText(text);
     }
 
+    void show_codex(const codex_weekly::Snapshot& snapshot)
+    {
+        if (mode != Mode::Codex) return;
+        using State = codex_weekly::State;
+        char text[96];
+        const bool login = snapshot.state == State::StartingLogin || snapshot.state == State::AwaitingLogin;
+        const bool ready = snapshot.state == State::Ready;
+        const bool error = snapshot.state == State::Error;
+        codex_status->setText(error ? codex_error_label(snapshot.error) : codex_state_label(snapshot.state));
+        codex_status->setTextColor(lv_color_hex(error || snapshot.state == State::LoginExpired ? kAlert : kForeground));
+        const auto milliseconds = login ? snapshot.login_expires_in_ms : snapshot.next_poll_in_ms;
+        const auto seconds = milliseconds / 1000 + (milliseconds % 1000 != 0);
+        if (snapshot.state == State::AwaitingLogin) {
+            std::snprintf(text, sizeof(text), "CODE EXPIRES %" PRIu32 ":%02" PRIu32, seconds / 60, seconds % 60);
+        } else if (snapshot.state == State::StartingLogin) {
+            std::snprintf(text, sizeof(text), "GETTING A LOGIN CODE...");
+        } else if (ready) {
+            std::snprintf(text, sizeof(text), "NEXT CHECK %" PRIu32 "m %02" PRIu32 "s", seconds / 60, seconds % 60);
+        } else {
+            std::snprintf(text, sizeof(text), "%s", snapshot.signed_in ? "ACCOUNT SAVED ON THIS ROBOT" : "SIGN IN ON THIS ROBOT");
+        }
+        codex_timing->setText(text);
+        codex_code->setTextFont(&MontserratSemiBold26);
+        if (login) {
+            char code[33]{};
+            std::snprintf(code, sizeof(code), "%.32s", snapshot.user_code.data());
+            lv_point_t size{};
+            lv_text_get_size(&size, code, &MontserratSemiBold26, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_EXPAND);
+            if (size.x > 304) {
+                codex_code->setTextFont(&lv_font_montserrat_14);
+                if (std::strlen(code) > 16) std::snprintf(text, sizeof(text), "%.16s\n%.16s", code, code + 16);
+                else std::snprintf(text, sizeof(text), "%s", code);
+            } else {
+                std::snprintf(text, sizeof(text), "%s", code[0] ? code : "--");
+            }
+        } else if (ready && snapshot.remaining_percent >= 0 && snapshot.remaining_percent <= 100) {
+            std::snprintf(text, sizeof(text), "%d%% LEFT", snapshot.remaining_percent);
+        } else {
+            std::snprintf(text, sizeof(text), "--");
+        }
+        codex_code->setText(text);
+        codex_code->setTextColor(lv_color_hex(ready && snapshot.remaining_percent <= 20 ? kNear : kSafe));
+        codex_url->setText(ready ? "AUTO REFRESH OVER WI-FI" : "auth.openai.com/codex/device");
+        std::snprintf(text, sizeof(text), "IP %.15s:8765", snapshot.ip_address[0] ? snapshot.ip_address.data() : "--");
+        codex_ip->setText(text);
+        if (snapshot.debug_key[0]) {
+            std::snprintf(text, sizeof(text), "KEY %.16s\n    %.16s", snapshot.debug_key.data(), snapshot.debug_key.data() + 16);
+        } else {
+            std::snprintf(text, sizeof(text), "KEY --");
+        }
+        codex_key->setText(text);
+        set_enabled(*codex_sign_in, !snapshot.signed_in && !snapshot.login_pending && !login);
+    }
+
     void update(const distance_sensor::Snapshot& snapshot, const distance_sensor::ProximityConfig& requested,
                 const nfc_sense::Snapshot& scanned)
     {
@@ -745,6 +883,7 @@ struct AppDistance::View {
         live_distance->setText(text);
         live_state->setText(usable ? state_text(snapshot.proximity_state) : quality);
         live_state->setTextColor(lv_color_hex(usable ? color : kNear));
+        if (mode == Mode::Codex) return;
         if (mode == Mode::Nfc) {
             show_nfc(scanned);
             return;
@@ -805,6 +944,7 @@ void AppDistance::onOpen()
     const auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
     const auto scanned = nfc_sense::snapshot();
+    const auto codex = codex_weekly::snapshot();
     _last_nfc_event = scanned.accepted;
     _intro_completed_count = playback.completed_count;
     LvglLockGuard lock;
@@ -813,6 +953,7 @@ void AppDistance::onOpen()
     _view->update(current, distance_sensor::config(), scanned);
     _view->show_reader_status(current, scanned);
     _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
+    _view->show_codex(codex);
     _last_refresh_ms = GetHAL().millis();
 }
 
@@ -839,6 +980,7 @@ void AppDistance::onRunning()
     auto playback = intro_player::snapshot();
     const auto current = distance_sensor::snapshot();
     auto scanned = nfc_sense::snapshot();
+    const auto codex = codex_weekly::snapshot();
     auto now = GetHAL().millis();
     if (playback.completed_count != _intro_completed_count) {
         if (_eye_intro_started && !playback.busy && playback.clip == intro_player::ClipId::Shorekeeper &&
@@ -956,6 +1098,7 @@ void AppDistance::onRunning()
             _view->update(current, distance_sensor::config(), scanned);
             _view->show_reader_status(current, scanned);
             _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
+            _view->show_codex(codex);
         }
         save = _view->save_requested;
         save_idle = _view->save_idle_requested;

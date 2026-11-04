@@ -12,6 +12,7 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <wifi_station.h>
+#include <wifi_manager.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_ili9341.h>
@@ -696,6 +697,17 @@ public:
     {
         ESP_LOGW(TAG, "WiFi setup required; opening StackChan App setup");
         GetHAL().requestAppSetup();
+    }
+
+    void StartNetwork() override
+    {
+        WifiBoard::StartNetwork();
+        // The native quota worker can already own an active station. Upstream
+        // StartStation then emits no new Connected event, leaving its freshly
+        // armed 60-second timer alive. Complete the normal event path so AI
+        // receives the current state and does not later reboot into setup.
+        auto& wifi = WifiManager::GetInstance();
+        if (wifi.IsConnected()) OnNetworkEvent(NetworkEvent::Connected, wifi.GetSsid());
     }
 
     virtual AudioCodec* GetAudioCodec() override

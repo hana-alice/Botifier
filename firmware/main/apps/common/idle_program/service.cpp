@@ -60,8 +60,9 @@ bool process_frame(const char* data, std::size_t size)
         wire::Message message;
         if (!wire::parse(data, size, policy.config(), message)) return false;
         if (message.kind == wire::Kind::Weekly) {
-            // Replayed or obsolete valid messages are ignored without log spam.
-            policy.update_weekly(message.weekly, now_ms(), unix_now());
+            // Old PC helpers may still be connected. They must not overwrite
+            // the robot's independently authenticated account or freshness.
+            return true;
         } else {
             if (!policy.set_config(message.config, now_ms())) return false;
             save = message.save;
@@ -173,6 +174,12 @@ Config config()
 {
     std::lock_guard<std::mutex> lock(state_mutex);
     return policy.config();
+}
+
+bool publish_weekly(const WeeklyUpdate& value)
+{
+    std::lock_guard<std::mutex> lock(state_mutex);
+    return policy.update_weekly(value, now_ms(), unix_now());
 }
 
 esp_err_t set_config(const Config& value)

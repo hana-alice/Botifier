@@ -142,3 +142,27 @@ add_executable(scserial_read_test scserial_read_test.cpp "${scserial_root}/SCS.c
 target_include_directories(scserial_read_test PRIVATE "${scserial_root}" "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_features(scserial_read_test PRIVATE cxx_std_17)
 add_test(NAME scserial_read_test COMMAND $<TARGET_FILE:scserial_read_test>)
+
+add_executable(codex_weekly_protocol_test
+    codex_weekly_protocol_test.cpp
+    ../main/apps/common/codex_weekly/protocol.cpp)
+target_include_directories(codex_weekly_protocol_test PRIVATE ../main ../components/ArduinoJson/src)
+target_compile_features(codex_weekly_protocol_test PRIVATE cxx_std_17)
+add_test(NAME codex_weekly_protocol_test COMMAND $<TARGET_FILE:codex_weekly_protocol_test>)
+
+add_executable(codex_service_core_test codex_service_core_test.cpp)
+target_include_directories(codex_service_core_test PRIVATE ../main)
+target_compile_features(codex_service_core_test PRIVATE cxx_std_17)
+add_test(NAME codex_service_core_test COMMAND $<TARGET_FILE:codex_service_core_test>)
+
+# Exercise production OTA handlers. Platform fakes are isolated to this target;
+# ArduinoJson parsing/serialization and the HTTP/OTA control flow remain real.
+add_executable(firmware_update_test
+    firmware_update_test.cpp
+    ../main/apps/common/firmware_update/service.cpp)
+
+target_include_directories(firmware_update_test PRIVATE
+    fakes/firmware_update ../main ../components/ArduinoJson/src)
+target_compile_definitions(firmware_update_test PRIVATE CONFIG_IDF_FIRMWARE_CHIP_ID=9)
+target_compile_features(firmware_update_test PRIVATE cxx_std_17)
+add_test(NAME firmware_update_test COMMAND $<TARGET_FILE:firmware_update_test>)

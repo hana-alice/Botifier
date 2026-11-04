@@ -4,7 +4,11 @@
 
 namespace idle_program {
 
+struct WeeklyUpdate;
 esp_err_t start();
+// The native account worker is the sole weekly-data producer. This only copies
+// a validated update under the existing policy lock; no network or I/O occurs.
+bool publish_weekly(const WeeklyUpdate& value);
 Config config();
 esp_err_t set_config(const Config& value);
 esp_err_t save_config();
