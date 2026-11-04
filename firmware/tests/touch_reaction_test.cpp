@@ -370,6 +370,22 @@ void extreme_runtime_pitch_has_defined_bounded_arithmetic()
     }
 }
 
+void owned_handover_accepts_settling_but_never_a_foreign_lock()
+{
+    Reaction reaction;
+    FakeMotion motion;
+    motion.moving = true; // Hardware ReadMove can lag a just-issued hold.
+    check(!reaction.trigger(motion, 0), "ordinary touch stole an unrelated moving servo");
+    motion.locked = true;
+    check(!reaction.trigger(motion, 0, true), "handover bypassed a foreign modify lock");
+    motion.locked = false;
+    check(reaction.trigger(motion, 0, true), "owned low-priority stop settling discarded its preempting touch");
+    check(reaction.active() && motion.locked && motion.commands.empty(), "handover jumped before eye lead");
+    tick(reaction, motion, 120);
+    check(!motion.commands.empty(), "owned handover failed to continue the touch performance");
+    reaction.cancel(motion);
+}
+
 } // namespace
 
 int main()
@@ -388,7 +404,8 @@ int main()
         late_frames_sample_once_and_never_replay();
         uint32_wrap_preserves_timing_and_debounce();
         extreme_runtime_pitch_has_defined_bounded_arithmetic();
-        std::cout << "touch_reaction_test: 13 scenarios passed\n";
+        owned_handover_accepts_settling_but_never_a_foreign_lock();
+        std::cout << "touch_reaction_test: 14 scenarios passed\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "touch_reaction_test: " << error.what() << '\n';

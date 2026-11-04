@@ -21,11 +21,14 @@ public:
     static constexpr std::uint32_t kRecentMs = 7000;
 
     template <typename Motion>
-    bool trigger(Motion& motion, std::uint32_t now_ms)
+    bool trigger(Motion& motion, std::uint32_t now_ms, bool interrupted_owned_motion = false)
     {
         if (_active && !check_ownership(motion)) return false;
         if (_has_history && now_ms - _last_touch_ms < kTouchIntervalMs) return false;
-        if (!_active && (motion.isModifyLocked() || motion.isMoving())) return false;
+        // An owned low-priority movement was just stopped by the app. The SCS
+        // moving bit may remain set during its 20 ms hold command; that must
+        // not discard the touch that preempted it. Foreign locks still win.
+        if (!_active && (motion.isModifyLocked() || (!interrupted_owned_motion && motion.isMoving()))) return false;
 
         // On the real HAL these are the virtual, measured servo angles. Do not
         // poll them on every animation frame or infer them from our old target.

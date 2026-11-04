@@ -59,6 +59,11 @@ target_include_directories(touch_reaction_test PRIVATE ../main)
 target_compile_features(touch_reaction_test PRIVATE cxx_std_17)
 add_test(NAME touch_reaction_test COMMAND $<TARGET_FILE:touch_reaction_test>)
 
+add_executable(alert_head_motion_test alert_head_motion_test.cpp)
+target_include_directories(alert_head_motion_test PRIVATE ../main)
+target_compile_features(alert_head_motion_test PRIVATE cxx_std_17)
+add_test(NAME alert_head_motion_test COMMAND $<TARGET_FILE:alert_head_motion_test>)
+
 # Compile the real modifier headers against isolated avatar/motion hardware
 # adapters. COPYONLY preserves their relative includes and reconfigures on edit.
 set(legacy_root "${CMAKE_CURRENT_BINARY_DIR}/legacy-interactions")

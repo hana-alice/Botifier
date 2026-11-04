@@ -4,6 +4,7 @@
 #include "intro_player.h"
 #include "rest_head_motion.h"
 #include "touch_reaction.h"
+#include "alert_head_motion.h"
 #include "edge_swipe.h"
 #include "content_timing.h"
 
@@ -254,6 +255,7 @@ struct AppDistance::View {
     bool intro_visible = false;
     distance_pet::RestHeadMotion rest_head;
     distance_pet::TouchReaction touch_reaction;
+    distance_pet::AlertHeadMotion alert_head;
     static constexpr std::uint32_t kTouchEnabled = 1u;
     static constexpr std::uint32_t kTouchPressed = 2u;
     std::atomic<std::uint32_t> head_touch_events{0};
@@ -507,6 +509,7 @@ struct AppDistance::View {
     {
         auto& stackchan = GetStackChan();
         consume_head_touch(false);
+        alert_head.cancel(stackchan.motion());
         touch_reaction.cancel(stackchan.motion());
         touch_face_active = false;
         rest_head.cancel(stackchan.motion());
@@ -619,10 +622,13 @@ struct AppDistance::View {
         // clock after the mailbox, so a fresh event cannot appear backdated.
         now = GetHAL().millis();
         auto& motion = GetStackChan().motion();
+        const bool fresh_press = pressed && now - pressed_at <= 500u;
+        const bool interrupted_alert = fresh_press && alert_head.owns_lock() && motion.isModifyLocked();
+        if (!eligible || fresh_press || touch_reaction.active()) alert_head.cancel(motion);
         if (!eligible) {
             touch_reaction.cancel(motion);
         } else {
-            if (pressed && now - pressed_at <= 500u && touch_reaction.trigger(motion, now)) {
+            if (fresh_press && touch_reaction.trigger(motion, now, interrupted_alert)) {
                 // Clears a normal information card, but never claims the
                 // protected NFC/EyeRest foreground-animation slot.
                 idle_program::note_activity();
@@ -638,6 +644,16 @@ struct AppDistance::View {
                         now, touch_logged_generation, phase, touch_reaction.active() ? "true" : "false",
                         touch_reaction.owns_lock() ? "true" : "false");
         }
+    }
+
+    void update_alert_head(std::uint32_t now, bool foreground_busy,
+                           const idle_program::Snapshot& idle, bool distance_alert)
+    {
+        const bool eye_owned = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
+        const bool enabled = mode == Mode::Live && requested_mode == Mode::Live &&
+                             !drawer_open && !foreground_busy && !eye_owned &&
+                             !touch_reaction.active() && distance_alert;
+        alert_head.tick(GetStackChan().motion(), now, enabled);
     }
 
     void show_intro(const intro_player::Snapshot& playback)
@@ -1200,6 +1216,7 @@ void AppDistance::onRunning()
         stage_started_ms = GetHAL().millis();
         _view->update_rest_head(idle);
         frame_timing.head_after_ms = GetHAL().millis() - stage_started_ms;
+        _view->update_alert_head(GetHAL().millis(), playback.busy || nfc_activity, idle, distance_alert);
         _view->update_pet(GetHAL().millis(), current, distance_alert);
         const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
         if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
