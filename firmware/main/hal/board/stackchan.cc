@@ -790,6 +790,15 @@ int hal_bridge::board_get_battery_level()
     }
 }
 
+bool hal_bridge::board_get_battery_status(int& level, bool& charging, bool& discharging)
+{
+    // Read the existing PMIC cache once, preserving unavailable readings rather
+    // than using the legacy percentage helper's synthetic 100% fallback.
+    level = -1;
+    charging = discharging = false;
+    return Board::GetInstance().GetBatteryLevel(level, charging, discharging) && level >= 0 && level <= 100;
+}
+
 bool hal_bridge::board_is_battery_charging()
 {
     auto& board      = Board::GetInstance();

@@ -3,6 +3,7 @@
 #include "nfc_service.h"
 #include "intro_player.h"
 #include "rest_head_motion.h"
+#include "touch_reaction.h"
 #include "edge_swipe.h"
 #include "content_timing.h"
 
@@ -18,6 +19,7 @@
 #include <esp_log.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <cinttypes>
 #include <cstring>
@@ -220,6 +222,7 @@ struct AppDistance::View {
     std::unique_ptr<Label> menu_title;
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
+    std::unique_ptr<Label> menu_battery;
     std::unique_ptr<Label> live_nfc_status;
     std::unique_ptr<Label> live_eye_status;
     std::unique_ptr<Label> telemetry;
@@ -250,6 +253,17 @@ struct AppDistance::View {
     std::uint32_t idle_edit_revision = 0;
     bool intro_visible = false;
     distance_pet::RestHeadMotion rest_head;
+    distance_pet::TouchReaction touch_reaction;
+    static constexpr std::uint32_t kTouchEnabled = 1u;
+    static constexpr std::uint32_t kTouchPressed = 2u;
+    std::atomic<std::uint32_t> head_touch_events{0};
+    std::atomic<std::uint32_t> head_touch_at{0};
+    int head_touch_connection = -1;
+    bool previous_interactions_suspended = false;
+    int touch_logged_phase = -1;
+    std::uint32_t touch_logged_generation = 0;
+    distance_pet::Mood touch_mood = distance_pet::Mood::Idle;
+    bool touch_face_active = false;
     distance_pet::ContentTimingWindow content_timings;
     bool rest_head_active = false;
     std::uint32_t rest_head_intro_generation = 0;
@@ -266,6 +280,12 @@ struct AppDistance::View {
     explicit View(AppDistance& app)
     {
         (void)app;
+        auto& stackchan = GetStackChan();
+        previous_interactions_suspended = stackchan.interactionsSuspended();
+        stackchan.setInteractionsSuspended(true);
+        // Cancel legacy pet/IMU restores while their old avatar is still alive.
+        // Their callbacks keep running but only this app consumes interactions.
+        stackchan.update();
         drawer_root = std::make_unique<Container>(lv_layer_sys());
         drawer_root->setPos(0, 0);
         drawer_root->setSize(320, 240);
@@ -296,7 +316,10 @@ struct AppDistance::View {
         menu_codex->label().setTextFont(&lv_font_montserrat_14);
         menu_codex->onClick().connect([this]() { request_mode(Mode::Codex); });
         live_distance = make_label(*drawer_panel, 12, 42, 120, &lv_font_montserrat_16);
-        live_state = make_label(*drawer_panel, 142, 42, 152, &lv_font_montserrat_14);
+        live_state = make_label(*drawer_panel, 142, 42, 64, &lv_font_montserrat_14);
+        menu_battery = make_label(*drawer_panel, 208, 42, 88, &lv_font_montserrat_14);
+        menu_battery->setText("BAT --");
+        menu_battery->setTextAlign(LV_TEXT_ALIGN_RIGHT);
         live_nfc_status = make_label(*drawer_panel, 12, 64, 280, &lv_font_montserrat_14, kMuted);
         live_nfc_status->setText("NFC STARTING");
         live_eye_status = make_label(*drawer_panel, 12, 84, 280, &lv_font_montserrat_14, kMuted);
@@ -387,12 +410,26 @@ struct AppDistance::View {
         intro_status->setText("KURO GAMES");
         intro_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         apply_mode();
+        head_touch_connection = GetHAL().onHeadPetGesture.connect([this](HeadPetGesture gesture) {
+            // HAL emits Press once per contact. A following Swipe is part of
+            // the same touch; it must not restart the reaction.
+            if (gesture != HeadPetGesture::Press) return;
+            auto events = head_touch_events.load();
+            if (!(events & kTouchEnabled)) return;
+            const auto epoch = events & ~3u;
+            head_touch_at.store(GetHAL().millis());
+            while ((events & kTouchEnabled) && (events & ~3u) == epoch) {
+                if (head_touch_events.compare_exchange_weak(events, events | kTouchPressed)) return;
+            }
+        });
         touch_input = GetHAL().lvTouchpad;
         if (touch_input) lv_indev_add_event_cb(touch_input, touch_event, LV_EVENT_ALL, this);
     }
 
     ~View()
     {
+        consume_head_touch(false);
+        if (head_touch_connection >= 0) GetHAL().onHeadPetGesture.disconnect(head_touch_connection);
         if (touch_input) lv_indev_remove_event_cb_with_user_data(touch_input, touch_event, this);
         lv_anim_delete(drawer_panel->get(), nullptr);
         // The LVGL object borrows its source descriptor. Delete it before
@@ -401,6 +438,7 @@ struct AppDistance::View {
         intro_image = nullptr;
         intro_frame.reset();
         stop_live();
+        GetStackChan().setInteractionsSuspended(previous_interactions_suspended);
     }
 
     static void touch_event(lv_event_t* event)
@@ -468,6 +506,9 @@ struct AppDistance::View {
     void stop_live()
     {
         auto& stackchan = GetStackChan();
+        consume_head_touch(false);
+        touch_reaction.cancel(stackchan.motion());
+        touch_face_active = false;
         rest_head.cancel(stackchan.motion());
         rest_head_active = false;
         if (live_avatar && stackchan.hasAvatar() && &stackchan.avatar() == live_avatar) {
@@ -524,7 +565,7 @@ struct AppDistance::View {
         }
     }
 
-    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot)
+    void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot, bool distance_alert)
     {
         if (!live_avatar) return;
         auto signal = distance_pet::Signal::Unavailable;
@@ -532,7 +573,71 @@ struct AppDistance::View {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
         }
-        live_avatar->tick(now, signal);
+        if (distance_alert) signal = distance_pet::Signal::Alert;
+        live_avatar->setInteractionForeground(touch_reaction.active());
+        if (touch_reaction.active()) {
+            // Interaction stays visible over distance reminders; the sensor
+            // keeps sampling and its current warning returns on completion.
+            if (!touch_face_active || touch_mood != touch_reaction.mood()) {
+                touch_mood = touch_reaction.mood();
+                live_avatar->setMood(touch_mood, now);
+            }
+            touch_face_active = true;
+            live_avatar->tick(now, distance_pet::Signal::Ready, false, touch_reaction.eye_cue(now), true);
+        } else {
+            if (touch_face_active) live_avatar->setMood(distance_pet::Mood::Idle, now);
+            touch_face_active = false;
+            live_avatar->tick(now, signal);
+        }
+    }
+
+    std::uint32_t consume_head_touch(bool enabled)
+    {
+        auto events = head_touch_events.load();
+        for (;;) {
+            const auto epoch = events & ~3u;
+            // Advance on disable so even a callback paused across a complete
+            // disable/resume cycle cannot publish an old touch into this one.
+            const auto next = enabled ? epoch | kTouchEnabled :
+                (events & kTouchEnabled) ? epoch + 4u : epoch;
+            if (head_touch_events.compare_exchange_weak(events, next)) return events;
+        }
+    }
+
+    void update_head_touch(std::uint32_t now, bool foreground_busy,
+                           const idle_program::Snapshot& idle)
+    {
+        const bool eye_owned = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
+        const bool eligible = mode == Mode::Live && requested_mode == Mode::Live &&
+                              !drawer_open && !foreground_busy && !eye_owned;
+        // Disable producers and drop pending input in one atomic operation;
+        // an in-flight callback cannot enqueue behind a higher-priority owner.
+        const auto events = consume_head_touch(eligible);
+        const bool pressed = (events & kTouchPressed) != 0;
+        const auto pressed_at = head_touch_at.load();
+        // Input may arrive after the app's earlier sensor snapshot. Sample the
+        // clock after the mailbox, so a fresh event cannot appear backdated.
+        now = GetHAL().millis();
+        auto& motion = GetStackChan().motion();
+        if (!eligible) {
+            touch_reaction.cancel(motion);
+        } else {
+            if (pressed && now - pressed_at <= 500u && touch_reaction.trigger(motion, now)) {
+                // Clears a normal information card, but never claims the
+                // protected NFC/EyeRest foreground-animation slot.
+                idle_program::note_activity();
+            }
+            touch_reaction.tick(motion, now);
+        }
+        const auto phase = static_cast<int>(touch_reaction.phase());
+        if (phase != touch_logged_phase || touch_reaction.generation() != touch_logged_generation) {
+            touch_logged_phase = phase;
+            touch_logged_generation = touch_reaction.generation();
+            std::printf("SC_PET {\"v\":1,\"uptime_ms\":%" PRIu32 ",\"generation\":%" PRIu32
+                        ",\"phase\":%d,\"active\":%s,\"owns_lock\":%s}\n",
+                        now, touch_logged_generation, phase, touch_reaction.active() ? "true" : "false",
+                        touch_reaction.owns_lock() ? "true" : "false");
+        }
     }
 
     void show_intro(const intro_player::Snapshot& playback)
@@ -875,6 +980,16 @@ struct AppDistance::View {
         char text[96];
         char centimeters[24];
         char raw_centimeters[24];
+        int battery = -1;
+        bool charging = false, discharging = false;
+        if (GetHAL().getBatteryStatus(battery, charging, discharging)) {
+            std::snprintf(text, sizeof(text), charging ? "%d%% CHG" : "BAT %d%%", battery);
+            menu_battery->setText(text);
+            menu_battery->setTextColor(lv_color_hex(charging ? kSafe : battery <= 15 ? kAlert : kForeground));
+        } else {
+            menu_battery->setText("BAT --");
+            menu_battery->setTextColor(lv_color_hex(kMuted));
+        }
         const bool usable = snapshot.valid && !snapshot.stale;
         const char* quality = snapshot.stale ? "STALE" : snapshot.valid ? "VALID" : "INVALID";
         const auto color = state_color(snapshot.proximity_state);
@@ -1058,7 +1173,9 @@ void AppDistance::onRunning()
         }
         const auto previous_mode = _view->mode;
         _view->apply_mode();
-        _view->update_pet(now, current);
+        // Release a low-priority pet movement before the eye controller or
+        // ordinary modifiers get their turn to acquire the motion lock.
+        _view->update_head_touch(now, playback.busy || nfc_activity, idle_program::snapshot());
         auto stage_started_ms = GetHAL().millis();
         _view->update_rest_head(idle_program::snapshot());
         frame_timing.head_before_ms = GetHAL().millis() - stage_started_ms;
@@ -1077,12 +1194,16 @@ void AppDistance::onRunning()
                 _view->mode != View::Mode::Live,
             distance_alert});
         const auto idle = idle_program::snapshot();
+        // The programme worker may acquire the foreground during
+        // StackChan.update. Recheck before issuing any later head/face command.
+        _view->update_head_touch(now, playback.busy || nfc_activity, idle);
         stage_started_ms = GetHAL().millis();
         _view->update_rest_head(idle);
         frame_timing.head_after_ms = GetHAL().millis() - stage_started_ms;
+        _view->update_pet(GetHAL().millis(), current, distance_alert);
         const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
         if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
-            (distance_alert && !rest_animation)) {
+            _view->touch_reaction.active() || (distance_alert && !rest_animation)) {
             idle_program::clear_locked();
         } else {
             // EyeRest and NFC are exclusive top-priority animations. TOO CLOSE

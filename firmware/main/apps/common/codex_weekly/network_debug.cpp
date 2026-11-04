@@ -3,11 +3,13 @@
 #include <apps/common/firmware_update/service.h>
 #include <apps/common/idle_program/service.h>
 #include <distance_sensor/service.h>
+#include <hal/hal.h>
 #include <ArduinoJson.h>
 #include <esp_app_desc.h>
 #include <esp_http_server.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <array>
@@ -40,6 +42,15 @@ esp_err_t status_handler(httpd_req_t* request)
     doc["uptime_ms"] = static_cast<std::uint32_t>(esp_timer_get_time() / 1000);
     doc["firmware"] = esp_app_get_description()->version;
     doc["wifi_connected"] = quota.wifi_connected;
+    doc["reset_reason"] = static_cast<int>(esp_reset_reason());
+    int battery = -1;
+    bool charging = false, discharging = false;
+    const bool battery_valid = GetHAL().getBatteryStatus(battery, charging, discharging);
+    auto power = doc["power"].to<JsonObject>();
+    power["valid"] = battery_valid;
+    power["battery_percent"] = battery_valid ? battery : -1;
+    power["charging"] = battery_valid && charging;
+    power["discharging"] = battery_valid && discharging;
     auto weekly = doc["weekly"].to<JsonObject>();
     weekly["source"] = "device_wifi";
     weekly["state"] = state_text(quota.state);

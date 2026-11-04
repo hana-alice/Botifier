@@ -25,11 +25,19 @@ public:
 
     virtual bool hasAvatar() = 0;
 
+    // App/UI thread only. An app can temporarily own interactions while the
+    // legacy event modifiers discard input and retire their own old sessions.
+    bool interactionsSuspended() const { return _interactions_suspended; }
+    void setInteractionsSuspended(bool suspended) { _interactions_suspended = suspended; }
+
     // virtual bool hasMotion() = 0; // Motion must be always present
 
     virtual addon::NeonLight& leftNeonLight() = 0;
 
     virtual addon::NeonLight& rightNeonLight() = 0;
+
+private:
+    bool _interactions_suspended = false;
 };
 
 /**

@@ -7,6 +7,7 @@
 #include "../modifiable.h"
 #include <hal/hal.h>
 #include <cstdint>
+#include <atomic>
 
 namespace stackchan {
 
@@ -20,7 +21,7 @@ public:
     {
         _signal_connection = GetHAL().onImuMotionEvent.connect([this](ImuMotionEvent event) {
             if (event == ImuMotionEvent::Shake) {
-                _event_shake = true;
+                record_shake();
             }
         });
     }
@@ -32,11 +33,18 @@ public:
 
     void _update(Modifiable& stackchan) override
     {
+        if (stackchan.interactionsSuspended() || !stackchan.hasAvatar()) {
+            disable_events();
+            restore_state(stackchan);
+            return;
+        }
+        const auto events = _events.fetch_and(~kShake, std::memory_order_relaxed);
+        _events.fetch_or(kAcceptEvents, std::memory_order_relaxed);
+        if (_active_avatar && _active_avatar != &stackchan.avatar()) restore_state(stackchan);
         uint32_t now = GetHAL().millis();
 
         // 收到晃动事件
-        if (_event_shake) {
-            _event_shake = false;
+        if (events & kShake) {
             handle_shake_start(stackchan, now);
         }
 
@@ -55,8 +63,13 @@ public:
 
             //  Lock motion modify and move home
             auto& motion = stackchan.motion();
-            if (!motion.isModifyLocked()) {
+            if (_owns_motion_lock && !motion.isModifyLocked()) {
+                _owns_motion_lock = false;
+                _motion_ownership_lost = true;
+            }
+            if (!_motion_ownership_lost && !motion.isModifyLocked()) {
                 motion.setModifyLock(true);
+                _owns_motion_lock = true;
                 motion.goHome(300);
             }
 
@@ -68,15 +81,37 @@ public:
     }
 
 private:
+    void record_shake()
+    {
+        auto pending = _events.load(std::memory_order_relaxed);
+        const auto generation = pending & ~(kEpochStep - 1u);
+        while ((pending & kAcceptEvents) && (pending & ~(kEpochStep - 1u)) == generation) {
+            if (_events.compare_exchange_weak(pending, pending | kShake, std::memory_order_relaxed)) return;
+        }
+    }
+
+    void disable_events()
+    {
+        auto pending = _events.load(std::memory_order_relaxed);
+        while (pending & kAcceptEvents) {
+            const auto disabled = (pending + kEpochStep) & ~(kEpochStep - 1u);
+            if (_events.compare_exchange_weak(pending, disabled, std::memory_order_relaxed)) return;
+        }
+    }
+
     void handle_shake_start(Modifiable& stackchan, uint32_t now)
     {
         if (!_is_reacting) {
             // 首次触发时，记录状态以便恢复
-            _is_reacting = true;
-
             auto& avatar = stackchan.avatar();
+            // A legacy reaction must not take over an already-owned face.
+            if (avatar.isModifyLocked()) return;
+            _is_reacting = true;
+            _active_avatar = &avatar;
+            _motion_ownership_lost = false;
 
             avatar.setModifyLock(true);
+            _owns_avatar_lock = true;
             avatar.leftEye().setVisible(false);
             avatar.rightEye().setVisible(false);
 
@@ -101,27 +136,39 @@ private:
             return;
         }
 
-        auto& avatar = stackchan.avatar();
-        avatar.setModifyLock(false);
-        avatar.leftEye().setVisible(true);
-        avatar.rightEye().setVisible(true);
-        avatar.mouth().setWeight(0);
-        avatar.mouth().setRotation(0);
-
-        stackchan.avatar().removeDecorator(_dizzy_decorator_id);
-        stackchan.avatar().removeDecorator(_shy_decorator_id);
+        if (stackchan.hasAvatar() && _active_avatar == &stackchan.avatar()) {
+            auto& avatar = stackchan.avatar();
+            if (_owns_avatar_lock && avatar.isModifyLocked()) {
+                avatar.leftEye().setVisible(true);
+                avatar.rightEye().setVisible(true);
+                avatar.mouth().setWeight(0);
+                avatar.mouth().setRotation(0);
+                avatar.setModifyLock(false);
+            }
+            avatar.removeDecorator(_dizzy_decorator_id);
+            avatar.removeDecorator(_shy_decorator_id);
+        }
         _dizzy_decorator_id = -1;
         _shy_decorator_id   = -1;
 
         auto& motion = stackchan.motion();
-        motion.setModifyLock(false);
+        if (_owns_motion_lock && motion.isModifyLocked()) motion.setModifyLock(false);
 
+        _active_avatar = nullptr;
+        _owns_avatar_lock = _owns_motion_lock = _motion_ownership_lost = false;
         _is_reacting = false;
     }
 
     // 信号相关
-    int _signal_connection;
-    volatile bool _event_shake = false;
+    std::size_t _signal_connection;
+    static constexpr std::uint32_t kAcceptEvents = 1u;
+    static constexpr std::uint32_t kShake = 2u;
+    static constexpr std::uint32_t kEpochStep = 8u;
+    std::atomic<std::uint32_t> _events{kAcceptEvents};
+    avatar::Avatar* _active_avatar = nullptr;
+    bool _owns_avatar_lock = false;
+    bool _owns_motion_lock = false;
+    bool _motion_ownership_lost = false;
 
     // 状态控制
     bool _is_reacting          = false;

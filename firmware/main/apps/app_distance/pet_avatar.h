@@ -11,6 +11,7 @@ public:
     DistancePetAvatar();
     ~DistancePetAvatar() override;
     void init(lv_obj_t* parent);
+    void setInteractionForeground(bool active);
     void setMood(distance_pet::Mood mood, std::uint32_t now_ms);
     void tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react = false,
               distance_pet::EyeCue eye_cue = {}, bool hold_mood = false);

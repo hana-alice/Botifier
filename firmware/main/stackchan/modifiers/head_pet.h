@@ -11,6 +11,7 @@
 #include <hal/hal.h>
 #include <cstdint>
 #include <memory>
+#include <atomic>
 
 namespace stackchan {
 
@@ -25,9 +26,9 @@ public:
         // 绑定信号
         _signal_connection = GetHAL().onHeadPetGesture.connect([this](HeadPetGesture gesture) {
             if (gesture == HeadPetGesture::SwipeForward || gesture == HeadPetGesture::SwipeBackward) {
-                _event_swipe = true;
+                record_event(kSwipe);
             } else if (gesture == HeadPetGesture::Release) {
-                _event_release = true;
+                record_event(kRelease);
             }
         });
     }
@@ -39,19 +40,27 @@ public:
 
     void _update(Modifiable& stackchan) override
     {
+        if (stackchan.interactionsSuspended() || !stackchan.hasAvatar()) {
+            // Atomically disable producers as well as drop queued gestures. A
+            // callback already in flight cannot put an old event back afterward.
+            disable_events();
+            cancel_session(stackchan);
+            return;
+        }
+        const auto events = _events.fetch_and(~(kSwipe | kRelease), std::memory_order_relaxed);
+        _events.fetch_or(kAcceptEvents, std::memory_order_relaxed);
+        if (_active_avatar && _active_avatar != &stackchan.avatar()) cancel_session(stackchan);
         uint32_t now = GetHAL().millis();
 
         // 处理“被抚摸中”事件
-        if (_event_swipe) {
-            _event_swipe = false;
+        if (events & kSwipe) {
             handle_swipe(stackchan);
             // 只要在摸，就推迟恢复时间
             _is_waiting_restore = false;
         }
 
         // 处理“手松开”事件
-        if (_event_release) {
-            _event_release = false;
+        if (events & kRelease) {
             if (_in_happy_state) {
                 _is_waiting_restore = true;
                 _restore_tick       = now + _restore_delay_ms;
@@ -66,9 +75,43 @@ public:
     }
 
 private:
+    void record_event(std::uint32_t event)
+    {
+        auto pending = _events.load(std::memory_order_relaxed);
+        const auto generation = pending & ~(kEpochStep - 1u);
+        while ((pending & kAcceptEvents) && (pending & ~(kEpochStep - 1u)) == generation) {
+            if (_events.compare_exchange_weak(pending, pending | event, std::memory_order_relaxed)) return;
+        }
+    }
+
+    void disable_events()
+    {
+        auto pending = _events.load(std::memory_order_relaxed);
+        while (pending & kAcceptEvents) {
+            // An old producer must not retry after a complete pause/resume,
+            // even if the low enabled/event bits happen to match again.
+            const auto disabled = (pending + kEpochStep) & ~(kEpochStep - 1u);
+            if (_events.compare_exchange_weak(pending, disabled, std::memory_order_relaxed)) return;
+        }
+    }
+
+    void cancel_session(Modifiable& stackchan)
+    {
+        // Retire this modifier's decorations only on the avatar that created
+        // them. In particular, never restore saved angles over a new app owner.
+        if (_active_avatar && stackchan.hasAvatar() && _active_avatar == &stackchan.avatar()) {
+            _active_avatar->removeDecorator(_heart_decorator_id);
+            _active_avatar->removeDecorator(_shy_decorator_id);
+        }
+        _active_avatar = nullptr;
+        _heart_decorator_id = _shy_decorator_id = -1;
+        _in_happy_state = _is_waiting_restore = false;
+    }
+
     void handle_swipe(Modifiable& stackchan)
     {
         auto& avatar = stackchan.avatar();
+        _active_avatar = &avatar;
 
         // 首次进入开心状态，记录原始信息
         if (!_in_happy_state) {
@@ -141,9 +184,13 @@ private:
     }
 
     // 信号相关
-    int _signal_connection;
-    volatile bool _event_swipe   = false;
-    volatile bool _event_release = false;
+    std::size_t _signal_connection;
+    static constexpr std::uint32_t kAcceptEvents = 1u;
+    static constexpr std::uint32_t kSwipe = 2u;
+    static constexpr std::uint32_t kRelease = 4u;
+    static constexpr std::uint32_t kEpochStep = 8u;
+    std::atomic<std::uint32_t> _events{kAcceptEvents};
+    avatar::Avatar* _active_avatar = nullptr;
 
     // 状态机相关
     bool _in_happy_state     = false;

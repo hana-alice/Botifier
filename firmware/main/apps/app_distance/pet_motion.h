@@ -38,6 +38,7 @@ struct EyeCue {
     float x = 0;
     float y = 0;
     float openness = 1;
+    bool directed = false;
 };
 
 inline Frame with_eye_cue(Frame frame, EyeCue cue) noexcept
@@ -83,7 +84,8 @@ public:
         pending_play_ = true;
     }
 
-    Frame update(std::uint32_t now_ms, Signal signal, bool hold_mood = false) noexcept
+    Frame update(std::uint32_t now_ms, Signal signal, bool hold_mood = false,
+                 bool directed_gaze = false) noexcept
     {
         initialize(now_ms);
         const auto delta = now_ms - last_ms_;
@@ -151,8 +153,12 @@ public:
         base_ = blend(from_, target, smooth(static_cast<float>(age) / 280.0f));
         base_.mood = mood_;
         frame_ = base_;
-        if (delta != 0) update_small_actions(now_ms);
-        apply_small_actions(now_ms);
+        // An intentional interaction supplies its own gaze/blink. Keep the
+        // ordinary random look from pulling the eyes away from that target.
+        if (!directed_gaze) {
+            if (delta != 0) update_small_actions(now_ms);
+            apply_small_actions(now_ms);
+        }
         bound(frame_);
         return frame_;
     }

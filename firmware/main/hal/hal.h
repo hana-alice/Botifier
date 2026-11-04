@@ -192,6 +192,7 @@ public:
     void updateHeapStatusLog();
     uint8_t getBatteryLevel();
     bool isBatteryCharging();
+    bool getBatteryStatus(int& level, bool& charging, bool& discharging);
     void factoryReset();
 
     /* --------------------------------- Display -------------------------------- */

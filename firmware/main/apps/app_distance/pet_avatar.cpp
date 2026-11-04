@@ -195,6 +195,15 @@ void DistancePetAvatar::setMood(distance_pet::Mood mood, std::uint32_t now_ms)
     _started = false;
 }
 
+void DistancePetAvatar::setInteractionForeground(bool active)
+{
+    // Reassert on every frame: a newly created distance warning may otherwise
+    // appear above an interaction that already started. Lowering the panel
+    // exposes the current warning without changing the sensor state.
+    if (active) lv_obj_move_foreground(_view->panel);
+    else lv_obj_move_background(_view->panel);
+}
+
 void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react,
                              distance_pet::EyeCue eye_cue, bool hold_mood)
 {
@@ -202,10 +211,10 @@ void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, 
     _started = true;
     _last_tick = now_ms;
     _last_signal = signal;
-    auto frame = _controller.update(now_ms, signal, hold_mood);
+    auto frame = _controller.update(now_ms, signal, hold_mood, eye_cue.directed);
     if (react && signal == distance_pet::Signal::Ready) {
         _controller.react(now_ms);
-        frame = _controller.update(now_ms, signal, hold_mood);
+        frame = _controller.update(now_ms, signal, hold_mood, eye_cue.directed);
     }
     if (signal == distance_pet::Signal::Ready) frame = distance_pet::with_eye_cue(frame, eye_cue);
     const auto color = lv_color_hex(frame.mood == distance_pet::Mood::Alert ? kSerious : kEyes);

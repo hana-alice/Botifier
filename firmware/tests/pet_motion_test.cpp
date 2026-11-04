@@ -403,6 +403,28 @@ void performed_mood_cannot_override_alert_or_unavailable()
           "performance kept a celebratory emotion on unavailable distance");
 }
 
+void directed_gaze_does_not_pick_another_random_attention_target()
+{
+    Controller first(19), second(987);
+    first.update(0, Signal::Ready);
+    second.update(0, Signal::Ready);
+    first.play(Mood::Affection, 0);
+    second.play(Mood::Affection, 0);
+    for (std::uint32_t now = 0; now < 3300; now += 20) {
+        const auto a = first.update(now, Signal::Ready, true, true);
+        const auto b = second.update(now, Signal::Ready, true, true);
+        check_same(a, b);
+        check_bounds(a);
+    }
+    check(first.update(3320, Signal::Alert, true, true).mood == Mood::Alert,
+          "directed interaction must yield to distance alert");
+    bool ordinary_varies = false;
+    for (std::uint32_t now = 3340; now < 10000; now += 20) {
+        ordinary_varies |= difference(first.update(now, Signal::Ready), second.update(now, Signal::Ready)) > 0.01f;
+    }
+    check(ordinary_varies, "ordinary small actions did not resume after directed gaze");
+}
+
 } // namespace
 
 int main()
@@ -426,6 +448,7 @@ int main()
         {"performance_eye_cues_leave_ordinary_frames_and_alerts_unchanged", performance_eye_cues_leave_ordinary_frames_and_alerts_unchanged},
         {"performed_mood_survives_two_excursions_without_restarting_its_blend", performed_mood_survives_two_excursions_without_restarting_its_blend},
         {"performed_mood_cannot_override_alert_or_unavailable", performed_mood_cannot_override_alert_or_unavailable},
+        {"directed_gaze_does_not_pick_another_random_attention_target", directed_gaze_does_not_pick_another_random_attention_target},
     };
     unsigned passed = 0;
     for (const auto& test : tests) {

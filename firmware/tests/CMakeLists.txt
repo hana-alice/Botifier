@@ -54,6 +54,24 @@ target_include_directories(pet_motion_test PRIVATE ../main)
 target_compile_features(pet_motion_test PRIVATE cxx_std_17)
 add_test(NAME pet_motion_test COMMAND $<TARGET_FILE:pet_motion_test>)
 
+add_executable(touch_reaction_test touch_reaction_test.cpp)
+target_include_directories(touch_reaction_test PRIVATE ../main)
+target_compile_features(touch_reaction_test PRIVATE cxx_std_17)
+add_test(NAME touch_reaction_test COMMAND $<TARGET_FILE:touch_reaction_test>)
+
+# Compile the real modifier headers against isolated avatar/motion hardware
+# adapters. COPYONLY preserves their relative includes and reconfigures on edit.
+set(legacy_root "${CMAKE_CURRENT_BINARY_DIR}/legacy-interactions")
+file(COPY fakes/legacy_interactions/stackchan DESTINATION "${legacy_root}")
+foreach(header modifiable.h modifiers/head_pet.h modifiers/imu.h)
+    configure_file("../main/stackchan/${header}" "${legacy_root}/stackchan/${header}" COPYONLY)
+endforeach()
+add_executable(legacy_interaction_test legacy_interaction_test.cpp)
+target_include_directories(legacy_interaction_test PRIVATE
+    "${legacy_root}" fakes/legacy_interactions ../components/smooth_ui_toolkit/src)
+target_compile_features(legacy_interaction_test PRIVATE cxx_std_17)
+add_test(NAME legacy_interaction_test COMMAND $<TARGET_FILE:legacy_interaction_test>)
+
 add_executable(snap_detector_test snap_detector_test.cpp)
 target_include_directories(snap_detector_test PRIVATE ../main)
 target_compile_features(snap_detector_test PRIVATE cxx_std_17)
