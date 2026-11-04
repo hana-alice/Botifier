@@ -1,11 +1,13 @@
 {
-  "RecordedAt": "2026-11-02T19:13:48.135056+08:00",
+  "RecordedAt": "2026-11-03T09:39:12.890836+00:00",
   "Platform": "Windows 11 x64, PowerShell 7.6.5, native Windows",
   "Source": {
     "Url": "https://github.com/m5stack/StackChan.git",
     "Commit": "f901cc2969189f3f0e96af1442c0f96e77e1e2c1",
     "FirmwareVersion": "1.6.0",
-    "LocalImplementationCommit": "04d7d53dc903c14cc297907cb757256558fe4566"
+    "LocalImplementationCommit": "0347a09b39646435e156a0469b4e413e32284b0e",
+    "NativeWorkingTreeManifest": ".tools/firmware-artifacts/20261103-alert-motion78/manifest.json",
+    "CommittedSourceTree": "85e9fb2d1f0ef390e9bfd43ea5a0ff37785cc4fe"
   },
   "ESP_IDF": {
     "Tag": "v5.5.4",
@@ -15,9 +17,9 @@
   },
   "Device": {
     "Port": "COM38",
-    "ConnectionStatus": "Calibrated-home yaw and late-start guard; seq63 independently read back VALID; USB quota helper restored",
+    "ConnectionStatus": "ota_1/VALID continuous-alert image verified over Wi-Fi, no serial used",
     "UpdatedThisIteration": true,
-    "CurrentOtaSequence": 63,
+    "CurrentOtaSequence": null,
     "CurrentOtaState": "VALID",
     "IDFFromBootLog": "v5.5.4",
     "ToF4MVerified": true,
@@ -25,8 +27,8 @@
     "FirmwareVersionFromVerifiedOriginalBackup": "1.6.0",
     "IDFFromVerifiedOriginalBackup": "v5.5.4",
     "FlashBytes": 16777216,
-    "CurrentSlot": "ota_0",
-    "OriginalFirmwarePreservedInSlot": "ota_1",
+    "CurrentSlot": "ota_1",
+    "OriginalFirmwarePreservedInSlot": null,
     "Backup": {
       "Path": ".tools/device-backups/20261030-124710/flash-original.bin",
       "Bytes": 16777216,
@@ -34,7 +36,10 @@
       "DeviceMD5": "b202384152810e7e18aacc558270eb4a",
       "WholeFlashVerified": true
     },
-    "ToF4MVerifiedScope": "Historical wiring acceptance plus current startup/capture distance counts; see IdlePrograms.PhysicalProbeData"
+    "ToF4MVerifiedScope": "Historical wiring acceptance plus current startup/capture distance counts; see IdlePrograms.PhysicalProbeData",
+    "CurrentRangingSensorState": "ranging",
+    "CurrentRangingScope": "Current authenticated LAN snapshots show valid ranging; no new wiring inspection",
+    "OriginalFirmwarePreservedExternally": ".tools/device-backups/20261030-124710/flash-original.bin"
   },
   "Dependencies": [
     {
@@ -74,20 +79,26 @@
       "Commit": "c33383de97f3ed2fc52117f5ef04f71990432e5d"
     }
   ],
-  "HostTest": "CTest17/17; pet18, policy28, head24, production Servo/Motion/UITK13 groups; real App/LVGL8548 assertions/five negative controls plus late-entry guard30 assertions/one negative control. PC unchanged.",
-  "FirmwareBuild": "ESP-IDF5.5.4 complete; image4472128 bytes, slot5177344, free705216 bytes; seq63/VALID.",
+  "HostTest": "CTest23/23 including AlertHead10/Touch14 scenarios; actual App+LVGL5892/full11707 PASS; hardware fake",
+  "FirmwareBuild": "ESP-IDF5.5.4 complete;4533712B,643632B free; new ELF ota_1/VALID",
   "FirmwareBinary": {
-    "Path": ".tools/device-backups/20261102-centered-motion63/centered-motion-deployed.bin",
-    "Bytes": 4472128,
-    "SHA256": "88a97c8a47789249ea19fc78a1e7782862ebd5a95d36dd8c4bac9c16a781db4e",
-    "SourceCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
-    "BuildLog": "logs/centered-motion63-build-final.log",
+    "Path": ".tools/firmware-artifacts/20261103-alert-motion78/alert-motion.bin",
+    "Bytes": 4533712,
+    "SHA256": "54230a1b6ad5ccc3e92235635017715f26dd6fc71d5ac8aa55c4bea26fec90d7",
+    "ElfSHA256": "7f602b8090dc0d81a37fe48e4f72f1f3bec512e6521934d9fc8008ef0aca69d7",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-alert-motion78/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/firmware-20261103-172709.log",
     "Flashed": true,
-    "OtaSequence": 63,
+    "OtaSequence": null,
+    "SequenceScope": "Archive78 is a batch label; actual sequence not read via USB",
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261102-centered-motion63/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261102-centered-motion63/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-centered63.log"
+    "CurrentSlot": "ota_1",
+    "Record": "logs/device-alert-motion78-retry02-report.json",
+    "Transport": "Authenticated paced Wi-Fi retry; full upload/new ELF/target-slot/VALID independently confirmed",
+    "CommittedSource": "0347a09b39646435e156a0469b4e413e32284b0e",
+    "CommittedSourceMatchesBuildManifest": true
   },
   "LastDeployedPetFirmwareBinary": {
     "Path": ".tools/device-backups/20261030-182853-pet-face/distance-pet-working.bin",
@@ -3202,17 +3213,19 @@
     "DeploymentLog": "logs/device-update-shorekeeper47.log"
   },
   "IdleProgramFirmwareBinary": {
-    "Path": ".tools/device-backups/20261102-centered-motion63/centered-motion-deployed.bin",
-    "Bytes": 4472128,
-    "SHA256": "88a97c8a47789249ea19fc78a1e7782862ebd5a95d36dd8c4bac9c16a781db4e",
-    "SourceCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
-    "BuildLog": "logs/centered-motion63-build-final.log",
+    "Path": ".tools/firmware-artifacts/20261103-native-weekly69/native-weekly.bin",
+    "Bytes": 4519360,
+    "SHA256": "41caa0925c841324b312bb09422fcdca8021bb71f3482c53f56de7e4910a98a8",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-native-weekly69/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/standalone-weekly-build-http69.log",
     "Flashed": true,
-    "OtaSequence": 63,
+    "OtaSequence": 69,
     "OtaState": "VALID",
-    "Record": ".tools/device-backups/20261102-centered-motion63/deployment.json",
-    "OtaReadback": ".tools/device-backups/20261102-centered-motion63/ota-confirmation.json",
-    "DeploymentLog": "logs/device-update-centered63.log"
+    "Record": ".tools/device-backups/20261103-native-weekly69/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261103-native-weekly69/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-native-weekly69.log"
   },
   "IdlePrograms": {
     "Defaults": {
@@ -3225,19 +3238,25 @@
       "weekly_interval_ms": 30000
     },
     "LocalParameters": "BOTIFIER -> top-down/bottom-up swipe drawer -> DISTANCE/NFC/PROGRAMS; explicit SAVE only",
-    "PcLauncher": "Start-CodexWeekly.cmd",
-    "ApiMethod": "account/rateLimits/read",
+    "PcLauncher": "Legacy manual diagnostics only, not a runtime quota dependency",
+    "ApiMethod": "Robot-owned Wi-Fi HTTPS GET, independent device-code login and NVS refresh recovery",
     "ApiWindowMinutes": 10080,
-    "ApiEvidence": "https://learn.chatgpt.com/docs/app-server",
+    "ApiEvidence": "Official openai/codex e839b828fb4a2374b6b9ea9b0530f5a02ced0b95; details in DEVELOPMENT.md; private HTTP implementation can change",
     "Snapshot": {
-      "available": true,
-      "remaining_percent": 64,
+      "source": "device_wifi",
+      "state": "ready",
+      "error": "none",
+      "http_status": 200,
+      "signed_in": true,
+      "remaining_percent": 62,
+      "observed_at": 1793678567,
       "reset_at": 1793871052,
-      "observed_at": 1793617774
+      "next_poll_in_ms": 270295,
+      "last_success_ms": 318258
     },
-    "FirmwareTests": "logs/centered-motion63-host-final.log",
+    "FirmwareTests": "CTest19/19; protocol17 synthetic groups; actual SDK HTTP header generator10 cases including failing512 controls; diagnostic probe30 synthetic cases. UI unchanged from8598+748 assertions/207frames.",
     "PcTests": "logs/idle-pc-tests-final.log",
-    "UiManifest": ".tools/centered-motion-guard63-probe/guard-verification-overlay63.json",
+    "UiManifest": ".tools/standalone-weekly-ui-probe/manifest-final.json",
     "UiVerdict": ".tools/centered-motion-probe/movie-v2/visual-verdict.json",
     "UsbSdkRegressionEvidence": "logs/usb-secondary-vfs-source-probe.json",
     "PhysicalProbe": "logs/device-centered63-report.json",
@@ -3423,21 +3442,14 @@
       "Cooperative bool motion lock has no owner token; occupied movement is not preempted."
     ],
     "PcHelperRuntime": {
-      "ProcessId": 28412,
-      "StartedAt": "2026-11-02T19:09:32.8378022+08:00",
-      "Port": "COM38",
-      "Hidden": true,
+      "Status": "Stopped",
+      "ProcessIdsStopped": [
+        28412,
+        53440
+      ],
       "OsStartup": false,
-      "Log": "logs/codex-weekly-centered-helper.log",
-      "ErrorLog": "logs/codex-weekly-centered-helper.err.log",
-      "PidFile": ".tools/codex-weekly-helper.pid",
-      "Status": "Alive; USB connected marker and fresh safe account summary verified; PC summary is not device-display acceptance",
-      "LastSafeSnapshot": {
-        "available": true,
-        "remaining_percent": 64,
-        "reset_at": 1793871052,
-        "observed_at": 1793617774
-      }
+      "Record": ".tools/standalone-weekly-stopped-helpers.json",
+      "Directive": "Do not restart legacy quota writers to satisfy standalone acceptance"
     },
     "DisplayScope": "BOTIFIER (formerly DISTANCE) LIVE only; launcher and AI do not render programmes; sensor and eye timer remain process-wide.",
     "Priority": [
@@ -3447,7 +3459,7 @@
     ],
     "AnimationArbitration": "Generation-bound actual completion ack; all EyeRest phases reject NFC and ordinary activity. Busy taps are consumed without queue/extension. A break due during NFC waits. HOME/TUNE/OFF cancel owned playback/movement.",
     "HistoricalDisplayScopeEvidenceSeq45": "logs/botifier-display-scope-audit.json",
-    "SnapshotScope": "PC account/rateLimits/read safe summary; not a fresh device display or packet-acceptance measurement",
+    "SnapshotScope": "Fresh authenticated Wi-Fi-only status after automatic 5-minute poll; observed_at increased1793678263->1793678567 without any USB data reads/writes",
     "Artwork": {
       "Pack": "StackChan/firmware/main/apps/common/idle_program/media/shorekeeper_intro.bin",
       "Bytes": 422532,
@@ -3567,7 +3579,14 @@
       "RestoreWriteSucceeded": true,
       "RestoreTimerObserved": true,
       "Defaults": "20min/REST20 retained; test packets save=false, no saved settings changed"
-    }
+    },
+    "HistoricalPcSnapshot": {
+      "available": true,
+      "remaining_percent": 64,
+      "reset_at": 1793871052,
+      "observed_at": 1793617774
+    },
+    "ApiWindowSeconds": 604800
   },
   "PreviousIdlePrograms": {
     "Defaults": {
@@ -4049,5 +4068,306 @@
     "OtaReadback": ".tools/device-backups/20261102-centered-motion61/ota-confirmation.json",
     "PhysicalTested": false,
     "SupersededReason": "Late first tick could bypass/truncate preparation; fixed in63"
+  },
+  "PreviousNativeBaseFirmwareBinary": {
+    "Path": ".tools/device-backups/20261102-centered-motion63/centered-motion-deployed.bin",
+    "Bytes": 4472128,
+    "SHA256": "88a97c8a47789249ea19fc78a1e7782862ebd5a95d36dd8c4bac9c16a781db4e",
+    "SourceCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "BuildLog": "logs/centered-motion63-build-final.log",
+    "Flashed": true,
+    "OtaSequence": 63,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261102-centered-motion63/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261102-centered-motion63/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-centered63.log"
+  },
+  "NativeCodexWeekly": {
+    "Implementation": "Native ESP-IDF worker; no PC bridge and no imported desktop credentials",
+    "State": "READY:55percent after alert-motion OTA; signed-in credentials retained",
+    "Source": "device_wifi",
+    "QueryIntervalMs": 300000,
+    "MaximumTtlMs": 900000,
+    "RuntimeUsbFeedAccepted": false,
+    "RealIndependentQuotaVerified": true,
+    "RebootCredentialRecoveryVerified": true,
+    "UsbDisconnectedRefreshVerified": false,
+    "LoginEntry": "BOTIFIER gesture menu -> CODEX -> SIGN IN",
+    "DiagnosticPort": 8765,
+    "DiagnosticPath": "/api/status",
+    "DiagnosticAuthHeader": "X-Botifier-Key",
+    "DiagnosticKeyLocation": "Device CODEX page only; not in this record",
+    "DiagnosticScope": "Authenticated read-only quota/idle/distance plus valid power and boot reset reason; no tokens or arbitrary commands",
+    "NegativeHttpAuthEvidence": "logs/device-native-weekly65-http-auth-negative.json",
+    "FirstAttempt65": {
+      "OtaSequence": 65,
+      "OtaState": "VALID",
+      "Result": "Failed; SDK DNS getaddrinfo202/EAI_FAIL, HTTP0, connectedWiFi",
+      "Evidence": "logs/device-native-weekly65-sdk01-report.json"
+    },
+    "Dns67": {
+      "MainObserved": "0.0.0.0",
+      "BackupObserved": "1.1.1.1",
+      "FallbackObserved": "8.8.8.8",
+      "MainUnchanged": true,
+      "ExistingDnsValuesPreserved": true,
+      "Scope": "SDK global DNS slots; only empty optional slots filled. ESP_DNS skips empty main; not itself a fault."
+    },
+    "KnownLimits": [
+      "Private official HTTP routes have no published stable REST compatibility contract",
+      "Async logout power loss before NVS erase commit can retain credentials",
+      "NVS storage failure is explicit; existing settings are not erased",
+      "Response callback budget is not a hard total request timeout",
+      "Physical USB unplug and long-duration operation not tested; scheduled refresh verified with all USB serial processes closed"
+    ],
+    "DeviceCodeIssuanceVerified": true,
+    "DeviceCodeEvidence": "User reports Login Code; safe telemetry awaiting_login/pending true, valid server response parser required by source; initial response occurred between capture windows",
+    "AuthenticatedWifiDebugVerified": true,
+    "UsbDataClosedScheduledPollVerified": true,
+    "StateEvidence": "logs/device-alert-motion78-observe.json",
+    "Firmware": {
+      "Path": ".tools/firmware-artifacts/20261103-alert-motion78/alert-motion.bin",
+      "Bytes": 4533712,
+      "SHA256": "54230a1b6ad5ccc3e92235635017715f26dd6fc71d5ac8aa55c4bea26fec90d7",
+      "ElfSHA256": "7f602b8090dc0d81a37fe48e4f72f1f3bec512e6521934d9fc8008ef0aca69d7",
+      "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+      "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-alert-motion78/manifest.json",
+      "SourceWorkingTreeDirty": true,
+      "BuildLog": "logs/firmware-20261103-172709.log",
+      "Flashed": true,
+      "OtaSequence": null,
+      "SequenceScope": "Archive78 is a batch label; actual sequence not read via USB",
+      "OtaState": "VALID",
+      "CurrentSlot": "ota_1",
+      "Record": "logs/device-alert-motion78-retry02-report.json",
+      "Transport": "Authenticated paced Wi-Fi retry; full upload/new ELF/target-slot/VALID independently confirmed",
+      "CommittedSource": "0347a09b39646435e156a0469b4e413e32284b0e",
+      "CommittedSourceMatchesBuildManifest": true
+    },
+    "FirstSuccessObservedAt": 1793678208,
+    "AfterRebootObservedAt": 1793678263,
+    "RebootEvidence": "logs/device-native-weekly69-reboot01-report.json",
+    "IdleFreshConsistency": {
+      "compared": 51,
+      "matching": 51,
+      "mismatches": 0
+    },
+    "TransportFix": {
+      "DefaultTxBytes": 512,
+      "BearerTxBudget": "access.size()+account.size()+512",
+      "CurrentMaximumBytes": 8960,
+      "Scope": "Only bearer usage requests; other OAuth POST/RX/TLS/timeouts unchanged",
+      "SdkExperiment": ".tools/http-header-budget-probe/manifest.json",
+      "SdkExperimentPassCount": 10
+    },
+    "DiagnosticCorrection": {
+      "Error": "SDK -1 status was mistakenly dropped, not absence of device output",
+      "Evidence": ".tools/native-weekly-probe-tests/status-minus-one-correction.json",
+      "ProbeTestCount": 30
+    },
+    "AutomaticScheduledPollVerified": true,
+    "LastObservedAt": 1793678567,
+    "ScheduledPollEvidence": "logs/device-native-weekly69-lan-poll03.json",
+    "ScheduledPollObservedAtIncrease": 304,
+    "ScheduledPollUsbReadWriteBytes": 0
+  },
+  "PreviousNativeQuotaFirmware67": {
+    "Path": ".tools/firmware-artifacts/20261103-native-weekly67/native-weekly.bin",
+    "Bytes": 4519360,
+    "SHA256": "9d27edeb198f5e1182ea4355fa208cc88d4f76394af469e7fefb5620b201860b",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-native-weekly67/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/standalone-weekly-build-dns67-final.log",
+    "Flashed": true,
+    "OtaSequence": 67,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261103-native-weekly67/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261103-native-weekly67/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-native-weekly67.log"
+  },
+  "PreviousNativeQuotaFirmware69": {
+    "Path": ".tools/firmware-artifacts/20261103-native-weekly69/native-weekly.bin",
+    "Bytes": 4519360,
+    "SHA256": "41caa0925c841324b312bb09422fcdca8021bb71f3482c53f56de7e4910a98a8",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-native-weekly69/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/standalone-weekly-build-http69.log",
+    "Flashed": true,
+    "OtaSequence": 69,
+    "OtaState": "VALID",
+    "Record": ".tools/device-backups/20261103-native-weekly69/deployment.json",
+    "OtaReadback": ".tools/device-backups/20261103-native-weekly69/ota-confirmation.json",
+    "DeploymentLog": "logs/device-update-native-weekly69.log"
+  },
+  "WifiFirmwareUpdate": {
+    "Status": "Implemented and physically verified both directions",
+    "Port": 8765,
+    "Path": "/api/firmware",
+    "Methods": [
+      "GET",
+      "POST"
+    ],
+    "AuthHeader": "X-Botifier-Key",
+    "KeyLocation": "Device CODEX page or private key file/environment; never stored in this record",
+    "Client": "scripts/Update-FirmwareWifi.ps1",
+    "BootstrapSequence": 73,
+    "FinalSequence": 75,
+    "FinalSlot": "ota_0",
+    "FinalState": "VALID",
+    "UploadBytesPerTest": 4527152,
+    "Directions": [
+      {
+        "from": "ota_0",
+        "to": "ota_1",
+        "seconds": 47.5,
+        "report": "logs/device-wifi-ota74-wireless-report.json"
+      },
+      {
+        "from": "ota_1",
+        "to": "ota_0",
+        "seconds": 52.641,
+        "report": "logs/device-wifi-ota75-wireless-report.json"
+      }
+    ],
+    "SerialDuringSuccessfulUploadsAndLanConfirmation": false,
+    "IndependentUsbReadbackAfterWifiTests": ".tools/device-backups/20261103-wifi-ota75/ota-confirmation.json",
+    "NoSerialFlashWritesDuringIndependentReadback": true,
+    "RebootQuotaEvidence": "logs/device-wifi-ota75-final-status.json",
+    "PreflightCases": 6,
+    "PreflightEvidence": "logs/device-wifi-ota71-preflight.json",
+    "FactoryInInactiveSlot": false,
+    "FactoryFullBackupVerified": true,
+    "PartitionTableAndAssetsUnchangedVerified": true,
+    "RuntimeRestartRequired": true,
+    "NewDependencies": false,
+    "FailureCorrection": "Initial old-slot return did not prove new-slot rollback; upload canary failure captured in old ota0",
+    "TouchStackExperiment": "logs/wifi-ota-stack-experiment.json",
+    "Limits": [
+      "Exact former PSRAM stack-canary corruption mechanism unproven",
+      "Physical power-loss rollback and long-duration repeated updates untested",
+      "Same-image A/B transport tested; different business-version NVS migration untested",
+      "No physical USB unplug or repeated NFC/head-motion acceptance this iteration"
+    ],
+    "LatestBusinessVersionUpdate": "logs/device-alert-motion78-retry02-report.json",
+    "LatestLiveAttemptFailure": "logs/device-touch-pet76-wireless-report.json",
+    "CurrentOperatingProcedure": "Stable bottom power + HOME and private4096B pacing; pacing also failed once then sameimage/samepacing freshboot retry succeeded. Public uploader unchanged; root cause unresolved",
+    "LatestHomeAttemptFailure": "logs/device-alert-motion78-wireless-report.json",
+    "HomeFailureAudit": "logs/device-alert-motion78-first-failure-audit.json"
+  },
+  "PreviousWifiBaseFirmwareBinary": {
+    "Path": ".tools/firmware-artifacts/20261103-wifi-ota73/wifi-ota.bin",
+    "Bytes": 4527152,
+    "SHA256": "c5c1aa7a3b69bf8fb514fafd0a2d528d944d5bb48d9b7007d15afc903870a587",
+    "ElfSHA256": "e818f7ae4f8fb282c0c16b16b5b08ec756661855162a74b21f6b4d6b312dd7a2",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-wifi-ota73/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/wifi-ota-build73-internal-touch.log",
+    "Flashed": true,
+    "OtaSequence": 75,
+    "OtaState": "VALID",
+    "Record": "logs/device-wifi-ota75-wireless-report.json",
+    "OtaReadback": ".tools/device-backups/20261103-wifi-ota75/ota-confirmation.json",
+    "DeploymentLog": "logs/device-wifi-ota75-wireless-run.log",
+    "Transport": "Authenticated local Wi-Fi OTA; initial/repair bootstrap separately recorded"
+  },
+  "TouchInteraction": {
+    "Entry": "BOTIFIER LIVE; head-top Press",
+    "DurationMs": 3000,
+    "Priority": "Touch interaction and visible motion outrank distance Alert; Alert outranks idle cards. Existing protected NFC/full EyeRest arbitration retained",
+    "UiEvidence": ".tools/touch-pet-probe/priority-results.json",
+    "HostTestLog": "logs/host-tests-20261103-164052-845-test.log",
+    "DeviceEvidence": "logs/device-alert-motion78-retry02-report.json",
+    "PhysicalTouchAcceptance": "Earlier touch response observed; new owned-alert handover and full physical behavior awaiting user",
+    "BatteryEvidence": "logs/device-alert-motion78-observe.json",
+    "LastPower": {
+      "valid": true,
+      "battery_percent": 100,
+      "charging": false,
+      "discharging": false
+    },
+    "ResetReason": 3,
+    "ResetReasonScope": "3=ESP_RST_SW latest boot; failed upload before installation rebooted prior77 with4=ESP_RST_PANIC, cause unknown",
+    "PriorityDecision": "User explicitly corrected distance to idle-task priority; implemented and installed"
+  },
+  "PreviousTouchFirmwareBinary": {
+    "Path": ".tools/firmware-artifacts/20261103-touch-pet76/touch-pet.bin",
+    "Bytes": 4532656,
+    "SHA256": "4e24ba7785f006c598cda6d3cdbb0fb26bb11e8d1ec1cff7016fd2ecf3b362a5",
+    "ElfSHA256": "86b8fa6f668c9a3e6e76cda7f3a850b0c02e61f7e7d625af1d19301825e2e1a7",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-touch-pet76/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/firmware-20261103-161627.log",
+    "Flashed": true,
+    "OtaSequence": null,
+    "SequenceScope": "No USB readback this iteration; archive76 is a batch name, next sequence inferred only",
+    "OtaState": "VALID",
+    "CurrentSlot": "ota_1",
+    "Record": "logs/device-touch-pet76-home-retry02-report.json",
+    "Transport": "Authenticated local Wi-Fi OTA; full upload and new ELF/slot/VALID independently polled"
+  },
+  "PreviousAlertMotionBaseFirmwareBinary": {
+    "Path": ".tools/firmware-artifacts/20261103-touch-priority77/touch-priority.bin",
+    "Bytes": 4532704,
+    "SHA256": "db06eccdfdaecbeabd20ba817318adc3d68ee9bd8b79b1d83cabe35582d698d0",
+    "ElfSHA256": "a9b4f4bde4a82d2196bcd684a74d20f9a9cd8c532319f9f4ddf469f776870aae",
+    "SourceBaseCommit": "04d7d53dc903c14cc297907cb757256558fe4566",
+    "SourceWorkingTreeManifest": ".tools/firmware-artifacts/20261103-touch-priority77/manifest.json",
+    "SourceWorkingTreeDirty": true,
+    "BuildLog": "logs/firmware-20261103-164103.log",
+    "Flashed": true,
+    "OtaSequence": null,
+    "SequenceScope": "Archive77 is a batch name; actual sequence not read via USB",
+    "OtaState": "VALID",
+    "CurrentSlot": "ota_0",
+    "Record": "logs/device-touch-priority77-paced-retry02-report.json",
+    "Transport": "Authenticated Wi-Fi, paced retry; full upload and new ELF/target-slot/VALID independently confirmed"
+  },
+  "DistanceAlertMotion": {
+    "Entry": "BOTIFIER LIVE, sustained valid distance Alert",
+    "CycleMs": 3600,
+    "InitialCentreMs": 600,
+    "YawAmplitudeDegrees": 6,
+    "SegmentMs": 600,
+    "CentredPauseMs": 1200,
+    "CommandIntervalMs": 100,
+    "Pitch": "Initial measured pitch held unchanged",
+    "Priority": "Below touch/NFC/fullEyeRest and explicit navigation; above idle cards",
+    "Cancellation": "Safe/stale/invalid/exit or higher owner; release own motion only",
+    "Safety": "Calibrated yaw within8degrees intersect hardware limits; limited step, no drift, no lost-lock reacquisition",
+    "HostEvidence": "logs/host-tests-20261103-172658-804-test.log",
+    "UiEvidence": ".tools/touch-pet-probe/alert-motion-results.json",
+    "DeviceEvidence": "logs/device-alert-motion78-retry02-report.json",
+    "ObservationEvidence": "logs/device-alert-motion78-observe.json",
+    "PhysicalAcceptance": "Awaiting real near-loop/touch-handoff/safe-stop observation; host simulated physical movement only",
+    "LastPower": {
+      "valid": true,
+      "battery_percent": 100,
+      "charging": false,
+      "discharging": false
+    },
+    "ResetReason": 3,
+    "ResetScope": "3=ESP_RST_SW after successful OTA; continuous uptime61154->121819ms, only far/safe sensor state observed"
+  },
+  "RepositoryVerification": {
+    "RecordedAt": "2026-11-04T01:57:00.786588+00:00",
+    "FirmwareCommit": "0347a09b39646435e156a0469b4e413e32284b0e",
+    "FirmwareTree": "85e9fb2d1f0ef390e9bfd43ea5a0ff37785cc4fe",
+    "FirmwareSourceFiles": 57,
+    "DeployedSourceManifestMatched": true,
+    "HostTests": "23/23 on2026-11-04",
+    "PcTests": "95/95 and offline simulation on2026-11-04",
+    "HostLog": "logs/classified-commit-host-20261104.log",
+    "PcLog": "logs/classified-commit-pc-20261104.log",
+    "PhysicalDeviceScope": "No device operation or new physical acceptance during commit preparation; previous deployment evidence retained",
+    "FirmwareCommitGroups": [
+      "b45dfbf: native account, LAN diagnostics and OTA",
+      "5753f9f: touch interaction, scoped legacy ownership and battery",
+      "0347a09: continuous low-priority distance motion"
+    ],
+    "LocalArtifactScope": ".tools/logs/backups/keys remain ignored; historical test fixture EOF blank lines preserved without code edits"
   }
 }

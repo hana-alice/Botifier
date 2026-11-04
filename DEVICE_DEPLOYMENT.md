@@ -475,3 +475,98 @@ CTest **14/14**，实际LVGL **176帧、8,105断言**（5,638几何、2,467行�
 本轮内容提交 **118次/12,646ms≈9.33次每秒**，最大间隔 **222ms**；显示锁等待最大 **140ms**。相对seq59的3.77次/秒、354ms/272ms有改善，但显示锁总等待仍9,553ms；这是一组组合修改比较，不能把收益全部归因于某一处，也不能当LCD实际FPS或主观流畅度已通过。实际Motion约 **12,755ms**；Rest入口至退出日志 **20,033ms**，completed_rests0→1。测试恢复包写成功，实际观察到 **eye_remaining_ms=1,199,323**，20分钟恢复；全程save=false，没有写保存参数。严格63探针本身11/11合成用例通过，能拒绝旧16目标、单侧位移、缓存位置、错时长与晚启动skip冒充正常动作，证据`.tools/centered-motion63-probe-tests/delivery.json`。
 
 隐藏额度助手已恢复 **PID28412**，COM38连接标记及新鲜安全PC摘要 **64%** 已核验；日志`logs/codex-weekly-centered-helper.log`与`.err.log`，运行记录`.tools/centered-helper-runtime.json`，无系统自启动。该摘要不替代设备额度页面验收。剩余限制为上述归中误差、LCD实际帧率/舵机物理缓动曲线及长期运行；物理NFC/触摸未在本次重复验收。无新增依赖、无远程推送。
+
+## 机器人独立联网额度：seq65故障与seq67修复（2026-11-03）
+
+用户明确要求额度查询脱离电脑运行；此前USB同步是实现选择，不是硬件限制。本轮加入设备自己发起的设备码登录、原子保存刷新凭据、直接HTTPS读取额度和5分钟轮询，不读取/复制电脑登录文件。两个旧助手PID28412、53440均已停止，记录`.tools/standalone-weekly-stopped-helpers.json`；不能恢复它们来替代独立查询验收。源码主要为`apps/common/codex_weekly/`、AppDistance的CODEX入口、idle策略发布接口和启动接入，未增加第三方依赖。
+
+- 最终主机CTest **19/19**，协议 **17组合成回归**，包含刷新响应缺access、旧access过期与重启access为空时仍保存新refresh。日志`logs/standalone-weekly-host-dns67.log`。真实App/LVGL新页 **748断言**、既有回归 **8598断言/五项负控**、207截图、三组100次生命周期无堆增量；`.tools/standalone-weekly-ui-probe/manifest-final.json`，视觉95/pass。桌面服务替身不构成真实TLS、登录或凭据恢复证据。
+- seq65镜像 **4,517,696字节**、SHA256 **7cffc4b69e4f506c6c491bc8e60d97ce2e99efaeefd94f3d15a11426e9afe581**；受保护更新与独立读回均确认 **65/state2 VALID**，原sector1完整保留。归档`.tools/firmware-artifacts/20261103-native-weekly65/`，部署与读回`.tools/device-backups/20261103-native-weekly65/`。设备启动后Wi-Fi已连接、signed_out、无Storage错误。
+- seq65实机登录失败，用户重复确认Network error。`logs/device-native-weekly65-sdk01.ndjson`捕获DNS `getaddrinfo`错误 **202/EAI_FAIL**，随后连接失败、HTTP状态0；不能宣称已取得设备端额度。电脑UDP交叉测试网关192.168.137.1:53立即拒绝，1.1.1.1/8.8.8.8/223.5.5.5返回有效回答。设备实际DNS错误RCODE未观测，不将该电脑实验冒充设备DNS报文。
+- seq65局域网诊断实际验证缺KEY/错误KEY均 **401**，带`no-store/nosniff`，POST为 **405**，未泄漏状态；`logs/device-native-weekly65-http-auth-negative.json`。使用正确KEY的GET与拔除USB后的查询仍待真实验收。
+- seq67修复仅补空BACKUP=1.1.1.1、空FALLBACK=8.8.8.8，保留MAIN及已有服务器。只填FALLBACK的初始候选因lwIP负响应分支不跳空槽被源码复核否决，记录`logs/codex-service-dns-http67-review.json`。DNS槽在当前SDK全局共享；NOERROR无可用记录不会切DNS，此限制保留。响应回调预算从连接成功后重置10秒，不计入DNS/TLS已耗时间，仍非整笔硬超时。
+- seq67最终ESP-IDF5.5.4构建通过，镜像 **4,519,360字节**、SHA256 **9d27edeb198f5e1182ea4355fa208cc88d4f76394af469e7fefb5620b201860b**，应用槽余 **657,984字节**。归档`.tools/firmware-artifacts/20261103-native-weekly67/`含匹配bin/ELF/map和逐文件源摘要，构建`logs/standalone-weekly-build-dns67-final.log`。
+- seq67受保护安装完成，独立读回 **67/state2 VALID、CRC正确、sector1 seq2/state2逐字节保留**；`.tools/device-backups/20261103-native-weekly67/ota-confirmation.json`。启动报告`logs/device-native-weekly67-early-report.json`含37个额度状态（联网后signed_out/error-none）、38个距离状态、0观察到的panic/assert/watchdog标记。实际DNS读回为MAIN0.0.0.0/BACKUP1.1.1.1/FALLBACK8.8.8.8。当前SDK启用ESP_DNS，遍历所有槽并跳过空MAIN；不能因MAIN为空再推断解析必定失败或擅自覆盖主DNS。
+- 安装后用户确认已经出现 **Login Code**，安全遥测也进入`awaiting_login/login_pending=true/error=none`，说明有效设备码申请已通过。初始申请响应发生在两段采集间隙，未虚报捕获到具体HTTP200；源码只有合法2xx响应且解析成功才进入该状态，后续可见官方约定的待授权轮询403。已指导用户在手机打开`auth.openai.com/codex/device`登录自己的ChatGPT账号、输入机器人码并确认。真实额度GET、递增observed_at的刷新、重启恢复凭据、拔除USB后刷新均 **待手机授权后验证**，不能将设备码成功当作额度查询已通过。
+
+新增`SC_CODEX_HTTP`只记录固定端点枚举/数字错误码，`SC_CODEX_DNS`只记录三个服务器地址；登录码、KEY、账号标识及令牌均不进入诊断日志。只读探针 **25/25合成测试**，含严格schema、敏感额外字段拒绝、DNS文本丢弃及FakeSerial零写入；`.tools/native-weekly-probe-tests/`。首次启动当前测距状态为`sensor_missing`，不将历史ToF验收或主机测试当作本轮有效采样；没有为本次额度问题改测距阈值、硬件接线或动作控制。
+
+## seq69：授权后额度超时修复与实际独立查询通过（2026-11-03）
+
+用户完成设备授权后仍报Network error。首先更正诊断误判：初版探针只接受0–599，把SDK合法的无响应状态`-1`丢成malformed，曾据此判断额度任务没有输出；该判断不成立。`logs/device-native-weekly67-authorized01-report.json`保留60个malformed记录，后续鉴权Wi-Fi GET确认实际`signed_in=true/error=network/http_status=-1`。探针仅放宽这一合法值，仍拒`-2`，成功仍要求HTTP200；增加精确SDK头缓冲错误字面量白名单后，共 **30项合成测试通过**。纠错记录`.tools/native-weekly-probe-tests/status-minus-one-correction.json`。
+
+seq67重启实测`refresh`返回 **HTTP200/3588ms**，随后`usage`返回 **ESP_ERR_HTTP_EAGAIN 28679、约12999ms、无响应头**，证据`logs/device-native-weekly67-authorized-reboot01.ndjson`。因此授权及保存后的刷新已成功，不能再次让用户重做登录或把问题一概归为Wi-Fi未连。SDK默认TX512、单头不能拆分；真实源码生成器实验用假access1800/account36复现旧512只发送 **83/1967字节且无最终CRLF**，生产2348发送完整；假8192/256时旧路径83/8579，生产8960完整。四项失败负控、当前与更宽历史account边界、无Bearer GET/POST，共 **10/10通过**；SDK源未修改，生产赋值从实际`service.cpp`提取编译，发送循环为捕获模型。证据`.tools/http-header-budget-probe/{manifest,results}.json`、`logs/http-header-budget-probe-20261103-115416-run.log`。
+
+生产修复仅三行：有Bearer的usage按`access.size()+account.size()+512`设置TX，当前最大8960字节，已有账户512宽界最多9216；保留所有OAuth POST的默认TX、RX、TLS验证、超时和32KiB响应上限。完整主机 **CTest19/19**，`logs/standalone-weekly-host-http69.log`；完整IDF5.5.4构建`logs/standalone-weekly-build-http69.log`通过。镜像 **4,519,360字节**、SHA256 **41caa0925c841324b312bb09422fcdca8021bb71f3482c53f56de7e4910a98a8**，槽余 **657,984字节**，匹配bin/ELF/map和全部源摘要归档`.tools/firmware-artifacts/20261103-native-weekly69/`。
+
+受保护更新`logs/device-update-native-weekly69.log`保留已有登录及设置、bootloader、分区表、原厂槽、资源和sector1，仅写app及sector0。独立读回确认 **seq69/state2 VALID、CRC正确、原sector1 seq2/state2逐字节保留**，`.tools/device-backups/20261103-native-weekly69/ota-confirmation.json`。NVS保存区在应用启动前核对；运行中的正常凭据轮换会写NVS，不能宣称重启后NVS仍逐字节不变。
+
+新固件首次启动实际`READY/HTTP200`、真实周余量 **62%**，observed_at **1793678208**。独立读回并重启后，不重新登录即恢复：`refresh` **200/3704ms**、`usage` **200/4436ms**，再次 **62%**、observed_at **1793678263**。`logs/device-native-weekly69-reboot01-report.json`记录52个READY快照、0malformed/故障标记；idle额度 **51/51一致**。`.tools/read_native_weekly_status.py`通过实际Wi-Fi鉴权GET也取得相同结果，KEY仅从既有设备备份定向提取并校验CRC、不输出或落入日志；未提取账号凭据，未调用PC额度查询。
+
+USB额度助手始终停止，新固件忽略其旧额度帧。当前已关闭所有串口采集，仅用只读Wi-Fi观察下一次默认5分钟轮询，定时刷新验收另记；USB线仍用于供电，未将关闭串口混称物理拔线测试。原UI真实LVGL验证仍适用，此次三行传输修复未改界面；实际LCD操作、长期网络故障恢复、NVS突然断电窗口等未拿主机或一次成功代替。
+
+**默认定时刷新也已通过。** 关闭所有USB采集/助手后，仅用鉴权只读LAN GET观察；`logs/device-native-weekly69-lan-poll03.json`记录`source=device_wifi`、READY/HTTP200/62%，observed_at **1793678263→1793678567（递增304秒）**，last_success_ms **15102→318258**，下一轮约270秒。没有串口读写、没有手机重新登录、没有调用或推送PC额度；只读状态GET不会触发刷新，因而证明后台自行完成了新一轮查询，而非重复展示旧62%。前三段启动/重启/轮询通过，物理拔线及长期运行仍未声称覆盖。最终环境记录与原始数据一致，源摘要再次匹配归档镜像。
+
+
+## Wi-Fi OTA：双向无线升级与seq75最终读回通过（2026-11-03）
+
+用户要求通过Wi-Fi更新功能。新增本地鉴权 `GET/POST /api/firmware`，复用原服务器/设备KEY/IDF OTA与SHA，无新增依赖。PowerShell/Python工具 `scripts/Update-FirmwareWifi.*` 校验本地完整ESP32-S3 app，再核对MAC/工程/当前ELF/VALID状态；上传完成不等于成功，必须目标slot、目标ELF及VALID全部成立。固件更新会短暂重启，不是C++运行时热替换。
+
+先受保护USB安装seq71无线入口，独立读回71/VALID、原sector1逐字节保留。实机6项preflight通过：无KEY的GET/POST401、错误MAC/ELF409、超大长度413、错误镜像prefix400；检查前后slot/ELF/VALID一致。见 `logs/device-wifi-ota71-preflight.json`。初次探针用完整无效body时遇到拒绝后的RST；改成header-only又触发SDK解析408；最终根据真实on_body分派行为使用最小首字节，两次错误假设和原始失败日志均保留，未计为通过。
+
+初版两次Wi-Fi传输未确认成功，客户端明确失败，日志 `logs/device-wifi-ota72-wireless-report.json`、`logs/device-wifi-ota-retry02-report.json`。第二次只发送131072字节时，抓到仍在旧ota_0运行的headtouch栈哨兵失败并主动abort；先前“回到原槽”不能证明新槽启动回滚，现更正并保留 `logs/device-wifi-ota-retry02-boot.log`。只改头触任务同一6144字节栈的分配位置SPIRAM→INTERNAL|8BIT，优先级、周期和手势完全不变。SDK正常guard会停两核调度，因此具体哨兵损坏机制仍待验证，不把外置栈与cache的相关性写成已证根因。
+
+完整IDF5.5.4构建 `logs/wifi-ota-build73-internal-touch.log` 通过；最终镜像 **4,527,152字节**，SHA256 **c5c1aa7a3b69bf8fb514fafd0a2d528d944d5bb48d9b7007d15afc903870a587**，ELF SHA **e818f7ae4f8fb282c0c16b16b5b08ec756661855162a74b21f6b4d6b312dd7a2**，原槽剩 **650,192字节**。bin/ELF/map/逐源摘要在 `.tools/firmware-artifacts/20261103-wifi-ota73/`；71→73摘要对比仅 `hal_head_touch.cpp` 不同，见 `logs/wifi-ota-stack-experiment.json`。受保护修复安装73，保留当时NVS、bootloader、分区、非目标应用及资源；原厂完整镜像仍在磁盘，已不将被前次OTA擦写的备用槽视为原厂。73启动日志明确出现headtouch任务启动，排除了静默创建失败。
+
+关闭所有串口后，两次完整镜像均纯Wi-Fi上传并通过LAN确认：
+
+- **ota_0→ota_1：47.500秒**，4527152字节，POST200且回执摘要匹配；观察到PENDING_VERIFY→VALID。`logs/device-wifi-ota74-wireless-report.json`。
+- **ota_1→ota_0：52.641秒**，同样完整传输、POST200、目标slot/ELF/VALID一致。`logs/device-wifi-ota75-wireless-report.json`。
+
+两次都保留本机授权、自动refresh/usage成功，Wi-Fi只读查询为 **61%**；没有读取或推送电脑Codex额度，没有重启旧USB助手。`logs/device-wifi-ota74-status.json`、`logs/device-wifi-ota75-status-before-readback.json`。这两次是同镜像重复部署，验证双槽传输/启动和同ELF不假成功；不是两份不同业务版本的兼容测试。
+
+无线升级和LAN验收完成后，另用USB做独立只读交叉校验：**sector0 seq75/state2、sector1 seq74/state2，两者CRC正确**；两个应用槽各4527152字节均与归档镜像MD5匹配。bootloader/分区表与0xA00000之后6MiB资源/尾部摘要均与原备份相同。没有flash写入或擦除，也没有读取NVS凭据；记录 `.tools/device-backups/20261103-wifi-ota75/ota-confirmation.json` 和 `logs/device-wifi-ota75-verify.log`。随后正常重启的观察另记日志，不将这一步USB交叉校验混称全程无USB。
+
+Host **CTest20/20**（真实handler11组，SHA/flash平台fake），PC **95/95**（含18项上传工具测试），独立same-image/丢回执模型4项通过。日志 `logs/wifi-ota-host71.log`、`logs/wifi-ota-python-final.log`；实际加密/flash路径由上述两次硬件结果补证。界面未改，不重复以桌面渲染冒充LCD实拍。新增代码未commit/push。
+
+当前两槽用于开发版A/B，原厂应用不再常驻ota_1，完整原厂备份保留 `.tools/device-backups/20261030-124710/flash-original.bin` 并重新核对SHA256。未重分区、未刷资源、未清空用户设置。实机断电回滚、长期持续多轮升级、不同业务版本间NVS迁移及手动触摸/NFC/实体动作回归尚未覆盖；不能以正常双向更新成功替代这些项目。
+
+最终独立读回后的正常重启也已通过：`logs/device-wifi-ota75-readback-reboot.log` 再次出现headtouch任务启动，refresh200/3533ms、usage200/3374ms，原授权未丢；随后仅Wi-Fi读取 `logs/device-wifi-ota75-final-status.json` 为READY/HTTP200/61%，observed_at1793681440。所有串口采集已关闭。
+
+## 摸头互动与电量菜单：新业务镜像无线安装通过（2026-11-03）
+
+新增 BOTIFIER LIVE 约3秒摸头回应及短间隔亲昵变体，眼神先行、机头曲线跟随；菜单恢复电量和充电标记。复用既有动作、表情与电池缓存，无新增依赖。实现说明见 DEVELOPMENT.md 的“BOTIFIER 头顶触摸与电量菜单”。Host CTest **22/22**、真实App/LVGL硬件替身验证 **1897+9334项**、visual-verdict **96/pass**；完整IDF构建 `logs/firmware-20261103-161627.log` 通过。桌面验证不替代实体流畅度、电池精度或LCD帧率验收。
+
+镜像 **4,532,656字节**，SHA256 `4e24ba7785f006c598cda6d3cdbb0fb26bb11e8d1ec1cff7016fd2ecf3b362a5`，ELF SHA256 `86b8fa6f668c9a3e6e76cda7f3a850b0c02e61f7e7d625af1d19301825e2e1a7`，应用槽剩余 **644,688字节**。bin/ELF/map和逐源摘要归档于 `.tools/firmware-artifacts/20261103-touch-pet76/`；76仅为批次名称，本轮没有USB读取实际OTA序号，不将其写成已验证seq76。
+
+首次在LIVE上传未通过：`logs/device-touch-pet76-wireless-report.json` 显示客户端发送进度131072字节后中断、没有接收确认，后续仍是旧ota_0/ELF。该进度不能证明flash实际写入字节数，也不能证明新槽启动回滚。用户回到HOME后，同一镜像完整上传 **52.499秒**，POST200；LAN独立确认新ELF、运行/启动均 **ota_1**、状态 **2/VALID**，报告 `logs/device-touch-pet76-home-retry02-report.json`。全程无线，无串口读写；保留原登录和设置。LIVE故障原因未闭环，不能套用历史canary结论或宣称已修复，当前升级流程为底座供电、HOME后上传。
+
+用户原先仅靠内置电池时屏幕闪烁并关机，发生在此次镜像安装之前；接底座电源后用户确认屏幕稳定。升级后实际电量51%、随后55%→58%，均显示charging；`logs/device-touch-pet76-observe.json` 的7次只读快照中uptime **171227→232038ms** 连续增长、ToF有效、独立Wi-Fi额度READY/HTTP200/57%。最新启动的reset_reason为 **7（ESP_RST_WDT）**，按固定SDK枚举记录，不能描述成普通软件复位；它不能追溯此前电池闪烁或LIVE上传故障的原因。未修改省电、电压或背光策略，也不以充电后电量推断故障时电量。
+
+用户实测反馈“有反应，但是被too close抢占了”，证明触摸回应出现，但完整实体动作和主观流畅度尚未验收。该批次源码由距离Alert取消触摸控制器；伸手遮挡ToF只是待验证解释，不能凭反馈确定。后续用户明确的新优先级及其修正记录如下。未commit/push。
+
+## 互动高于过近提醒：三处局部修正与无线安装（2026-11-03）
+
+用户明确“too close属于闲时任务中的略高优先级，互动和动作外显一定是更高优先级”。新优先级为受保护NFC/完整护眼沿用原仲裁，摸头互动高于距离提醒，距离提醒高于闲时栏目。只改 `app_distance.cpp`、`pet_avatar.h/.cpp`：Alert不再禁止/取消TouchReaction；活跃时每帧提起既有不透明头像面板，结束降回原层。既有警告仍在底层，真实Alert、采样和idle Context持续更新，不引入传感器暂停、全局屏蔽或过期状态恢复。NFC/EyeRest忙时丢弃触摸、显式HOME/设置退出均保留。
+
+先加入真实App/LVGL回归，旧行为实际失败于“TOO CLOSE rejected a fresh touch interaction”；修正后 **3514项**通过，覆盖持续Alert启动、中途Alert、20/100ms边界同帧Press/Alert及结束前距离变安全，逐帧核对红色像素、运动命令和真实距离状态。原App回归 **9334项**、Host **22/22**、完整IDF5.5.4构建均通过，记录 `.tools/touch-pet-probe/priority-results.json`、`logs/host-tests-20261103-164052-845-test.log`、`logs/firmware-20261103-164103.log`。截图visual-verdict **96/pass**；硬件替身不能证明实体流畅度或LCD帧率。
+
+新镜像 **4,532,704字节**，剩余 **644,640字节**；SHA256 `db06eccdfdaecbeabd20ba817318adc3d68ee9bd8b79b1d83cabe35582d698d0`，ELF SHA256 `a9b4f4bde4a82d2196bcd684a74d20f9a9cd8c532319f9f4ddf469f776870aae`。55份源摘要及bin/ELF/map在 `.tools/firmware-artifacts/20261103-touch-priority77/`；相对touch76只有上述三处生产文件变化。77为归档批次，没有USB读回实际OTA序号。
+
+首次HOME上传仍失败，客户端发送进度131072字节后中断；当前旧ELF保留在ota_1/VALID。实际uptime1154898→201177ms、reset_reason7→**4（ESP_RST_PANIC）**，证明旧固件期间发生异常/panic复位，不能称HOME已修复传输问题；没有取得panic堆栈，不套用历史canary根因。最初将4误读为ESP_RST_INT_WDT，核对固定SDK `esp_system.h:25–32` 后更正，INT_WDT实际为5；已向用户纠正并在审计JSON保留原误判及更正依据。报告 `logs/device-touch-priority77-wireless-report.json`、`logs/device-touch-priority77-home-failure-audit.json`。随后仅在私有客户端实验中改为4096字节分块、首块后等待2秒、其他块后20ms，**同一镜像**完整上传 **49.645秒**、POST200，LAN确认目标 **ota_0、新ELF、2/VALID**，见 `logs/device-touch-priority77-paced-retry02-report.json`。一次限速成功不构成根因闭环或默认更新工具已修复的证据；公开更新工具未改，本轮无USB、无新依赖、未清设置、未commit/push。
+
+首次新固件快照：89%充电、ToF有效636mm、独立额度READY/HTTP200/56%，原授权保留；reset_reason7按ESP_RST_WDT记录，不描述成普通软件复位。新启动后的被动观察另存 `logs/device-touch-priority77-observe.json`。实机“过近中摸头完整执行，再恢复红色提醒”已发起验证，尚不以主机结果冒充用户验收。
+
+## 持续 TOO CLOSE 摇头：构建、抢占与无线安装（2026-11-03）
+
+用户要求过近时增加持续动作。新增 `alert_head_motion.h`：从实测姿态600ms平滑回到校准正面，此后左约6°→回中→右约6°→回中，各段600ms，正面停顿1200ms后反复循环；俯仰保持不变，受硬件限位、±8°总窗口与100ms采样/1.8°最大步长约束。App只在LIVE有效Alert且无更高优先级动作时启用，恢复距离/数据失效/显式退出停止并释放自己锁；摸头、NFC、完整护眼、菜单均先取消低优先级动作。摸头结束仍过近则从当前姿态重新开始，持续提醒不重置护眼计时。保留红底、未加音频或设置项。
+
+实际硬件的stop可能仍短暂报告ReadMove，触摸交接仅对刚停止的自有Alert动作放行这个状态，不放行外部修改锁/任意外部移动。相对77归档只改AppDistance、TouchReaction及其测试、测试CMake，新增AlertHeadMotion及其测试；无新增依赖、全局运动重构或传感器规则修改。最终Host **23/23**，真实App/LVGL硬件替身 **5892+11707项**通过；26秒持续场景177个目标/15次左右方向转换，红色画面与前版像素一致，30次生命周期内存无变化。证据 `.tools/touch-pet-probe/alert-motion-results.json`、`logs/host-tests-20261103-172658-804-test.log`。实体位移和流畅度尚不由替身验证证明。
+
+首次IDF构建172410的uint32模板推导错误已通过一行显式类型修复；最终完整构建 `logs/firmware-20261103-172709.log` 成功。镜像 **4,533,712字节**、槽余量 **643,632字节**，SHA256 `54230a1b6ad5ccc3e92235635017715f26dd6fc71d5ac8aa55c4bea26fec90d7`，ELF SHA256 `7f602b8090dc0d81a37fe48e4f72f1f3bec512e6521934d9fc8008ef0aca69d7`。57份源摘要与bin/ELF/map归档 `.tools/firmware-artifacts/20261103-alert-motion78/`；78仅为批次名，未用USB读取实际OTA序号。
+
+首次在HOME使用同一4096字节限速参数仍失败，发送进度 **77824字节**、19次暂停后断线；旧77 ELF仍在ota_0/VALID。随后实际uptime2359185→206677ms、reset_reason4=ESP_RST_PANIC，证明旧固件异常重启，无法据此定位具体panic源，也不能归因于尚未安装的新连续动作。失败和审计分别为 `logs/device-alert-motion78-wireless-report.json`、`logs/device-alert-motion78-first-failure-audit.json`，保留原始证据；限速不构成已修复OTA的结论。
+
+确认重启后仍在主菜单，未再要求用户重复操作，同一镜像/同一限速重试 **49.051秒**成功：完整4533712字节、POST200，LAN独立确认 **ota_1、新ELF、2/VALID**，记录 `logs/device-alert-motion78-retry02-report.json`。未清设置、未改公开上传工具、无USB读写、未commit/push。后续只读观察存 `logs/device-alert-motion78-observe.json`；已请用户验证持续摇头、摸头抢占及移远停止，物理验收另记。
+
+成功安装后7次只读观察：uptime **61154→121819ms** 连续递增，reset_reason **3=ESP_RST_SW**，100%电量、非充电/非放电；ToF有效约615–674mm，独立额度READY/HTTP200/**55%**，原授权保留。此窗口在主菜单且距离安全，不把“在线稳定”冒充持续过近的实体动作验收。

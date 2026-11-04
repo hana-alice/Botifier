@@ -304,3 +304,78 @@ seq51实机只测到1raw左右抖动和0上下位移，证明仅补扭矩不充�
 seq59实际内容提交仅45次/11,928ms≈3.77次每秒，44个间隔中43个≥100ms，最大354ms；显示锁等待共9,733ms，最大272ms。源码确认LVGL持全局锁执行刷新，Motion整脸scale232产生软件transform中间层；单320×20缓冲等待flush也在锁内。不能仅凭上述记录将全部等待归因于SPI或缩放。Motion改native256缩放，直接使用目标像素位置；每帧仅设最终字号/位置，删除先设普通208再改回256的重复布局。全局LVGL、SPI、缓冲和普通栏目不改。前后性能比较属于组合修改，不能当单因素实验或LCD帧率测量。
 
 实际LVGL保留318帧/40ms（末帧20ms）的12.7秒影片与64个精确点，17个拍点、预备画面和四组情绪均通过94/pass；同帧布局优化前后影片/关键帧及181个App场景逐像素一致。完整App回归与最终实体两侧方向合同见`DEVICE_DEPLOYMENT.md`；绝不以屏幕smoothstep宣称物理舵机cubic加速度已测得。
+
+## 机器人独立查询Codex周额度（2026-11-03）
+
+用户明确要求电脑关闭后机器人仍能更新额度。此前用USB传输是实现选择，不能将其描述为硬件或账号数据必须依赖这台电脑。新的`apps/common/codex_weekly`在Mooncake/AI生命周期之前启动一条低优先后台任务，复用已固定IDF的Wi-Fi、SNTP、HTTPS证书bundle和HTTP server，不新增第三方依赖。机器人通过设备码流程独立登录，正常运行不调用电脑程序，也不读取或复制电脑的auth文件；USB只用于这次安装与验证。
+
+协议依据官方`openai/codex`固定提交`e839b828fb4a2374b6b9ea9b0530f5a02ced0b95`：[`device_code_auth.rs`](https://github.com/openai/codex/blob/e839b828fb4a2374b6b9ea9b0530f5a02ced0b95/codex-rs/login/src/device_code_auth.rs)、[`oauth/client.rs`](https://github.com/openai/codex/blob/e839b828fb4a2374b6b9ea9b0530f5a02ced0b95/codex-rs/login/src/oauth/client.rs)、[`backend-client/client.rs`](https://github.com/openai/codex/blob/e839b828fb4a2374b6b9ea9b0530f5a02ced0b95/codex-rs/backend-client/src/client.rs)。设备码申请/轮询为JSON，授权码交换为表单编码，刷新为JSON；额度GET为`chatgpt.com/backend-api/wham/usage`，被动读取不启用Luna Reserve。这里复用的是官方实现细节，未发现对底层REST路由的稳定公开兼容承诺，后续上游变更须按固定来源重新核对。
+
+仅从顶层`rate_limit.primary_window/secondary_window`选择唯一604800秒窗口；不固定认为secondary就是周，不取其它模型桶。严格解析32KiB以内JSON及字段类型；opaque access可用，未知access到期时间以0表示，不能强制假定所有access都是JWT。ID token只解码TLS可信响应的账号路由元数据，不把本地JWT解码当签名验证。首次登录必须含access；刷新响应的token字段缺失则继承旧值，显式空/错类型拒绝，且旋转refresh必须先保存再接受，防止丢失后续登录。
+
+凭据仅refresh+账号路由放入`sc_codex`单个原子NVS blob，access/ID token留在RAM。原NVS分区只有16KiB，空间不足明确显示STORAGE并停止继续使用轮换结果；不擦除原设置为其腾空间。UI退出立即失效当前额度，实际NVS擦除由worker完成；擦除commit前突然掉电的窗口不在持久化退出保证内。HTTP禁止重定向并验证证书/主机名，响应受32KiB上限；10秒传输等待及body截止不等同包含DNS/慢响应头的整笔请求硬时限。
+
+`CODEX`设置页的SIGN IN/REFRESH/FORGET只入队，网络和NVS不在LVGL锁内执行。真实App/LVGL新页748断言、原回归8598断言/五项隔离负控、207截图与三组100次生命周期测试通过，视觉95/pass。原181帧156张完全相同，其余25张只有新增CODEX抽屉按钮区域变化。桌面服务fake不构成真实登录、TLS或NVS掉电验证。
+
+局域网诊断只有`GET /api/status`，端口8765、`X-Botifier-Key`鉴权；KEY在设备页显示，未初始化时拒绝。JSON与`SC_CODEX_STATE`日志逐字段选择，不包含token、账号标识、设备登录码或诊断KEY。HTTP服务不运行任意命令、不修改配置。原USB额度帧被忽略，避免残留电脑助手覆盖机器人所登录的账号；USB调试参数协议保留。
+
+后台网络使用现有保存SSID及驱动重连，不抢占唯一WifiManager callback。StackChan板级StartNetwork在上游安装回调后，若station已经连接则补发正常Connected路径，消除AI重复启动网络后错误保留60秒配网定时器的回归；不修改上游子模块。真实设备部署、登录与独立查询结果另记于`DEVICE_DEPLOYMENT.md`。
+
+首个独立版seq65已实机启动并读回VALID，但用户两次SIGN IN均失败。第二次只读采集到`getaddrinfo`错误202（SDK `EAI_FAIL`），继而连接失败、HTTP状态0；不能把Wi-Fi连接成功当作外部域名可用。电脑上的独立UDP实验中，热点网关192.168.137.1:53立即拒绝，1.1.1.1/8.8.8.8返回DNS成功；这不证明设备收到的具体DNS RCODE。
+
+修复只补空BACKUP=1.1.1.1、空FALLBACK=8.8.8.8，保留MAIN及已有服务器。起初仅补FALLBACK的候选被源码复核否决：lwIP `dns.c:1136,1385–1401`在非零RCODE分支仅检查紧邻槽，BACKUP空时不会尝试FALLBACK；超时分支才跳过空槽。NOERROR但无可用记录仍不会切换服务器，此限制保留。当前SDK的DNS槽为全局共享，不能声称它仅作用于额度任务。响应数据预算在`HTTP_EVENT_ON_CONNECTED`后重新开始10秒，避免DNS重试/TLS握手耗时误耗响应预算；仍不是整笔请求硬超时。`SC_CODEX_HTTP`仅固定端点枚举及数字错误码，`SC_CODEX_DNS`仅三个服务器地址，不记录请求/响应内容或凭据。以上修复的实际效果须以新设备记录为准。
+
+授权后的额度超时另有发送端问题。seq67重启实测刷新凭据HTTP200，但usage返回`ESP_ERR_HTTP_EAGAIN/0x7007`，约13秒未收到响应头。SDK默认TX仅512字节；`http_header_generate_string`无法拆分单个过长Authorization头，返回零已写长度，`esp_http_client_request_send`却停止发送并继续等待响应，最终请求头可能连终止空行都未发出。修复仅为usage按`access.size()+account.size()+512`设置TX大小，当前上界8960字节；OAuth POST仍默认512，RX/TLS/超时/响应上限不改。真实未修改的SDK生成器与字符串工具、从生产源码提取的TX赋值组成10例实验：假access1800/account36时旧路径只发送83/1967字节、缺终止，生产预算2348完整；8192/256时旧路径83/8579，生产8960完整。合成实验使用发送捕获模型，不能单独当实机网络结果；证据`.tools/http-header-budget-probe/`。
+
+seq69实际保留登录，开机与独立OTA读回重启后均自动refresh200、usage200，真实额度62%，两次observed_at为1793678208、1793678263；后一次usage实际4436ms。idle额度同步51/51匹配。这里没有读取电脑凭据或重启PC同步助手。完整部署、定时刷新与测试边界见部署记录。
+
+诊断还有一次明确纠错：初版探针把SDK合法的无HTTP响应状态`-1`当非法帧，错误漏采，曾据此推测后台没有输出；该判断被Wi-Fi诊断及修正后实测推翻。现在只额外接受`-1`、仍拒`-2`，成功判据仍严格HTTP200。探针30项合成测试通过，纠错留底`.tools/native-weekly-probe-tests/status-minus-one-correction.json`。调试复用已有设备备份中经过CRC校验的`sc_codex/debug_key`，只提取这一诊断值、不输出KEY；通过鉴权的Wi-Fi GET已实际读取62%状态，未提取或导出账号凭据，也未调用电脑额度接口。
+
+
+## 本地 Wi-Fi 固件更新（2026-11-03）
+
+复用现有8765端口与设备KEY，保留只读 `/api/status`，新增鉴权 `GET/POST /api/firmware`。GET只返回工程、MAC、ELF、运行/启动槽及OTA状态；POST接收原始app.bin，不下载任意URL、不执行远端命令。没有新增依赖或显示页面，额度登录/查询仍在原独立任务。
+
+上传以MAC及当前ELF为条件，要求当前VALID、boot与running一致，只写inactive应用槽。前288字节核对芯片和工程，再通过4KiB堆缓冲写入并计算整包SHA256；SDK结束校验通过后才设boot。所有失败关闭HTTP会话，不清空NVS或修改启动槽；开始擦写会按SDK规则失效备用槽记录，不能声称所有otadata字节完全不变。begin部分分配失败要abort，end无论成功失败都消费句柄，不能重复abort。提交后即使响应发送失败也重启，客户端独立确认目标slot/ELF/VALID，不靠同版本号或发送字节数报告成功。
+
+服务器每次recv等待5秒，收包/写入/最终验证间检查120秒总时限；SDK单次阻塞调用不能被该软时限中断，不声称绝对墙钟硬截止。客户端默认总确认180秒，限制固定局域网IPv4和8765，不跟重定向，密钥仅文件/环境读取且报告不含密钥。实际HTTPD解析需看到首个body回调才分派有body请求，拒绝路径不排空body：若对端提前塞入剩余payload，关闭会话可能以TCP RST体现；live preflight使用最小1字节启动解析，不能把最初探针的RST或header-only408当成功拒绝记录。
+
+真实handler在host使用隔离HTTPD/鉴权/OTA/SHA平台fake，11组覆盖拒绝、部分分配清理、断流/超时/摘要/写入/结束错误以及成功提交顺序。它不证明硬件SHA或flash行为，最终以实机结果为准。完整CTest20/20与PC95/95通过。新增源文件首次构建需reconfigure扫描现有GLOB；完整成功日志为 `logs/wifi-ota-build71-reconfigure.log`，最初未重配的undefined-reference构建未用于部署。
+
+初版两次无线上传未通过。第二次只发送131072字节就断线；只读串口捕获当前旧ota_0的headtouch栈底哨兵失败并主动abort，不能将最初“回到原槽”判断成已证实的新槽启动回滚。证据 `logs/device-wifi-ota-retry02-boot.log`、两次失败报告和 `logs/wifi-ota-stack-experiment.json`。SDK正常flash guard会暂停两核调度再关cache；仅凭PSRAM栈和canary失败，无法断言是cache访问或调用深度耗尽。
+
+单变量修正版只将headtouch同样6144字节栈从SPIRAM改成INTERNAL|8BIT，不改size/周期/优先级/手势，也不改其它IMU任务。71与73源清单比对仅此文件不同。启动日志明确出现 `[HAL-HeadTouch] start update task`，排除静默分配失败造成任务消失；具体canary损坏机制仍待验证。后续实机通过范围见部署记录，不能以一次成功声称长期/断电稳定。
+
+## BOTIFIER 头顶触摸与电量菜单（2026-11-03）
+
+`app_distance/touch_reaction.h` 将一次 Press 编排为约3秒的 Notice→Respond→Wait→Settle：眼神先行120ms，实体双轴按100ms节流采样quintic曲线；首次从实测姿态接起，7秒内再次轻触采用亲昵变体并交替侧向，400ms内输入去抖。整段保留最初anchor，目标限制在校准yaw±8°、最初pitch±4°与实时限位的交集，不累积偏移。迟帧不补播历史节点；退出或高优先级出现只停止并释放自己取得的锁。现有协作bool锁仍不能识别帧间瞬间换主，没有扩大为全局锁重构。
+
+App只订阅头顶Press，同次接触后续Swipe/Release不重触发。HAL回调只投递带代际atomic邮箱，LVGL/App线程统一操作表情与实体；忙时直接丢弃，不排队。用户后续明确TOO CLOSE只高于闲时栏目，因此Touch不再受距离Alert准入/取消限制，互动期间反复将既有不透明头像面板置于警告上方，结束后降回原层显露当前警告；不改采样、真实Alert或节目Context。每帧重申层级覆盖中途新建警告，并在第二次邮箱检查后绘制，覆盖同帧新Press/Alert。NFC、完整护眼仍按既有规则抢占；Touch不取得受保护的foreground animation slot，因此不延迟到期护眼。外置ToF不可用时仍能摸头。定向EyeCue期间暂停独立随机扫视/眨眼，情绪自身动画继续运行；其他默认表情路径保持原参数。
+
+`Modifiable` 的局部interaction scope仅在BOTIFIER生命周期抑制旧HeadPet/IMU消费，清理旧HeadPet延迟回位，IMU只归还自己取得的锁。切换前用旧avatar完成清理，关闭后恢复先前scope，防止旧恢复路径覆盖新动作或空avatar访问。未改headtouch 50ms采样、任务栈、全局运动dt、原AI动作范围或省电设置。
+
+菜单右侧补充 `BAT 75%`／充电时绿色 `75% CHG`，≤15%红色，读取失败 `BAT --`。新增 `Hal::getBatteryStatus` 通过既有Board缓存一次取得valid/level/charging/discharging，旧百分比helper的100%fallback没有改动，但新界面不使用这个fallback。鉴权只读 `/api/status` 新增power和reset_reason，供后续区分电量和复位；没有远程改参数或动作注入入口。数值是PMIC缓存读数，不是电池电压或健康度诊断。
+
+最终Host CTest22/22：触摸控制器13组、legacy隔离15组、Pet19组等；`logs/host-tests-20261103-161042-393-test.log`。完整真实App+LVGL（硬件替身）触摸/电量1897项、原App/电量9334项通过，0截字/缺字/借用释放错误；100轮生命周期无控件/回调/锁残留。WAITING曾63/60px裁切，改64px后通过，最长充电文本71/88px；`.tools/touch-pet-probe/results.json`。图集经visual-verdict核验96/pass，`.omx/state/touch-pet/ralph-progress.json`。最终IDF5.5.4构建 `logs/firmware-20261103-161627.log` 通过；尝试绕过环境激活直接ninja时因PATH缺ccache失败，使用完整开发环境重建成功，不把那次失败计入通过。
+
+研究参考：Reachy Mini统一动作控制与保留当前姿态（https://github.com/pollen-robotics/reachy_mini_conversation_app/blob/main/src/reachy_mini_conversation_app/moves.py），Disney互动注意力（https://la.disneyresearch.com/publication/realistic-and-interactive-robot-gaze/）。只借鉴编排思路，没有移植其多自由度轨迹或新增依赖。实际触摸准确率、实体流畅度与电池供电故障原因仍以设备证据为准。
+
+优先级修正版保留旧版负控失败 `run-touch-priority-negative.log`（过近拒绝新触摸），随后完整App/LVGL验证 **3514项**通过：持续Alert中启动、中途Alert、20/100ms刷新边界的同帧Press+Alert、结束前恢复安全距离；逐帧核对真实红色像素、命令继续、Alert/Context未被伪造，结束按当前距离恢复。原App回归 **9334项**和Host **22/22**通过，日志为 `.tools/touch-pet-probe/run-{touch,full}-priority.log`、`logs/host-tests-20261103-164052-845-test.log`。三处生产文件为 `app_distance.cpp`、`pet_avatar.h/.cpp`，未增加全局屏蔽状态或传感器暂停逻辑。新图层的实际LVGL截图经visual-verdict **96/pass**，记录 `.omx/state/touch-priority/ralph-progress.json`；实机验收另记。
+
+## 持续过近的低优先级摇头提醒（2026-11-03）
+
+`alert_head_motion.h` 增加单独的低优先级控制器：第一次从实测yaw平滑回到校准正面，之后左约6°→回中→右约6°→回中，每段600ms，中间保持正面1200ms后持续循环。俯仰保持起始实测值，目标受yaw±8°与实际限位交集约束；100ms采样与前瞻，每次yaw变化最多1.8°，停顿不重复写舵机，迟帧不补播历史目标。保留现有红底/白字，未添加音频、设置项或依赖。
+
+App仅在LIVE、有效Alert、菜单关闭且无摸头/NFC/完整护眼时启用。恢复距离、读数失效或退出会停止并释放自己的锁；限位异常/收紧或观察到失锁则中止本轮，不强行归正或重抢外部锁。抢占发生在高优先级动作取得锁之前；互动结束仍Alert时从当前姿态重新开始，不恢复旧目标。持续提醒不更新idle activity，因此不推迟到期护眼。
+
+`Motion::stop()` 给硬件发送短暂保持命令，而SCS `ReadMove`可能仍为真；触摸接管时只对已证明属于自身AlertHead的刚停止动作放行这个短暂状态。`TouchReaction::trigger` 默认行为不变，外部修改锁始终拒绝；不把任意外部运动解释成可抢占。相应控制器测试由13增至14组，加入拥有权交接回归。
+
+最终Host **23/23**通过（新AlertHead10组，Touch14组），日志 `logs/host-tests-20261103-172658-804-test.log`。真实App/LVGL硬件替身验证 **5892+11707项**通过，持续26秒177个目标/15次左右方向转换，红色提醒逐帧不变；安全/失效停止、摸头同帧交接、NFC、护眼三阶段及显式菜单退出通过，30轮Alert生命周期内存一致。证据 `.tools/touch-pet-probe/alert-motion-results.json`，硬件替身不证明实体位移/流畅度。初始护眼夹具在600ms回中结束前误期待有位移，已纠正并留说明；另保留旧锁断言失败完整日志，修正为区分归还护眼锁与恢复Alert锁，没有删除抢占检查。
+
+首次嵌入式构建 `logs/firmware-20261103-172410.log` 因Xtensa的uint32_t与600u模板类型不同失败；只增加显式 `std::min<std::uint32_t>`，最终完整IDF构建 `logs/firmware-20261103-172709.log` 成功。没有以MSVC成功代替嵌入式构建。共享bool锁仍无法识别两次观察间完整发生的清锁/换主，此限制未扩大为全局锁重构。
+
+## 分类提交与复验（2026-11-04）
+
+固件按依赖分为 `b45dfbf`（独立账号与局域网更新）、`5753f9f`（摸头、电量与互动优先级）、`0347a09`（持续过近动作）。共享文件从已验证的75、77、78源码清单分阶段暂存，不改当前工作区；最终57份源文件与已部署78构建清单逐字节一致。提交保留既有测试夹具的空文件尾行，没有为整理历史而重写验证版本。
+
+本日重新运行Host **23/23**、PC **95/95**及离线测距模拟，日志 `logs/classified-commit-host-20261104.log`、`logs/classified-commit-pc-20261104.log`。环境记录增加当前提交/树与构建清单的对应关系，设备实测时间及待验收项保留；本轮未操作机器人或将主机通过误写成实体动作验收。设备备份、KEY、日志、二进制及私有探针仍在忽略目录。
