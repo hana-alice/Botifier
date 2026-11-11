@@ -55,7 +55,7 @@ struct HttpResponse {
 };
 
 enum class LookupStage { Lrclib, LrclibWithoutAlbum, NeteaseSearch, NeteaseLyrics, KugouSearch, KugouLyrics,
-                         LrclibCatalogSearch, LrclibCatalogLyrics };
+                         LrclibCatalogSearch, LrclibCatalogLyrics, NeteasePhoneSearch };
 
 bool expired(const HttpResponse& response, std::uint64_t now)
 {
@@ -113,6 +113,7 @@ protocol::Response fetch_step(const protocol::Request& request, LookupStage stag
     case LookupStage::Lrclib: url = protocol::request_url(request.track); break;
     case LookupStage::LrclibWithoutAlbum: url = protocol::request_url(request.track, false); break;
     case LookupStage::NeteaseSearch: url = protocol::netease_search_url(request.track); break;
+    case LookupStage::NeteasePhoneSearch: url = protocol::netease_search_url(request.track, true); break;
     case LookupStage::NeteaseLyrics: url = protocol::netease_lyric_url(candidate.id); break;
     case LookupStage::KugouSearch: url = protocol::kugou_search_url(request.track); break;
     case LookupStage::KugouLyrics: url = protocol::kugou_lyric_url(candidate); break;
@@ -136,7 +137,8 @@ protocol::Response fetch_step(const protocol::Request& request, LookupStage stag
     if (!client) { result.error = ESP_ERR_NO_MEM; return result; }
     auto error = esp_http_client_set_header(client, "User-Agent", "Botifier/0.1 (https://github.com/hana-alice/Botifier)");
     if (error == ESP_OK) error = esp_http_client_set_header(client, "Accept", "application/json");
-    if (error == ESP_OK && (stage == LookupStage::NeteaseSearch || stage == LookupStage::NeteaseLyrics))
+    if (error == ESP_OK && (stage == LookupStage::NeteaseSearch || stage == LookupStage::NeteasePhoneSearch ||
+                           stage == LookupStage::NeteaseLyrics))
         error = esp_http_client_set_header(client, "Referer", "https://music.163.com/");
     if (error == ESP_OK) {
         if (expired(response, now_ms()) || !current(request)) error = ESP_ERR_TIMEOUT;
@@ -164,13 +166,15 @@ protocol::Response fetch_step(const protocol::Request& request, LookupStage stag
             result = protocol::parse_netease_lyrics(status, body, request.track);
             result.phone_identity = candidate.phone_identity && result.lines && !result.lines->empty() &&
                 (result.state == LyricState::Synced || result.state == LyricState::Unsynced);
+            result.phone_canonical_title = result.phone_identity && candidate.phone_canonical_title;
         }
         else if (stage == LookupStage::KugouLyrics) result = protocol::parse_kugou_lyrics(status, body, request.track);
         else if (stage == LookupStage::LrclibCatalogLyrics)
             result = protocol::parse_lrclib_catalog_lyrics(status, body, request.track, candidate, response.retry_after);
         else if (status == 200 && selection) {
             *selection = stage == LookupStage::LrclibCatalogSearch ? protocol::parse_lrclib_catalog_search(body, request.track)
-                       : stage == LookupStage::NeteaseSearch ? protocol::parse_netease_search(body, request.track, request.phone_metadata)
+                       : (stage == LookupStage::NeteaseSearch || stage == LookupStage::NeteasePhoneSearch) ?
+                           protocol::parse_netease_search(body, request.track, request.phone_metadata)
                                                           : protocol::parse_kugou_search(body, request.track);
             result.state = selection->valid ? LyricState::NotFound : LyricState::Invalid;
         } else result = protocol::parse_response(status, {}, request.track, response.retry_after);
@@ -222,6 +226,7 @@ protocol::Response fetch(const protocol::Request& request)
     };
     auto finished = [&]() {
         return result.state == LyricState::Synced || result.state == LyricState::Instrumental ||
+               (request.phone_metadata && result.phone_identity && result.state == LyricState::Unsynced) ||
                result.error == ESP_ERR_NO_MEM || requests >= 8 || now_ms() >= deadline || !current(request);
     };
     auto download = [&](LookupStage stage) {
@@ -233,9 +238,24 @@ protocol::Response fetch(const protocol::Request& request)
         }
     };
     if (request.phone_metadata) {
-        run(LookupStage::NeteaseSearch);
-        if (!finished() && result.error == 0 && result.http_status == 200 && selection.valid && selection.id)
-            download(LookupStage::NeteaseLyrics);
+        bool ordinary_search = request.track.album.empty();
+        if (!request.track.album.empty()) {
+            // Lock-screen lyrics change title every line. Search stable metadata
+            // first; source reconstruction still proves artist, recording and
+            // duration before the engine can expose any downloaded lyric.
+            run(LookupStage::NeteasePhoneSearch);
+            ordinary_search = result.error == 0 && result.http_status == 200 && !selection.id;
+            if (!finished() && result.error == 0 && result.http_status == 200 && selection.valid && selection.id)
+                download(LookupStage::NeteaseLyrics);
+        }
+        if (!finished() && ordinary_search) {
+            // A slash can also belong to an ordinary artist such as AC/DC.
+            // Keep its original exact query; do not repeat a failed/rate-limited host.
+            selection = {};
+            run(LookupStage::NeteaseSearch);
+            if (!finished() && result.error == 0 && result.http_status == 200 && selection.valid && selection.id)
+                download(LookupStage::NeteaseLyrics);
+        }
     }
     if (!finished()) run(LookupStage::Lrclib);
     const bool exact_miss = (result.state == LyricState::NotFound || result.state == LyricState::Unsynced) &&

@@ -24,6 +24,7 @@ inline bool phone_metadata_candidate(const Track& track)
 }
 bool same_request_identity(const Track& a, const Track& b, bool phone_metadata);
 bool phone_title_matches(std::string_view title, const std::vector<Line>& lines, std::uint32_t position_ms);
+bool phone_title_in_lyrics(std::string_view title, const std::vector<Line>& lines);
 
 // valid distinguishes a structurally valid search with no unique match (id 0)
 // from an invalid or unexpected response. Access keys come only from public
@@ -38,9 +39,10 @@ struct Candidate {
     bool unique_identity = false;
     bool phone_identity = false;
     std::uint64_t fallback_id = 0;
+    bool phone_canonical_title = false;
 };
 
-std::string netease_search_url(const Track& track);
+std::string netease_search_url(const Track& track, bool phone_metadata = false);
 std::string netease_lyric_url(std::uint64_t id);
 std::string kugou_search_url(const Track& track);
 std::string kugou_lyric_url(const Candidate& candidate);
@@ -62,6 +64,7 @@ struct Response {
     int tls_error = 0;
     int tls_flags = 0;
     bool phone_identity = false;
+    bool phone_canonical_title = false;
 };
 
 Response parse_response(int http_status, std::string_view body, const Track& expected,

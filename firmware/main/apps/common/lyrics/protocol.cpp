@@ -474,6 +474,14 @@ bool phone_title_matches(std::string_view title, const std::vector<Line>& lines,
     return false;
 }
 
+bool phone_title_in_lyrics(std::string_view title, const std::vector<Line>& lines)
+{
+    const auto text = normalized(title);
+    if (text.empty()) return false;
+    for (const auto& line : lines) if (normalized(line.text) == text) return true;
+    return false;
+}
+
 bool valid_text(std::string_view value, std::size_t maximum, bool multiline)
 {
     if (value.size() > maximum) return false;
@@ -540,10 +548,10 @@ std::string request_url(const Track& track, bool include_album)
            "&duration=" + seconds;
 }
 
-std::string netease_search_url(const Track& track)
+std::string netease_search_url(const Track& track, bool phone_metadata)
 {
-    if (!search_track(track)) return {};
-    return "https://music.163.com/api/search/get?s=" + percent_encode(track.title + " " + track.artist) +
+    if (!search_track(track) || (phone_metadata && normalized(track.album).empty())) return {};
+    return "https://music.163.com/api/search/get?s=" + percent_encode(phone_metadata ? track.album : track.title + " " + track.artist) +
            "&type=1&limit=8&offset=0";
 }
 
@@ -683,9 +691,11 @@ Candidate parse_netease_search(std::string_view body, const Track& expected, boo
         published += '/'; published.append(title.data(), title.size());
         const auto signature = normalized(expected.artist);
         bool compound = normalized(published) == signature;
-        const auto translations = item["transNames"];
-        if (!compound && translations.is<JsonArrayConst>() && translations.size() <= 8) {
-            for (JsonVariantConst item_name : translations.as<JsonArrayConst>()) {
+        for (const char* field : {"transNames", "alias"}) {
+            const auto names = item[field];
+            if (compound) break;
+            if (!names.is<JsonArrayConst>() || names.size() > 8) continue;
+            for (JsonVariantConst item_name : names.as<JsonArrayConst>()) {
                 std::string_view name;
                 if (!json_text(item_name, name, kMaxAttributeBytes) || name.empty()) continue;
                 if (normalized(published + " (" + std::string(name) + ")") == signature ||
@@ -697,6 +707,7 @@ Candidate parse_netease_search(std::string_view body, const Track& expected, boo
         if (compound) {
             Candidate candidate{true, id, {}, static_cast<std::uint32_t>(milliseconds)};
             candidate.phone_identity = true;
+            candidate.phone_canonical_title = normalized(title) == normalized(expected.title);
             phone.consider(std::move(candidate), true, static_cast<std::uint32_t>(difference), 0, identity);
         }
     }
@@ -1094,10 +1105,13 @@ Snapshot Engine::snapshot(std::uint64_t now) const
 void Engine::verify_phone_title(std::uint64_t now)
 {
     if (input_mode_ != InputMode::AwaitingTitle) return;
-    if (now >= next_request_at_) {
-        invalidate(now, false); input_mode_ = InputMode::Rejected; seen_ = kAllFields;
-    } else if (latest_.lines && phone_title_matches(latest_.track.title, *latest_.lines, position(now))) {
+    if (latest_.lines && phone_title_in_lyrics(latest_.track.title, *latest_.lines)) {
+        if (!phone_title_matches(latest_.track.title, *latest_.lines, position(now))) latest_.state = LyricState::Unsynced;
         input_mode_ = InputMode::Verified; latest_.phone_lyrics = true; next_request_at_ = 0;
+    } else if (now >= next_request_at_) {
+        // Unproven title content is a bounded miss for this stable input, not
+        // evidence that every following phone lyric is a new ordinary song.
+        input_mode_ = InputMode::Probe; latest_.lines.reset(); latest_.state = LyricState::NotFound;
     }
 }
 
@@ -1122,13 +1136,15 @@ bool Engine::current(const Request& request) const
 bool Engine::complete(const Request& request, Response response, std::uint64_t now)
 {
     if (!current(request)) return false;
-    if (response.phone_identity && !request.phone_metadata) {
+    if ((response.phone_identity && !request.phone_metadata) ||
+        (response.phone_canonical_title && !response.phone_identity)) {
         response.state = LyricState::Invalid; response.lines.reset();
     }
     const bool verified = request.phone_metadata && response.phone_identity && phone_metadata_candidate(request.track) && response.lines &&
         !response.lines->empty() && (response.state == LyricState::Synced || response.state == LyricState::Unsynced);
-    const bool retryable = response.state == LyricState::NetworkError;
-    if (request.phone_metadata && !verified && !retryable && !same_track(request.track, latest_.track)) {
+    const bool ordinary = !response.phone_identity && (response.state == LyricState::Synced ||
+        response.state == LyricState::Unsynced || response.state == LyricState::Instrumental);
+    if (request.phone_metadata && ordinary && !same_track(request.track, latest_.track)) {
         // A provisional title exemption may keep HTTP alive, but only source
         // proof permits publishing across those title changes. Retry the latest
         // complete raw metadata once through the normal path, without probing.
@@ -1136,10 +1152,11 @@ bool Engine::complete(const Request& request, Response response, std::uint64_t n
         return false;
     }
     if (verified) {
-        input_mode_ = InputMode::AwaitingTitle;
+        input_mode_ = response.phone_canonical_title && latest_.track.title == request.track.title ?
+            InputMode::Verified : InputMode::AwaitingTitle;
     }
-    else if (request.phone_metadata) input_mode_ = retryable ? InputMode::Probe : InputMode::Rejected;
-    latest_.phone_lyrics = false;
+    else if (request.phone_metadata) input_mode_ = ordinary ? InputMode::Rejected : InputMode::Probe;
+    latest_.phone_lyrics = verified && input_mode_ == InputMode::Verified;
     latest_.state = response.state; latest_.http_status = response.http_status; latest_.last_error = response.error;
     latest_.phase = response.phase; latest_.elapsed_ms = response.elapsed_ms;
     latest_.socket_errno = response.socket_errno; latest_.tls_error = response.tls_error; latest_.tls_flags = response.tls_flags;

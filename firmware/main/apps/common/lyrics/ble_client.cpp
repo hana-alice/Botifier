@@ -23,6 +23,7 @@ extern "C" {
 namespace {
 constexpr char Tag[] = "lyrics.ams";
 constexpr std::size_t MaxValue = 1024;
+constexpr std::size_t DurationBytes = 32;
 const ble_uuid128_t Ams = BLE_UUID128_INIT(0xdc,0xf8,0x55,0xad,0x02,0xc5,0xf4,0x8e,0x3a,0x43,0x36,0x0f,0x2b,0x50,0xd3,0x89);
 const ble_uuid128_t EntityUpdate = BLE_UUID128_INIT(0x02,0xc1,0x96,0xba,0x92,0xbb,0x0c,0x9a,0x1f,0x41,0x8d,0x80,0xce,0xab,0x7c,0x2f);
 const ble_uuid128_t EntityAttribute = BLE_UUID128_INIT(0xd7,0xd5,0xbb,0x70,0xa8,0xa3,0xab,0xa6,0xd8,0x46,0xab,0x23,0x8c,0xf3,0xb2,0xc6);
@@ -37,13 +38,19 @@ struct MediaBuffers {
     char value[MaxValue];
     char notification[MaxValue];
     char track[4][MaxValue];
+    // Duration reads use fewer than 32 bytes. Keep notification identity in
+    // the unused tail, outside both notification scratch and partial reads.
+    char* pending_title() { return track[3] + DurationBytes; }
+    char* published_duration() { return pending_title() + lyrics::protocol::kMaxAttributeBytes; }
 };
+static_assert(2 * DurationBytes + lyrics::protocol::kMaxAttributeBytes <= MaxValue);
 struct Client {
     bool enabled = false, ready = false, rediscover = false, dirty = false, refreshing = false, retiring = false;
     bool waiting_media = false, complete_track = false;
     bool have_queue = false;
     bool forget_connection = false;
     std::uint16_t conn = BLE_HS_CONN_HANDLE_NONE;
+    std::uint16_t pending_title_length = 0;
     std::uintptr_t token = 1;
     Op op = Op::Idle;
     Range ams, gatt;
@@ -51,6 +58,7 @@ struct Client {
     std::uint16_t attribute = 0;
     std::uint8_t entity = 0, attr = 0, field = 0;
     std::uint8_t pending = 0;
+    std::uint8_t changed_track = 0;
     std::uint32_t player_revision[2]{}, read_revision = 0;
     std::uint32_t queue_index = 0;
     MediaBuffers* buffers = nullptr;
@@ -168,6 +176,8 @@ void clear_handles()
     s.refreshing = false;
     s.waiting_media = false;
     s.complete_track = false;
+    s.pending_title_length = 0;
+    s.changed_track = 0;
     s.have_queue = false;
     published_track.player.clear();
     s.rediscover = false;
@@ -364,7 +374,11 @@ void complete_value()
         if (s.dirty) { s.refreshing = false; schedule(250); return; }
         if (s.entity == 0) {
             const std::string_view player{s.buffers->value, s.length};
-            if (published_track.player != player) s.have_queue = false;
+            if (published_track.player != player) {
+                s.have_queue = s.complete_track = false;
+                s.pending_title_length = 0;
+                s.changed_track = 0;
+            }
             if (!player.empty() && player.size() <= lyrics::protocol::kMaxAttributeBytes &&
                 utf8(player.data(), player.size(), true)) published_track.player.assign(player);
             else published_track.player.clear();
@@ -372,12 +386,12 @@ void complete_value()
             select(2, 0);
             return;
         }
+        if (s.field == 3 && s.length >= DurationBytes) { fail(BLE_HS_EBADDATA); return; }
         std::memcpy(s.buffers->track[s.field], s.buffers->value, s.length);
         s.track_length[s.field] = s.length;
         if (++s.field < 4) { select(2, s.field); return; }
         s.refreshing = false;
-        if (s.track_length[3] >= 32) { fail(BLE_HS_EBADDATA); return; }
-        char duration[32]{};
+        char duration[DurationBytes]{};
         std::memcpy(duration, s.buffers->track[3], s.track_length[3]);
         char* end = nullptr;
         const double seconds = std::strtod(duration, &end);
@@ -388,8 +402,11 @@ void complete_value()
         published_track.album.assign(s.buffers->track[1], s.track_length[1]);
         published_track.title.assign(s.buffers->track[2], s.track_length[2]);
         published_track.duration_ms = static_cast<std::uint32_t>(seconds * 1000);
+        std::memcpy(s.buffers->published_duration(), duration, sizeof(duration));
         lyrics::on_track_snapshot(published_track);
         s.complete_track = true;
+        s.pending_title_length = 0;
+        s.changed_track = 0;
         s.pending |= 2; // Player PlaybackInfo: anchor after every invalidation.
     } else {
         lyrics::on_attribute(s.entity, s.attr, {s.buffers->value, s.length});
@@ -422,6 +439,8 @@ bool absent_attribute(int error)
     s.pending = 0;
     s.waiting_media = true;
     s.complete_track = false;
+    s.pending_title_length = 0;
+    s.changed_track = 0;
     s.have_queue = false;
     published_track.player.clear();
     lyrics::on_track_invalidated();
@@ -676,12 +695,32 @@ extern "C" void botifier_ams_gap_event(ble_gap_event* event)
                 published_track.player.clear();
                 s.have_queue = false;
             }
-            if (prefix[0] == 2 && complete && s.complete_track &&
-                !s.dirty && !s.refreshing && !s.waiting_media &&
-                size == s.track_length[prefix[1]] &&
-                utf8(s.buffers->notification, size) &&
-                std::memcmp(s.buffers->notification, s.buffers->track[prefix[1]], size) == 0) return;
-            s.complete_track = false;
+            if (prefix[0] == 2) {
+                const auto field = prefix[1];
+                const auto mask = 1u << field;
+                const bool known = complete && utf8(value.data(), value.size());
+                if (known && same_context) {
+                    if (field == 2 && size && size == s.pending_title_length &&
+                        std::memcmp(value.data(), s.buffers->pending_title(), size) == 0) return;
+                    const std::string_view published[]{published_track.artist, published_track.album,
+                        published_track.title, s.buffers->published_duration()};
+                    const bool same = s.complete_track && value == published[field];
+                    if (same && !(s.changed_track & mask)) return;
+                    // A field changing away and back must still retire an
+                    // older batch, even though it now matches the publication.
+                    if (same) s.changed_track &= static_cast<std::uint8_t>(~mask);
+                    else s.changed_track |= static_cast<std::uint8_t>(mask);
+                } else s.changed_track |= static_cast<std::uint8_t>(mask);
+                if (field == 2) {
+                    s.pending_title_length = known && size <= lyrics::protocol::kMaxAttributeBytes ?
+                        static_cast<std::uint16_t>(size) : 0;
+                    if (s.pending_title_length) std::memcpy(s.buffers->pending_title(), value.data(), size);
+                }
+            } else {
+                s.complete_track = false;
+                s.pending_title_length = 0;
+                s.changed_track = 0;
+            }
             s.dirty = true;
             // Some players publish the current lyric as title. Read a
             // coherent batch before Engine decides whether its verified

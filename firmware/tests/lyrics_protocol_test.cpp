@@ -1030,6 +1030,188 @@ void metadata_orders_and_retries()
     check(ordered.attribute(0, 1, "1,1,20", 2500) && ordered.snapshot(3500).position_ms == 21000 &&
           ordered.snapshot(3500).track.player == "New Player", "fresh player batch and playback resume with correct identity");
 }
+void provisional_title_failure_budget()
+{
+    for (const auto failure : {LyricState::NotFound, LyricState::Invalid}) {
+        auto phone = track(); phone.player = std::string(utf8(u8"网易云音乐"));
+        phone.artist += '/' + phone.title; phone.title = "Invented first phrase";
+        Engine engine; connected(engine); metadata(engine, phone, 1100);
+        check(engine.attribute(0, 1, "1,1,1", 1100), "phone failure playback anchor");
+        Request request; check(engine.take_request(2000, request) && request.phone_metadata, "start provisional lookup");
+        phone.title = "Invented next phrase"; metadata(engine, phone, 2200);
+        Response response; response.state = failure; response.http_status = 200;
+        response.phase = 4; response.elapsed_ms = 1000; response.error = 7;
+        check(engine.complete(request, response, 3000), "failed provisional lookup retains its generation across title updates");
+        for (std::uint64_t now = 3500; now <= 303500; now += 500) {
+            phone.title = "Invented changing phrase " + std::to_string(now);
+            metadata(engine, phone, now);
+            const auto snap = engine.snapshot(now);
+            check(snap.generation == request.generation && snap.track_ready && snap.playing &&
+                  snap.state == failure && !snap.lines && snap.http_status == 200 && snap.phase == 4 &&
+                  snap.elapsed_ms == 1000 && snap.last_error == 7 && !engine.take_request(now, request),
+                  "five-minute title stream preserves terminal failure, diagnostics and attempt budget");
+        }
+        phone.album += " changed"; metadata(engine, phone, 304000);
+        check(engine.take_request(304800, request) && request.phone_metadata,
+              "changed stable identity can start a fresh source probe");
+    }
+}
+
+void phone_alias_and_stable_search()
+{
+    const auto source = track();
+    auto phone = source; phone.player = std::string(utf8(u8"网易云音乐"));
+    phone.artist += '/' + source.title + " (Original screen description)";
+    phone.title = "An invented current phrase";
+    JsonDocument document; document["code"] = 200;
+    auto songs = document["result"]["songs"].to<JsonArray>(); netease_song(songs, source, 42);
+    auto item = songs[0];
+    const auto select = [&] { return parse_netease_search(encode(document), phone); };
+    check(!select().id, "unproven phone suffix remains rejected");
+    item["alias"].to<JsonArray>().add("Original screen description");
+    auto candidate = select();
+    check(candidate.id == 42 && candidate.phone_identity && !candidate.phone_canonical_title,
+          "source alias reconstructs the complete phone signature without assuming current title");
+    phone.title = source.title;
+    check(select().phone_canonical_title, "exact source canonical title proves an intro title");
+    phone.title += " (Live)";
+    check(!select().phone_canonical_title, "canonical proof does not remove version suffixes");
+    const auto ordinary_url = netease_search_url(phone);
+    const auto stable_url = netease_search_url(phone, true);
+    check(stable_url == "https://music.163.com/api/search/get?s=" + percent_encode(phone.album) + "&type=1&limit=8&offset=0",
+          "phone search uses the bounded stable album as its exact query seed");
+    phone.title = "Another invented current phrase";
+    check(netease_search_url(phone, true) == stable_url && netease_search_url(phone) != ordinary_url,
+          "phone title changes leave the source query stable while ordinary queries retain title");
+    auto missing_album = phone; missing_album.album = "   ";
+    check(netease_search_url(missing_album, true).empty() && !netease_search_url(missing_album).empty(),
+          "empty normalized album has no phone query but retains ordinary search");
+    missing_album.album.assign(kMaxAttributeBytes + 1, 'x');
+    check(netease_search_url(missing_album, true).empty(), "phone search album remains bounded");
+    auto slash = source; slash.artist = "AC/DC";
+    check(netease_search_url(slash) == "https://music.163.com/api/search/get?s=" +
+          percent_encode(slash.title + " " + slash.artist) + "&type=1&limit=8&offset=0",
+          "ordinary slash artist query is unchanged");
+    for (const auto bad : {"Other screen description", "Original screen description (Live)"}) {
+        item["alias"][0] = bad;
+        check(!select().id, "alias proof requires the full source-provided description");
+    }
+    item["alias"] = "Original screen description";
+    check(!select().id, "alias must be a string array");
+    auto aliases = item["alias"].to<JsonArray>(); aliases.add("Original screen description");
+    for (unsigned i = 0; i < 8; ++i) aliases.add("extra");
+    check(!select().id, "alias array bound is enforced even if its first element matches");
+    aliases.clear(); aliases.add(std::string("Original screen description\0bad", 31));
+    check(!select().id, "alias proof rejects embedded control bytes");
+    aliases.clear(); aliases.add(9);
+    check(!select().id, "alias proof ignores a non-string element");
+    aliases.clear(); aliases.add("Original screen description");
+    for (unsigned field = 0; field < 3; ++field) {
+        const auto valid = phone;
+        if (field == 0) phone.artist += " (Live)";
+        if (field == 1) phone.album += " changed";
+        if (field == 2) phone.duration_ms += 2001;
+        check(!select().id, "alias support retains full artist album and duration guards");
+        phone = valid;
+    }
+    check(!parse_netease_search(encode(document), phone, false).id,
+          "ordinary requests cannot select a compound-only source alias");
+}
+
+void phone_content_and_canonical_proof()
+{
+    const auto response = [] {
+        Response value; value.state = LyricState::Synced; value.phone_identity = true;
+        value.http_status = 200; value.phase = 4; value.elapsed_ms = 500;
+        value.lines = std::make_shared<const std::vector<Line>>(std::vector<Line>{
+            {60000, "An invented opening phrase"}, {80000, "An invented closing phrase"}});
+        return value;
+    };
+    auto phone = track(); phone.player = std::string(utf8(u8"网易云音乐"));
+    phone.artist += '/' + phone.title;
+    const auto initial = phone;
+    check(phone_title_in_lyrics("An invented opening phrase", *response().lines) &&
+          !phone_title_in_lyrics("invented opening", *response().lines) &&
+          !phone_title_in_lyrics(" ", *response().lines), "content proof requires a complete nonempty lyric line");
+    for (const bool aligned : {false, true}) {
+        Engine engine; connected(engine); phone = initial; phone.title = "An invented opening phrase";
+        metadata(engine, phone, 1100); engine.attribute(0, 1, aligned ? "1,1,61" : "1,1,5", 1900);
+        Request request; check(engine.take_request(2000, request), "prepare phone content proof");
+        auto lyrics = response();
+        check(engine.complete(request, lyrics, 2100), "source-proven lyric content accepted");
+        const auto published = engine.snapshot(2100);
+        check(published.phone_lyrics && published.lines == lyrics.lines &&
+              published.state == (aligned ? LyricState::Synced : LyricState::Unsynced),
+              "whole-line content at another cue is visible only as unsynced text");
+        for (std::uint64_t now = 2600; now < 182600; now += 500) {
+            phone.title = "Changing phone phrase " + std::to_string(now); metadata(engine, phone, now);
+            check(engine.snapshot(now).generation == request.generation && engine.snapshot(now).lines == lyrics.lines &&
+                  !engine.take_request(now, request), "verified recording retains lyrics and budget across title flow");
+        }
+    }
+    {
+        Engine engine; connected(engine); phone = initial; metadata(engine, phone, 1100);
+        engine.attribute(0, 1, "1,1,0", 1900);
+        Request request; check(engine.take_request(2000, request), "prepare canonical long intro");
+        auto lyrics = response(); lyrics.phone_canonical_title = true;
+        check(engine.complete(request, lyrics, 2100) && engine.snapshot(2100).phone_lyrics &&
+              engine.snapshot(2100).lines == lyrics.lines, "canonical source title verifies before a sixty-second intro ends");
+        engine.advance(62000);
+        check(engine.snapshot(62000).generation == request.generation && engine.snapshot(62000).lines == lyrics.lines &&
+              !engine.take_request(62000, request), "canonical proof survives the old forty-five second deadline");
+    }
+    for (const bool stale_canonical : {false, true}) {
+        Engine engine; connected(engine); phone = initial; metadata(engine, phone, 1100);
+        Request request; check(engine.take_request(2000, request), "prepare unproven title");
+        auto lyrics = response(); lyrics.phone_canonical_title = stale_canonical;
+        if (stale_canonical) { phone.title = "Unrelated title after request"; metadata(engine, phone, 2050); }
+        check(engine.complete(request, lyrics, 2100) && !engine.snapshot(2100).lines &&
+              !engine.snapshot(2100).phone_lyrics, "source signature and stale canonical proof cannot expose unproven content");
+        engine.advance(47000);
+        auto expired = engine.snapshot(47000);
+        check(expired.generation == request.generation && expired.state == LyricState::NotFound && !expired.lines &&
+              expired.http_status == 200 && expired.phase == 4 && expired.elapsed_ms == 500,
+              "title-proof timeout retains the stable generation and source diagnostics");
+        phone.title = "A later unrelated phrase"; metadata(engine, phone, 48000);
+        check(engine.snapshot(48000).generation == request.generation && !engine.take_request(600000, request),
+              "expired content proof cannot restart searches through later lyric titles");
+    }
+    {
+        Engine engine; connected(engine); phone = initial; metadata(engine, phone, 1100);
+        Request request; check(engine.take_request(2000, request), "prepare bad source proof");
+        auto lyrics = response(); lyrics.phone_identity = false; lyrics.phone_canonical_title = true;
+        check(engine.complete(request, lyrics, 2100) && engine.snapshot(2100).state == LyricState::Invalid &&
+              !engine.snapshot(2100).lines && !engine.snapshot(2100).phone_lyrics,
+              "canonical flag without complete phone source identity is invalid");
+    }
+    for (unsigned field = 0; field < 5; ++field) {
+        Engine engine; connected(engine); phone = initial; metadata(engine, phone, 1100);
+        engine.attribute(1, 0, "1", 1200);
+        Request request; check(engine.take_request(2000, request), "prepare verified stable identity");
+        auto lyrics = response(); lyrics.phone_canonical_title = true;
+        check(engine.complete(request, lyrics, 2100), "complete canonical source proof");
+        if (field == 0) phone.artist += " changed";
+        if (field == 1) phone.album += " changed";
+        if (field == 2) ++phone.duration_ms;
+        if (field == 3) phone.player = "Other player";
+        if (field == 4) engine.attribute(1, 0, "2", 2200);
+        else metadata(engine, phone, 2200);
+        check(engine.snapshot(2200).generation != request.generation && !engine.snapshot(2200).lines &&
+              !engine.snapshot(2200).phone_lyrics, "real stable identity or queue changes clear verified phone lyrics");
+    }
+    {
+        Engine engine; connected(engine); phone = initial; phone.artist = "AC/DC"; metadata(engine, phone, 1100);
+        Request request; check(engine.take_request(2000, request), "prepare ordinary slash artist");
+        auto lyrics = response(); lyrics.phone_identity = false;
+        check(engine.complete(request, lyrics, 2100) && engine.snapshot(2100).lines &&
+              !engine.snapshot(2100).phone_lyrics, "successful ordinary slash artist remains ordinary");
+        phone.title = "Another real recording"; metadata(engine, phone, 2200);
+        check(engine.snapshot(2200).generation != request.generation && !engine.snapshot(2200).lines &&
+              engine.take_request(3000, request) && !request.phone_metadata,
+              "ordinary slash artist still invalidates on an actual changed song title");
+    }
+}
+
 void resilient_catalog_and_phone_metadata()
 {
     const auto song = track();
@@ -1110,6 +1292,8 @@ void resilient_catalog_and_phone_metadata()
 int main()
 {
     try {
+        provisional_title_failure_budget();
+        phone_alias_and_stable_search(); phone_content_and_canonical_proof();
         resilient_catalog_and_phone_metadata();
         unsynced_timeline_fallback(); utf8_and_playback(); lrc_boundaries(); response_validation();
         fallback_urls_and_legacy_boundaries();fallback_candidate_matching();fallback_candidate_validation();fallback_lyric_validation();

@@ -270,6 +270,96 @@ static void phone_title_notification_regressions() {
     }
     std::cout<<"lyrics BLE phone title: coherent newest batch preserves playback, real identity changes invalidate, raw slash artists retained\n";
 }
+static void stable_fields_during_title_refresh() {
+    const std::string player=reinterpret_cast<const char*>(u8"网易云音乐");
+    const std::string artist="Storm artist/Storm recording",album="Storm album";
+    notify(0,0,player);full_refresh("Storm phrase 0",player,artist,album);
+    const auto before=fake::invalidated;
+    const auto tracks=fake::tracks.size();
+    for(unsigned i=0;i<60;++i) {
+        const auto title="Storm phrase "+std::to_string(i+1);
+        notify(2,2,title);
+        notify(2,0,artist);notify(2,1,album);notify(2,3,"240.5");
+        assert(fake::invalidated==before && fake::playing && fake::track_ready);
+        full_refresh(title,player,artist,album);
+    }
+    assert(fake::tracks.size()==tracks+60);
+    notify(0,0,"Spotify");full_refresh();
+    std::cout<<"lyrics BLE stable-field storm: 60 title batches, 180 unchanged fields, zero invalidations passed\n";
+}
+static void duplicate_pending_title_during_read() {
+    const std::string player=reinterpret_cast<const char*>(u8"网易云音乐");
+    const std::string artist="Pending artist/Pending recording",album="Pending album";
+    notify(0,0,player);full_refresh("Pending phrase 0",player,artist,album);
+    const auto before=fake::invalidated;
+    const auto tracks=fake::tracks.size();
+    notify(2,2,"Pending phrase 1");tick();fake::write_done();fake::read_value(player);
+    fake::write_done();assert(fake::pending.kind==5);
+    for(unsigned i=0;i<120;++i) {
+        notify(2,2,"Pending phrase 1");
+        notify(2,0,artist);notify(2,1,album);notify(2,3,"240.5");
+    }
+    assert(fake::pending.kind==5 && s.refreshing && !s.dirty);
+    fake::read_value(artist);
+    fake::write_done();fake::read_value(album);
+    fake::write_done();fake::read_value("Pending phrase 1");
+    fake::write_done();fake::read_value("240.5");
+    fake::write_done();fake::read_value("1,1,42.5");
+    assert(fake::invalidated==before && fake::tracks.size()==tracks+1 && fake::playing);
+    assert(fake::tracks.back().title=="Pending phrase 1");
+    notify(0,0,"Spotify");full_refresh();
+    std::cout<<"lyrics BLE pending-title storm: 120 duplicates preserve the in-flight batch and publish once passed\n";
+}
+static void pending_title_identity_guards() {
+    const std::string player=reinterpret_cast<const char*>(u8"网易云音乐");
+    const std::string artist="Guard artist/Guard recording",album="Guard album";
+    notify(0,0,player);full_refresh("Guard phrase 0",player,artist,album);
+
+    // Work buffers already contain the new artist, but the stable identity
+    // still belongs to the last fully published track. This is a real change.
+    notify(2,2,"Guard phrase 1");tick();fake::write_done();fake::read_value(player);
+    const std::string changed="Changed artist/Changed recording";
+    fake::write_done();fake::read_value(changed);
+    auto before=fake::invalidated;const auto tracks=fake::tracks.size();
+    notify(2,0,changed);assert(fake::invalidated==before+1 && s.dirty);
+    fake::write_done();fake::read_value(album);
+    assert(fake::tracks.size()==tracks && !s.refreshing);
+    full_refresh("Guard phrase 1",player,changed,album);
+
+    // A real change followed by a return to the published value is a newer
+    // identity update, rather than a duplicate of that published value.
+    before=fake::invalidated;notify(2,0,artist);notify(2,0,changed);
+    assert(fake::invalidated==before+2 && s.dirty);
+    full_refresh("Guard phrase 1",player,changed,album);
+
+    // Truncation makes even an identical visible pending title unknown.
+    notify(2,2,"Guard phrase 2");tick();fake::write_done();fake::read_value(player);
+    fake::write_done();notify(2,2,"Guard phrase 2",true);fake::read_value(changed);
+    assert(s.dirty && !s.refreshing && fake::pending.kind==0);
+    full_refresh("Guard phrase 2",player,changed,album);
+
+    // Pending values retain complete bytes through the legal attribute limit;
+    // a different last byte must still obsolete the old read.
+    std::string longest(lyrics::protocol::kMaxAttributeBytes,'x');
+    notify(2,2,longest);tick();fake::write_done();fake::read_value(player);
+    fake::write_done();notify(2,2,longest);
+    assert(!s.dirty && s.refreshing);
+    longest.back()='y';notify(2,2,longest);fake::read_value(changed);
+    assert(s.dirty && !s.refreshing && fake::pending.kind==0);
+    full_refresh(longest,player,changed,album);
+    // Invalid long durations must fail before touching the spare bytes now
+    // retaining the pending title inside the existing PSRAM duration buffer.
+    const std::string duration_title="Duration guard";
+    notify(2,2,duration_title);tick();fake::write_done();fake::read_value(player);
+    for(const auto& value:std::vector<std::string>{changed,album,duration_title}) {
+        fake::write_done();fake::read_value(value);
+    }
+    fake::write_done();fake::read_value(std::string(MaxValue,'1'));
+    assert(!s.ready && fake::link==lyrics::LinkState::Error);
+    assert(std::memcmp(s.buffers->pending_title(),duration_title.data(),duration_title.size())==0);
+    tick();ready();full_refresh();
+    std::cout<<"lyrics BLE pending identity: published fields, reversions, truncated/full titles and duration bounds passed\n";
+}
 int main() {
     // Disabled cold boot needs no allocation; failed PSRAM allocation must
     // neither start the host nor publish an initialized/partially ready client.
@@ -320,6 +410,9 @@ int main() {
     }
     notification_identity_regressions();
     phone_title_notification_regressions();
+    stable_fields_during_title_refresh();
+    duplicate_pending_title_during_read();
+    pending_title_identity_guards();
     // A truncated value remains unknown even when its visible prefix matches.
     notify(2,2,"Song",true);assert(!fake::track_ready && !fake::playing);
     full_refresh();

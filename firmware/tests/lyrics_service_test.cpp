@@ -597,6 +597,111 @@ void retryable_failure_precedence()
     }
 }
 
+lyrics::Track alias_phone_track()
+{
+    return {reinterpret_cast<const char*>(u8"网易云音乐"), "Original fixture refrain",
+            "Fixture Singer/Fixture Recording (Original screen description)", "Fixture Recording", 308000};
+}
+
+std::string alias_phone_candidates()
+{
+    return R"({"code":200,"result":{"songCount":1,"songs":[{"id":57,"name":"Fixture Recording","duration":308000,"album":{"name":"Fixture Recording"},"artists":[{"name":"Fixture Singer"}],"alias":["Original screen description"]}]}})";
+}
+
+std::string alias_phone_lyrics(bool past_duration = false)
+{
+    JsonDocument doc;
+    doc["code"] = 200;
+    doc["lrc"]["lyric"] = past_duration
+        ? "[01:00.00]A deliberate original opening\n[01:31.55]Original fixture refrain\n[06:00.00]A complete original ending"
+        : "[01:00.00]A deliberate original opening\n[01:31.55]Original fixture refrain\n[02:10.00]A later original verse\n[04:13.10]Original fixture refrain";
+    std::string encoded; serializeJson(doc, encoded); return encoded;
+}
+
+void phone_stable_alias_pipeline()
+{
+    using lyrics::LyricState;
+    for (const bool past_duration : {false, true}) {
+        reset(); auto phone = alias_phone_track(); const auto request = ready(phone);
+        lyrics::on_attribute(0, 1, "1,1,229.07");
+        check(request.phone_metadata && static_cast<unsigned>(lyrics::LookupStage::NeteasePhoneSearch) == 8,
+              "stable phone search appends a provenance ordinal without changing existing stages");
+        perform_action = [past_duration](FakeHttpClient& client) {
+            if (perform_calls == 1) {
+                check(client.url == "https://music.163.com/api/search/get?s=Fixture%20Recording&type=1&limit=8&offset=0",
+                      "phone search uses only stable album instead of the rolling raw title or compound artist");
+                reply(client, 200, alias_phone_candidates());
+            } else {
+                check(perform_calls == 2 && client.url.find("/api/song/lyric?id=57&") != std::string::npos,
+                      "alias-only source identity downloads its proven ID once");
+                reply(client, 200, alias_phone_lyrics(past_duration));
+            }
+            return ESP_OK;
+        };
+        auto result = lyrics::fetch(request);
+        check(result.phone_identity && !result.phone_canonical_title && result.lines && perform_calls == 2 &&
+              result.state == (past_duration ? LyricState::Unsynced : LyricState::Synced),
+              "source-proven alias-only synced or unsynced content ends the pipeline after two requests");
+        check(lyrics::engine.complete(request, result, clock_ms), "alias-only source result completes its current request");
+        const auto published = lyrics::snapshot();
+        check(published.phone_lyrics && published.lines == result.lines && published.state == LyricState::Unsynced &&
+              published.track.title == phone.title && published.position_ms >= 229070,
+              "exact title found elsewhere in proven lyrics publishes complete text without claiming cue synchronization");
+        for (unsigned second = 1; second <= 180; ++second) {
+            ++clock_ms; phone.title = "A rolling original line " + std::to_string(second);
+            lyrics::on_track_snapshot(phone); lyrics::engine.advance(clock_ms);
+            lyrics::protocol::Request duplicate;
+            check(lyrics::snapshot().generation == published.generation && lyrics::snapshot().lines == published.lines &&
+                  !lyrics::engine.take_request(clock_ms, duplicate),
+                  "rolling verified titles cannot replace the generation or refetch its complete text");
+            clock_ms += 999;
+        }
+        check(perform_calls == 2, "three minutes of verified rolling titles cause no extra HTTP");
+    }
+
+    reset(); auto phone = alias_phone_track(); phone.title = phone.album; const auto request = ready(phone);
+    lyrics::on_attribute(0, 1, "1,1,0");
+    perform_action = [](FakeHttpClient& client) {
+        reply(client, 200, perform_calls == 1 ? alias_phone_candidates() : alias_phone_lyrics()); return ESP_OK;
+    };
+    auto result = lyrics::fetch(request);
+    check(result.phone_identity && result.phone_canonical_title && perform_calls == 2 &&
+          lyrics::engine.complete(request, result, clock_ms) && lyrics::snapshot().phone_lyrics &&
+          lyrics::snapshot().state == LyricState::Synced && lyrics::snapshot().lines,
+          "complete source signature and canonical raw title verify a sixty-second intro immediately");
+    const auto generation = lyrics::snapshot().generation;
+    clock_ms += 60000; lyrics::engine.advance(clock_ms);
+    lyrics::protocol::Request duplicate;
+    check(lyrics::snapshot().generation == generation && lyrics::snapshot().phone_lyrics &&
+          !lyrics::engine.take_request(clock_ms, duplicate) && perform_calls == 2,
+          "canonical intro does not expire into another ordinary lookup before the first lyric");
+}
+
+void phone_continuous_title_retry_budget()
+{
+    using lyrics::LyricState;
+    reset(); auto phone = alias_phone_track(); auto request = ready(phone);
+    const auto generation = request.generation;
+    perform_action = [](FakeHttpClient& client) { reply(client, 503, ""); return ESP_OK; };
+    unsigned rounds = 0;
+    for (unsigned second = 0; second <= 180; ++second) {
+        if (second) {
+            clock_ms += 1000;
+            phone.title = "Unproven rolling title " + std::to_string(second);
+            lyrics::on_track_snapshot(phone); lyrics::engine.advance(clock_ms);
+        }
+        if (!second || lyrics::engine.take_request(clock_ms, request)) {
+            auto result = lyrics::fetch(request); ++rounds;
+            check(result.state == LyricState::NetworkError && lyrics::engine.complete(request, result, clock_ms),
+                  "continuous title churn retains each bounded transport failure");
+        }
+        check(lyrics::snapshot().generation == generation && !lyrics::snapshot().lines && !lyrics::snapshot().phone_lyrics,
+              "unproven titles cannot reset the generation or expose any downloaded content");
+    }
+    check(rounds == 3 && perform_calls == 9 && lyrics::snapshot().state == LyricState::NetworkError,
+          "three minutes of continuous title changes exhaust three shared attempts without repeating failed NetEase queries");
+}
+
 void phone_metadata_pipeline()
 {
     using lyrics::LyricState;
@@ -641,13 +746,13 @@ void phone_metadata_pipeline()
     };
     result = lyrics::fetch(request);
     const auto waiting_lines = result.lines;
-    check(result.phone_identity && lyrics::engine.complete(request, result, clock_ms) &&
-          !lyrics::snapshot().phone_lyrics && !lyrics::snapshot().lines && lyrics::snapshot().state == LyricState::Loading,
-          "source metadata alone does not expose intro titles as verified phone lyrics");
+    check(result.phone_identity && result.phone_canonical_title && lyrics::engine.complete(request, result, clock_ms) &&
+          lyrics::snapshot().phone_lyrics && lyrics::snapshot().lines == waiting_lines && lyrics::snapshot().state == LyricState::Synced,
+          "complete source signature plus canonical title verifies the intro before any lyric cue");
     lyrics::on_attribute(0, 1, "1,1,1.2");
     phone.title = "Original window phrase"; lyrics::on_track_snapshot(phone);
     check(lyrics::snapshot().phone_lyrics && lyrics::snapshot().lines == waiting_lines && perform_calls == 2,
-          "first real phone lyric verifies the already downloaded timeline without a second lookup");
+          "first real phone lyric retains the canonical-title-verified timeline without a second lookup");
 
     reset(); phone.title = "Actual collaborative song"; request = ready(phone);
     const auto probe_started = clock_ms;
@@ -661,13 +766,15 @@ void phone_metadata_pipeline()
     check(!lyrics::snapshot().lines && !lyrics::snapshot().phone_lyrics,
           "an unrelated real title does not verify the provisional compound recording");
     clock_ms = probe_started + 45000;
-    check(!lyrics::engine.take_request(clock_ms, request) && !lyrics::snapshot().lines,
+    const auto pending_generation = request.generation;
+    check(!lyrics::engine.take_request(clock_ms, request) && !lyrics::snapshot().lines &&
+          lyrics::snapshot().state == LyricState::NotFound && lyrics::snapshot().generation == pending_generation,
           "pending metadata proof expires at the original probe deadline without publishing stale lyrics");
     clock_ms += lyrics::protocol::kMetadataSettleMs;
-    check(lyrics::engine.take_request(clock_ms, request) && !request.phone_metadata && request.track.title == phone.title,
-          "expired title proof schedules the current ordinary metadata once with probing rejected");
+    check(!lyrics::engine.take_request(clock_ms, request) && lyrics::snapshot().generation == pending_generation,
+          "expired title proof preserves its exhausted provisional generation instead of scheduling ordinary metadata");
 
-    reset(); phone.title = song().title; request = ready(phone);
+    reset(); phone.title = "A provisional unrelated intro"; request = ready(phone);
     const auto offline_deadline = clock_ms + 45000;
     lyrics::on_attribute(0, 1, "0,1,0");
     perform_action = [](FakeHttpClient& client) {
@@ -685,33 +792,43 @@ void phone_metadata_pipeline()
           "offline paused worker keeps pending proof only until its original deadline without BLE events or requests");
     clock_ms = offline_deadline; run_one_worker_iteration();
     const auto expired = lyrics::snapshot();
-    check(expired.state == LyricState::Waiting && !expired.lines && !expired.phone_lyrics && held_lines.expired() &&
+    check(expired.state == LyricState::NotFound && expired.generation == request.generation &&
+          !expired.lines && !expired.phone_lyrics && held_lines.expired() &&
           !expired.playing && expired.position_ms == 0 && expired.last_event_ms == last_event &&
           perform_calls == 2 && notify_calls == notifications,
           "offline worker expires and releases pending proof at forty-five seconds without notifications or playback activity");
     clock_ms += lyrics::protocol::kMetadataSettleMs; wifi_connected = true;
-    perform_action = [&](FakeHttpClient& client) {
-        check(client.url.find("https://lrclib.net/api/get?") == 0, "network recovery uses ordinary lookup after offline probe rejection");
-        reply(client, 200, body(phone)); return ESP_OK;
+    perform_action = [](FakeHttpClient&) {
+        check(false, "network recovery cannot restart an expired unproven phone identity"); return ESP_FAIL;
     };
     run_one_worker_iteration();
-    check(perform_calls == 3 && lyrics::snapshot().state == LyricState::Synced && !lyrics::snapshot().phone_lyrics,
-          "network recovery performs one normal lookup instead of restarting the expired probe");
+    check(perform_calls == 2 && lyrics::snapshot().state == LyricState::NotFound && !lyrics::snapshot().phone_lyrics &&
+          lyrics::snapshot().generation == request.generation,
+          "network recovery preserves the bounded first-song miss without another lookup");
 
     reset(); auto ordinary = song(); ordinary.player = phone.player; ordinary.artist = "AC/DC";
     request = ready(ordinary);
     perform_action = [&](FakeHttpClient& client) {
         if (perform_calls == 1) {
+            check(client.url == "https://music.163.com/api/search/get?s=Demo&type=1&limit=8&offset=0",
+                  "ordinary slash artist first uses the same bounded stable query");
+            reply(client, 200, R"({"code":200,"result":{"songCount":0}})");
+        } else if (perform_calls == 2) {
+            check(client.url == lyrics::protocol::netease_search_url(request.track),
+                  "successful stable miss preserves one original title-and-artist search for AC/DC");
             JsonDocument doc; deserializeJson(doc, netease_candidates());
             doc["result"]["songs"][0]["artists"][0]["name"] = ordinary.artist;
             std::string encoded; serializeJson(doc, encoded);
             ordinary.title = "Another real song"; lyrics::on_track_snapshot(ordinary);
             reply(client, 200, encoded);
-        } else reply(client, 200, netease_lyrics());
+        } else {
+            check(perform_calls == 3, "ordinary slash candidate downloads once after its normal search");
+            reply(client, 200, netease_lyrics());
+        }
         return ESP_OK;
     };
     result = lyrics::fetch(request);
-    check(result.state == LyricState::Synced && !result.phone_identity,
+    check(result.state == LyricState::Synced && !result.phone_identity && perform_calls == 3,
           "ordinary slash-containing artist does not become composite-source proof");
     check(!lyrics::engine.complete(request, result, clock_ms) && !lyrics::snapshot().lines,
           "normal response cannot publish for a title changed during provisional lookup");
@@ -758,8 +875,8 @@ void phone_metadata_pipeline()
         return ESP_OK;
     };
     result = lyrics::fetch(request);
-    check(source_searches == 1 && perform_calls == 5 && !result.phone_identity,
-          "unsuccessful phone probe resumes remaining providers without repeating NetEase");
+    check(source_searches == 2 && perform_calls == 6 && !result.phone_identity,
+          "successful stable miss tries normal NetEase once before the remaining providers");
 
     reset(); request = ready(phone);
     perform_action = [](FakeHttpClient& client) {
@@ -778,7 +895,7 @@ std::string equivalent_ids(bool catalog)
     std::string result; serializeJson(doc, result); return result;
 }
 
-void rejected_phone_identity_stays_rejected()
+void unverified_phone_identity_stays_bounded()
 {
     using lyrics::LyricState;
     reset(); auto phone = song(); phone.player = reinterpret_cast<const char*>(u8"网易云音乐");
@@ -790,34 +907,25 @@ void rejected_phone_identity_stays_rejected()
     auto response = lyrics::fetch(request);
     check(lyrics::engine.complete(request, response, clock_ms) && !lyrics::snapshot().lines,
           "unrelated title leaves source-proven candidate awaiting title evidence");
+    const auto unverified_generation = request.generation;
     clock_ms = deadline; lyrics::engine.advance(clock_ms);
     clock_ms += lyrics::protocol::kMetadataSettleMs;
-    check(lyrics::engine.take_request(clock_ms, request) && !request.phone_metadata,
-          "title-proof timeout creates an explicitly ordinary request");
-    unsigned compound_searches = 0;
+    check(!lyrics::engine.take_request(clock_ms, request) && lyrics::snapshot().state == LyricState::NotFound &&
+          lyrics::snapshot().generation == unverified_generation && !lyrics::snapshot().lines,
+          "title-proof timeout finishes the same provisional request without an ordinary restart");
     const auto before = perform_calls;
-    perform_action = [&](FakeHttpClient& client) {
-        if (client.url.find("/api/search/get?") != std::string::npos) {
-            ++compound_searches; reply(client, 200, netease_candidates());
-        } else if (client.url.find("/api/v2/search?") != std::string::npos) reply(client, 200, "[]");
-        else if (client.url.find("lyrics.kugou.com") != std::string::npos)
-            reply(client, 200, R"({"status":200,"candidates":[]})");
-        else {
-            check(client.url.find("/api/song/lyric?") == std::string::npos,
-                  "rejected ordinary request never downloads a compound-only search candidate");
-            reply(client, 404, "");
-        }
-        return ESP_OK;
-    };
-    auto missing = lyrics::fetch(request);
-    check(compound_searches == 1 && perform_calls == before + 5 && missing.state == LyricState::NotFound &&
-          !missing.phone_identity && lyrics::engine.complete(request, missing, clock_ms),
-          "a repeated compound source candidate cannot restart the rejected lookup mode");
-    const auto generation = lyrics::snapshot().generation;
-    clock_ms += 45000; lyrics::engine.advance(clock_ms);
-    check(lyrics::snapshot().state == LyricState::NotFound && lyrics::snapshot().generation == generation &&
-          !lyrics::engine.take_request(clock_ms, request),
-          "ordinary miss stays visible without another awaiting-title timeout or fetch");
+    for (unsigned second = 1; second <= 180; ++second) {
+        clock_ms += 1000; phone.title = "Unproven title after timeout " + std::to_string(second);
+        lyrics::on_track_snapshot(phone); lyrics::engine.advance(clock_ms);
+        check(lyrics::snapshot().state == LyricState::NotFound && !lyrics::snapshot().lines &&
+              !lyrics::snapshot().phone_lyrics && lyrics::snapshot().generation == unverified_generation &&
+              !lyrics::engine.take_request(clock_ms, request),
+              "continuous unproven titles cannot reset a completed provisional miss or expose hidden content");
+    }
+    check(perform_calls == before, "unproven title timeout cannot spend another HTTP round");
+
+    reset(); request = ready();
+    const auto generation = request.generation;
     response.phone_identity = true;
     check(lyrics::engine.complete(request, std::move(response), clock_ms) &&
           lyrics::snapshot().state == LyricState::Invalid && !lyrics::snapshot().lines && !lyrics::snapshot().phone_lyrics,
@@ -1006,8 +1114,8 @@ void equivalent_recording_fallback()
         return ESP_OK;
     };
     auto result = lyrics::fetch(request);
-    check(result.phone_identity && result.state == LyricState::Synced && perform_calls == 3,
-          "equivalent source ID preserves phone proof and synced lyrics outrank the first text fallback");
+    check(result.phone_identity && result.state == LyricState::Unsynced && result.lines && perform_calls == 2,
+          "complete source-proven phone text returns immediately without spending an equivalent download");
 
     reset(); const auto text_only = ready(phone);
     perform_action = [](FakeHttpClient& client) {
@@ -1023,8 +1131,8 @@ void equivalent_recording_fallback()
     };
     result = lyrics::fetch(text_only);
     check(result.phone_identity && result.state == LyricState::Unsynced && result.lines &&
-          result.lines->back().time_ms == 80000 && perform_calls == 7,
-          "failed equivalent and later providers preserve the first complete text and its source proof");
+          result.lines->back().time_ms == 80000 && perform_calls == 2,
+          "source-proven phone text retains all lines and ends lookup before unrelated fallback providers");
 
     reset(); const auto stale = ready(phone);
     perform_action = [](FakeHttpClient& client) {
@@ -1162,8 +1270,9 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t client) { ++cleanup_c
 int main()
 {
     try {
+        phone_stable_alias_pipeline(); phone_continuous_title_retry_budget();
         http_transport(); fallback_pipeline(); unsynced_pipeline(); retryable_failure_precedence(); phone_metadata_pipeline();
-        rejected_phone_identity_stays_rejected(); phone_network_retry_budget(); phone_identity_and_playback_boundaries();
+        unverified_phone_identity_stays_bounded(); phone_network_retry_budget(); phone_identity_and_playback_boundaries();
         equivalent_recording_fallback(); successful_cache_reuse(); worker_commands_and_storage();
         std::cout << "lyrics service: " << checks << " checks passed\n";
     } catch (const std::exception& error) {
