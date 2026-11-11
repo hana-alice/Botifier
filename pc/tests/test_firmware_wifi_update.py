@@ -15,7 +15,7 @@ SCRIPT = Path(__file__).resolve().parents[2] / 'scripts' / 'Update-FirmwareWifi.
 spec = importlib.util.spec_from_file_location('firmware_wifi_update', SCRIPT)
 ota = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ota)
-MAC = '7c:4f:ad:af:61:f0'
+MAC = '02:00:00:00:11:22'  # Synthetic locally administered fixture; never a real device.
 KEY = 'a1' * 16
 OLD_ELF, NEW_ELF = '11' * 32, '22' * 32
 

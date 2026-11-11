@@ -2,6 +2,8 @@
 /.omx/
 /build/
 /logs/
+/log/
+/environment.json
 /.playwright-mcp/
 __pycache__/
 *.py[cod]

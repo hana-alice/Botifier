@@ -1,5 +1,212 @@
 # StackChan 开发准备
 
+本页为公开开发摘要。完整本机环境记录`environment.json`、原始日志和设备备份只保存在忽略目录；环境格式见[公开模板](environment.example.json)，可复用经验见[EXPERIENCE.md](EXPERIENCE.md)。以下历史证据路径仅供本地核对，不包含在公开仓库中。
+
+<!-- nfc112-current:start -->
+## 112：刷卡切换距离提醒，并继续播放片头（已无线安装）
+
+用户确认同一张NFC卡先切换距离提醒，再照常播放Kuro片头。每次获准的卡片呈现只切换一次，持卡、播放中或护眼独占期间的事件仍被消费而不排队。切换在启动视频前完成，视频启动失败也不撤销已经生效的开关；同一帧重新取测距快照，关闭立即清掉旧过近状态，开启等待新采样。
+
+临时开关到当前09:30/21:30连续时段边界失效，夜间21:30至次日09:30跨午夜保持；之后恢复北京时间周一至周五09:30–21:30自动日程。头触不推翻刷卡暂停，既有周末白天摸头开启行为保留。临时状态不写NVS，重启回归日程；无有效时钟不启用或预排开关。NFC页显示DISTANCE ON/OFF，手动关闭时抽屉显示PAUSED。
+
+相对111仅修改6个固件/测试输入：`distance_sensor/{schedule.h,service.h,service.cpp}`、`apps/app_distance/app_distance.cpp`、`tests/{distance_schedule_test.cpp,distance_service_test.cpp}`。复用原NFC去重、日程、采样器和播放路径，无新依赖。30项日程测试、6个真实采样任务场景517检查、全Host38/38、实际App/LVGL7687检查通过；新增14类NFC场景，111的58张歌词画面和2张Kuro全屏画面逐字节一致。
+
+产品归档`.tools/firmware-artifacts/20261111-nfc112-a8b0bd6e4826`，5175360B／槽余1984B，ELF `e0734ddaae11cab18360c1a55dd64f2607e019db11bd516e9b384d55572f2c49`。已按用户“我什么都不做，你自己刷”完成两段Wi-Fi安装：从111的LIVE直接进入维护112，再安装产品112；两段各一次成功，独立读回产品ota_1／VALID。没有要求用户RST、回HOME或USB操作；正常OTA切槽后的重启由程序自动完成。MUSIC恢复原ON，手机自动重连，恢复10样本及最终3样本未见新增重启；距离6样本为automatic／ranging、有效且新鲜，最后626mm、error0。
+
+主机部署工具新增仅限小型固定维护镜像的`--allow-live-bridge`，如实保留LIVE状态；身份、哈希、有效启动槽、功耗与独立确认检查保留。33/33部署回归通过。已撤回“预先RST必需”的判断，本次实测证明该运行状态可直接上传，不将单次成功扩大为历史OTA根因已解决。实体刷卡、片头效果和实际09:30跨界尚未验收；源码及界面证据见`logs/nfc112-host.log`、`.tools/nfc112-ui/evidence/nfc112-ui-final.json`，安装证据见[部署记录](DEVICE_DEPLOYMENT.md)。
+<!-- nfc112-current:end -->
+
+<!-- lyrics111-current:start -->
+## 111：歌词输入与滚动通用修复已无线安装
+
+13个输入相对110变化：`lyrics/{protocol.cpp,protocol.h,types.h,service.cpp,ble_client.cpp,view.cpp,font_cjk_20.c,font_manifest.json}`，四个对应协议／服务／BLE／字体测试及`scripts/Prepare-LyricsFont.py`。复用既有Engine、请求预算、字库解码器与界面，不新增依赖。修改原因和边界见[歌词记录](LYRICS.md)。
+
+38/38 Host、协议924／服务303、实际LVGL7431项通过；16首固定独立输入14→16首Synced、6个实际不同版本反例仍拒绝。BLE回调负对照、时间推进及插播恢复、临时网络错误与三轮重试上限均有回归。字体32→48字形块无损省7052B，缓存仅在SPIRAM增1525B，字体工作区测试改用真实类型尺寸，去除固定缓冲区假设。生产protocol SHA `8ce83c19f65fcc71e74434d8985020a5cdfb1a52972aad943e493598bb044514`。
+
+131项构建输入已冻结，产品5174496B／槽余2848B。11月11日两次Wi-Fi上传均一次成功，独立确认产品111 ELF `380b3143d690b8559199fe2a078039ef14fa5e601e3b37154fd2ed3e6e6b71c7`、ota_1／VALID；MUSIC恢复原ON，10样本无新增重启。最终手机未连接，尚未获得本轮实机歌曲／滚动验收。当前备用槽为VALID维护111，其首次启动绑定原110，禁止直接重刷该桥到111。旧OTA异常根因仍未定位，详见[部署记录](DEVICE_DEPLOYMENT.md)。
+<!-- lyrics111-current:end -->
+
+<!-- lyrics110-current:start -->
+## 110：简体显示已完成并无线安装
+
+相对冻结109仅6项输入变化：`lyrics/protocol.cpp/.h`、`lyrics/view.cpp`、`lyrics_protocol_test.cpp`、`lyrics/han_simplified.inc`及`scripts/Prepare-LyricsHan.py`。后两项只更新共享用途注释；复用2473项压缩表，没有新表、新库或额外请求。显示函数保留上下文相关的著／乾，独立补充後→后；转换后的字形不可用时保留原字。搜索元数据和原歌词／时轴不经过该显示函数。
+
+131项输入冻结，协议876、服务135、Host38/38通过，正式IDF镜像5176384B／槽余960B。实际App/View/protocol/font的LVGL验证5215项通过：35帧旧画面相同、两组繁体输入与显式简体参考像素相同、22页全文往返完整、1156项输入前后哈希一致。记录为`logs/lyrics110-host.log`、`logs/lyrics110-idf.log`、`.tools/lyrics110-ui/validation.json`；视觉97/pass，尚不能代替实体LCD验收。
+
+产品冻结于`.tools/firmware-artifacts/20261109-lyrics110-225c95cc86c7`，BIN SHA `225c95cc86c79aef43ebb6a74e6817c8effa79493a093c3d955181a2ba6e00a1`、ELF `4223f809fb2e1a94d270ebf74c5c5374171726404659e5002d55637039ebbaf2`。已通过两步Wi-Fi各一次上传安装，独立确认ota_1／VALID；MUSIC恢复原ON并重连，10样本同一boot，最终48行／HTTP200／error0。详见DEVICE_DEPLOYMENT.md。本次未触碰歌词匹配、BLE、动作、提醒优先级、分区或bootloader；旧OTA／HTTP异常根因仍未定位，显示字符转换不能冒充完整词组转换。
+<!-- lyrics110-current:end -->
+
+<!-- lyrics109-current:start -->
+## 109已无线安装：完整歌词文本降级，实机同步歌词仍正常
+
+Free Loop的实际手机时长192614ms已由用户核对3:12；原49行歌词时间轴到208180ms，108将其整体拒绝。109保留原候选身份／版本／时长条件，在原严格时间解析失败后完整复用有界格式解析，合法正文标为Unsynced；后续源仍可用Synced结果替代。UI只在Unsynced增加TEXT ONLY和左右轻点翻页，长句全文可达；同步路径30帧逐字节一致。未新增plainLyrics解析、来源、依赖、BLE或互动优先级改动。
+
+相对冻结108仅9项输入变化：歌词types/protocol.h/protocol.cpp/service/view、协议与服务测试、Han生成表及生成器。首次容量试构建超槽1040B后，仅将同一2473项映射按高字节页无损存储（数据9892→7637B）；编译实际查找函数对冻结108的65536个BMP输入逐项比对为0差异。最终131输入冻结，IDF镜像5176224B，原0x4f0000槽余1120B，分区未改。
+
+协议863项、服务135项、Host38/38、原始响应10/10、实际LVGL4221项通过。UI有完整双向分页和上下菜单手势检查，50次手动视图生命周期LVGL堆差0；这是主机证据，不是物理LCD或实机RAM峰值。日志：`logs/lyrics109-host.log`、`logs/lyrics109-idf.log`、`.tools/lyrics109-han/exhaustive-report.json`、`.tools/lyrics109-han/postpack/summary.json`、`.tools/lyrics109-meta/ui-validation.json`。
+
+109已通过两步Wi-Fi安装到ota_1／VALID，ELF `fe5a13e46c72b685de3f8ec38e4d8d62b06dbc95df1740d2146c70e6ab0eced2`。MUSIC恢复原ON，10个恢复样本同一boot；随后实机当前《Dear John》读回synced／46行、HTTP200／error0、15573ms，最后状态仍同一boot且无新panic。证据见`logs/lyrics109-maintenance-product-install-20261109.json`、`logs/lyrics109-music-restore-20261109.json`、`logs/lyrics109-final-status.json`。
+
+部署前旧108的HTTP入口需用户RST恢复，IP由248变117；首次维护上传中旧版abort，保持108有效。MUSIC OFF状态下自动重启后片内free51795／largest40960，第二次维护上传成功，再完成完整109。重启、内存变化和上传成功的先后关系已记录，不能单凭此认定原OTA／HTTP异常根因。未找到与Free Loop的3:12音频适配的时间轴，49行Unsynced只完成原始响应主机全流程验证，本轮未让手机重播它，也未做实体LCD翻页验收；文本降级不能称为修复同步时序或提高了已测整体歌单命中率。
+<!-- lyrics109-current:end -->
+
+<!-- lyrics108-current:start -->
+## 108匹配修复已无线安装并验证实际取词
+
+相对冻结107，仅修改`lyrics/protocol.cpp`、`lyrics_protocol_test.cpp`、`lyrics_service_test.cpp`；新增固定`han_simplified.inc`及离线生成／检查脚本`scripts/Prepare-LyricsHan.py`。繁简等价、酷狗来源评分和伴奏过滤都服务于实际漏匹配，未改请求次数、UI、同步时间、距离／护眼／动作逻辑，无新库。
+
+38/38 Host、协议846项、服务117项、实际源响应8/8回放通过，旧代码负控失败。131个输入在构建前后SHA一致；ESP-IDF镜像5176336字节，0x4f0000槽剩1008字节。后续修改必须继续检查真实镜像尺寸，不可将本次能装入推及更大的镜像。
+
+当前108已通过两步Wi-Fi安装到ota_1／VALID；同一首手机歌曲实机从0行变成synced／41行，HTTP200、error0。MUSIC恢复ON且手机重连，10个恢复样本同一boot。已冻结产品`.tools/firmware-artifacts/20261109-lyrics108-448942b8885c`和维护桥`.tools/firmware-artifacts/20261109-maintenance108-a87688ddb258`，分别131／2430项输入。维护桥安全测试32项、部署保护26项通过。桥首次启动仍绑定107基线，不得原样重刷到108；后续更新必须重新绑定并验证当前基线。原完整应用OTA异常根因仍未定位，本次未做LCD目视或整体歌单覆盖率验收。
+<!-- lyrics108-current:end -->
+
+<!-- lyrics107-installed:start -->
+## 107无线恢复已完成
+
+2026-11-09采用临时维护固件完成`106/ota_1 → 维护/ota_0 → 107/ota_1`。两步HTTP200、主机鉴权确认维护固件后再上传完整镜像，最终独立确认107 ELF／ota_1／VALID；MUSIC恢复、手机重连和额度服务ready均有实机记录。107镜像及129项来源保持冻结，原38/38主机测试不变；当前输入为非音乐内容，Spotify歌曲行数验收仍待播放，不能声称整体匹配率已测。
+
+维护固件只使用现有IDF、ArduinoJson和原OTA实现；禁用产品任务／PSRAM，HTTP栈12KiB内部RAM。配置通过静态只读NVS分区视图加载，Wi-Fi配置在RAM，关闭PHY和Wi-Fi持久化。120秒待确认期由独立任务监视；确认与退出互斥，SDK回退不可用或返回错误时，只有仍未确认、PENDING且精确106基线成立才受控重启；VALID后不自动回退旧应用。共用状态策略32项、部署守卫25项通过。构建和2,430项输入已冻结到`.tools/firmware-artifacts/20261109-maintenance-b3245926f5f0`。
+
+这是绑定106基线的一次性恢复工具，不能原样重新刷到当前107并期待同样回退。私有实现：`.tools/ota-maintenance/`、`.tools/ota-maintenance-ops/`；两阶段显式执行，失败不自动重传，第二阶段必须引用成功的第一阶段报告。107在此流程的最终槽为ota_1，读取／音乐恢复工具也必须核对这个槽。原应用OTA故障根因仍未定位，维护固件冷启动与真实超时回退未做物理测试，不能把本次暖启动成功扩大为这些结论。
+<!-- lyrics107-installed:end -->
+
+<!-- lyrics107-current:start -->
+## 歌词107：唯一身份目录记录的时长兜底
+
+通过106受认证的opt-in诊断读取真实AMS字段，复现两次有词却被总时长门槛拒绝的失败。107仅修改`lyrics/protocol.cpp/.h`及两份协议／服务测试；先保留原严格选择，再对有界目录中唯一的精确歌名／歌手／非空专辑ID启用`unique_identity`。下载仍核对ID与目录时长±1ms、三字段和所有cue≤手机时长。多个ID（包括无词、伴奏记录）、冲突重复ID及版本后缀不能借此放行。没有新增请求阶段、依赖、时间缩放或UI改变。
+
+原core负控明确失败；新core协议802项、服务113项通过，服务成功案例均3次HTTP后结束。完整Host38/38、固件构建和真实已存响应4/4离线回放通过，两个真实失败tuple恢复46／29行。四个变更文件新增行空白检查通过；整棵已有dirty树的`git diff --check`仍报告旧Si12T文件CRLF相关警告，本轮未改这些文件。日志见`logs/lyrics107-*`，真实回放见`.tools/lyrics107-replay/summary.json`。
+
+冻结129输入，归档`.tools/firmware-artifacts/20261106-lyrics107-4671a8753f64`，镜像5165008字节、槽余量12336字节。107两次无线上传均未完成安装，失败阶段不同，当前仍为106；MUSIC已恢复ON。用户反对反复切换USB后未执行USB操作，也不再将USB当作必要下一步。既有原厂pull OTA均有当前未满足的入口条件，详见DEVICE_DEPLOYMENT.md。实机取词尚未验证。显示、动作、时段和提醒优先级沿用原实现，不将历史UI证据写成新的实体LCD验收。
+<!-- lyrics107-current:end -->
+
+<!-- distance105-current:start -->
+## 距离检测时段：105 已通过Wi-Fi安装
+
+2026-11-06 用户明确用同一个09:30–21:30时间窗控制距离检测：北京时间周一至周五自动开启；周六、周日默认关闭，在窗口内摸头则开启当天窗口的剩余时间，21:30关闭。窗口外摸头不会预约次日；重启丢弃临时开启。此前助手提出的“到24点／无时钟开启1小时”已被用户纠正，最终代码与测试不含这些规则。工作日按星期判断，没有法定节假日／调休日历。
+
+`distance_sensor/schedule.h`是无I/O策略，复用UTC系统时间加8小时，不改变全局TZ。时间可用标准沿用现有业务的2020年起且不超过UINT32_MAX；没有可用时间时等校时，摸头不会绕过时间窗。该范围检查不是本次SNTP同步或RTC日期正确的证明。全局过滤后的头顶Press调用`enable_from_head_touch()`，不依赖BOTIFIER页面，不写NVS；原摸头表情和动作保留。
+
+采样任务在关闭时调用现有驱动stop并停止poll，快照同步清距离／告警；on/off generation阻断旧样本，重启测量后重新积累三个有效样本。stop的I2C失败仍受原驱动best-effort限制，不能把逻辑关闭宣称为硬件停止已实测。诊断增加monitoring、schedule、clock_available、北京时间星期／分钟及手动剩余时间。正常关闭显示OFF，避免把计划暂停显示为传感器故障。护眼、歌词、NFC和优先级规则未修改；无新增依赖。
+
+最终ESP-IDF构建通过；主机CTest38/38，其中时段策略17个场景，真实service.cpp在隔离平台边界下303个检查／4个任务场景。覆盖09:30／21:30、周末、跨日、校时／失时钟、窗口外触摸、重新启用旧Alert隔离与零NVS写入。日志：`logs/distance105-idf.log`、`logs/distance105-host.log`。这些是主机／构建证据，不是实机时段切换验收。
+
+归档`.tools/firmware-artifacts/20261106-distance105-ac9c71a46761`，镜像5,164,288字节，槽余量13,056字节，129项来源。单次Wi-Fi上传HTTP200，独立读回新ELF／ota_0／VALID，未使用USB；105为本地候选标号，LAN没有原始OTA序号。实机北京时间周五16:08读回automatic／monitoring=true，有效620mm／error0；音乐已恢复ON并收到手机播放信息。周末摸头与实体跨时段启停尚未实测。证据：`logs/distance105-wifi-install-20261106.json`、`logs/distance105-wifi-schedule.json`、`logs/distance105-wifi-music-restore.json`。
+<!-- distance105-current:end -->
+
+<!-- lyrics104-current:start -->
+## 104：仅将歌词改为左对齐
+
+view.cpp公共标签样式的一处CENTER→LEFT替换，已按字节与不可变103核对；三组歌词共用16px左边距。114项输入其余113项一致。复用已有LVGL测试，104重新编译实际App／view／字体；936份未变的LVGL输入与缓存库单独绑定。36/36 Host、3172项渲染检查和人工截图检查通过，没有新增生产测试或依赖。
+
+USB104／VALID已确认，MUSIC已恢复开启，最新保存状态暂无手机歌曲信息。新证据：`logs/lyrics104-ui-final.json`、`.omx/state/lyrics104/ralph-progress.json`、`logs/device-lyrics104-audit.json`。本轮没有修改无线更新逻辑或尝试Wi-Fi上传；以下103及更早段落保留历史范围。
+<!-- lyrics104-current:end -->
+
+<!-- lyrics103-current:start -->
+## 103：歌词信息收敛，当前句放大
+
+仅修改歌词view.cpp：去掉非歌词对象及持续装饰刷新，复用灰度字体、UTF-8适配、当前句位图缓存和360ms入场。320×240黑底中央36px当前句（长句32／26px、至多两行），上下各18px一行；状态页仅保留单条状态。没有新增依赖或改变时轴、网络、字体存储、App调度。
+
+新探针编译实际App／view／字体，3172项检查及28种布局通过；1112份输入前后不变、1008份实际编译读取输入全部覆盖。包含零稳定刷新、13帧切句、首尾／前奏／间奏／中英文长句／双语、菜单与交互优先级、100次页面生命周期。首次报告工具因IDF Python缺Pillow失败，保留失败记录；最终使用本机已有Python314/Pillow，无新增依赖。36/36 Host和ESP-IDF构建通过。证据：`logs/lyrics103-ui-final.json`、`.omx/state/lyrics103/ralph-progress.json`。
+
+已通过USB安装，真实ROM读回103／NEW，独立LAN确认103／ota_0／VALID。MUSIC一次ENABLE正常、手机连接并取回34行同步歌词；10个状态样本无重启，60秒UART无panic／reset。正式源仅view.cpp改变，未为安装而改动候选。最新证据：`logs/device-lyrics103-audit.json`。
+
+保留限制：此前DISABLE之后片内free783／largest512，用户重启后恢复到51,951／40,960；随后的单次Wi-Fi写入仍发生abort/reset4，主机送出90,112字节，无接受回执。尚无故障PC／断言文本，不能将阶段标记当根因或声称重启／本次USB安装解决了OTA。事实边界修正见 `.tools/lyrics103-ops/home-reset-evidence.md`，失败审计见 `logs/device-lyrics103-wifi-failed-audit.json`。
+<!-- lyrics103-current:end -->
+
+<!-- lyrics102-current:start -->
+## 102：以实机失败证据修复字体占用片内 RAM
+
+100／101串口堆栈确认：蓝牙EM映射一致性断言发生在关中断的控制器复位链内，随后INT_WDT；101同时实录控制器 `Malloc failed`。SDK存在分配失败后清理EM映射、错误返回未被检查的路径。错误文本有多个控制器分配来源，尚不能据它指定某次申请大小。现有INTERNAL|8BIT指标包含不可用于DMA的RTC RAM，不能当成DMA余量。
+
+102仅把CPU侧字体解压器／缓存移入单个延迟分配的 `SPIRAM|8BIT` 工作区；失败返回NULL、后续重试，无片内回退。保留LVGL锁与单绘制单元的串行约定、host静态工作区。26个数据数组及字形／字距／字体描述与101相同，2,171,938像素校验通过。实际ELF堆起点由 `0x3fcc0848` 变为 `0x3fcbd158`，回收14,064字节；这是静态边界差值，不是运行期DMA池测量。
+
+旧实现先触发新增ESP分配回归失败；新实现的ESP／host路径分别通过295／280项检查，全套Host36/36、IDF构建及独立审查通过。改动为字体生成器、生成字体／manifest与对应测试，未改SDK、看门狗、播放时间轴或网络逻辑。USB102／VALID后一次ENABLE完成、手机连接，60秒UART无故障；实体歌词绘制仍待播放验证。证据：`.tools/diagnostic101-ops/ble-panic-analysis.md`、`.tools/diagnostic101-ops/ble-budget-analysis.md`、`.tools/lyrics102-ops/memory-compare.json`、`logs/device-lyrics102-audit.json`。
+
+Wi-Fi旧问题与本次ENABLE分开记账：今天完整101 OTA成功，但历史间歇性panic根因仍未闭环，不因一次成功改写为修复。以下旧版本段落均为历史快照。
+<!-- lyrics102-current:end -->
+
+<!-- diagnostic101-pending:start -->
+## 最新诊断边界：101 构建通过，设备仍为 100
+
+101 仅在 100 基础上增加有界 RTC 数字 panic 记录、状态接口输出及蓝牙初始化细分标记。panic hook 保留原 SDK handler 行为，不记录字符串、令牌或任意栈内容；最终 ELF 已审计 IRAM 代码／literal、内部 DRAM gate 和真实调用目标。34/34 Host 测试及 IDF 构建通过，归档 `.tools/firmware-artifacts/20261105-diagnostic101-51c5794e9db3`。本轮未修改字体、歌词时轴、任务栈／优先级或看门狗参数，没有相邻功能重构。
+
+两次 Wi-Fi 安装均回到 100／ota_1／VALID：一次最后 OTA stage11（系统镜像验证返回前），另一次 stage7（写入返回前）。因此新增 panic hook 尚未在实机运行，不能声称已取得故障 PC 或已修复 ENABLE。下一步是 USB 被动抓取当前 100 的崩溃日志，不继续用重复上传替代定位。证据见 `logs/device-diagnostic101-audit.json`。
+
+已排除一条具体假设：该 SDK 镜像校验按 1024 字节喂 SHA，Flash 映射输入在分配前进入非 DMA fallback；actual100 ELF 中 SHA context 分配 116 字节，可能的 bounce 缓冲最多 64 字节，不存在“整段 DROM 申请超过 27,648 字节 bounce buffer”的路径。这不能排除所有内存或并发问题，也不能把 6144 字节 HTTP 栈认定为不足。源码／ELF 证据保存在 `.tools/diagnostic101-ops/ota-end-review.md`。以下旧版本记录均为历史快照。
+<!-- diagnostic101-pending:end -->
+
+<!-- diagnostic100-current:start -->
+## 当前 diagnostic100 诊断记录
+
+独立LAN确认100候选ELF／ota_1／VALID；100是预期标签，未实读ROM序号。完整上传HTTP200、5,162,368字节；99 ota_0回退仅由inactive更新机制推断，无新整槽／NVS／资源MD5。旧98 ota_1已经覆盖，外部归档与以下99／98历史记录保留。
+
+**仍未修复：**一次ENABLE没有HTTP202确认（TimeoutError），1次断连后8样本均reset5／current boot5；RTC previous是boot4／reset7，不能改写成正常reset3。BLE最后stage34／marks19，表明controller_init已经返回、controller_enable没有记录stage35返回。free38,619／largest27,648／minimum37,875来自更早sample_stage8／mark16／time162250，不能称为enable前即时内存。内部根因仍未确定。
+
+首次100 OTA失败时host sent806,912字节、无ACK；RTC previous OTA stage9／marks1089表明begin已返回并已多次写入，停在后续读取区间，不是初次擦除失败。host送出量不是实际flash写入量。对应失败报告不覆盖。
+
+本版仅诊断，FunctionReady=false；Host33/33、99项冻结输入，视觉仅复用98对应未改源码。101仅准备新增数字panic地址采集，未安装、未声称修复。证据：`logs/device-diagnostic100-audit.json`、`logs/diagnostic100-wifi-after-small-install.json`、`logs/diagnostic100-enable-once.json`、`logs/diagnostic100-wifi-install.json`、`logs/diagnostic100-after-failed-upload-safe.json`。
+<!-- diagnostic100-current:end -->
+
+<!-- diagnostic99-current:start -->
+## 当前 diagnostic99 诊断记录
+
+保存的独立LAN证据确认ELF／ota_0／VALID；99是预期标签，未实读ROM序号。完整Wi-Fi上传HTTP200、5,162,288字节、104.422秒。98 ota_1回退仅由inactive更新机制推断，未做新整槽／NVS／资源MD5；旧97 ota_0已经覆盖，外部归档与全部失败记录保留。以下98章节是历史记录。
+
+**未修复：**一次远程ENABLE没有收到HTTP202（TimeoutError），随后采集1次断连及8个相同reset_reason=5（ESP_RST_INT_WDT）样本；新99 ELF仍为VALID。RTC previous boot与BLE lane均有效，最后stage=8，internal free=38,615、largest=27,648，源码对应nimble_port_init之前；没有stage9返回标记。这只缩小失败初始化区间，不等于内部根因，也不能证明与OTA重启同因。实际init标记不等于HTTP确认。
+
+本版仅用于诊断，FunctionReady=false，当前音乐disabled／gen0／lines0，未验证歌词或LCD观感。冻结94输入、Host32/32、IDF通过；视觉证据仅复用98对应未改源码，不是新99 UI实测。当前开始diagnostic100准备，未安装或声称修复。
+
+证据：`logs/device-diagnostic99-audit.json`、`logs/diagnostic99-wifi-after-small-install.json`、`logs/diagnostic99-initial-safe.json`、`logs/diagnostic99-enable-once.json`。
+<!-- diagnostic99-current:end -->
+
+<!-- lyrics98-current:start -->
+## 当前98 Wi-Fi更新记录
+
+本次保存的独立LAN证据确认候选ELF／ota_1／VALID；98是预期升级序号，未通过ROM实读。正常97回退由inactive槽更新机制推断，未做新的整槽、NVS或资源MD5校验；旧96所在ota_1已被本次更新替换，旧镜像与全部历史失败记录保留在外部归档。
+
+冻结63项输入，删除旧1bpp字体并替换为新2bpp灰度字体，新增跟踪pet_avatar源码。镜像5,157,664 bytes、槽内余量19,680 bytes。黑底、当前句位图缓存、隐藏宠物绘制抑制已纳入新生产源码；播放／LRC时轴未改。Host30/30、新生产UI报告通过。主机绘制和flush计数不代表物理LCD FPS。
+
+这里的63项输入及UI证据通过不可变98归档验证；当前工作树已经进入diagnostic99开发，相对已部署98有5项输入差异，详见审计，不把当前源码冒充98构建输入，也不声称99已安装。
+
+本次状态：connected=False，ready=False，HTTP=0，lines=0，fetch_elapsed_ms=0；仅按本次记录描述，不与旧97的42行／5400ms样本推算帧率或同曲加速比。物理观感、声音时序与新的真人交互验收尚未建立。
+
+**当前未解决回归：**完整上传得到HTTP200，耗时104.062秒；安装后3个样本为reset_reason=3。用户随后操作MUSIC ENABLE后，保存的2个样本变为reset_reason=5（ESP_RST_INT_WDT），并显示enabled=false、generation=0、render inactive。新ELF仍为ota_1／VALID；这证明安装已完成，不代表功能可用。重启根因尚未确定，不能由本次状态推断故障栈帧，也不能宣称此前OTA panic已经修复或与它同因。无线调查继续进行，物理歌词显示尚未验收。
+
+证据：`logs/device-lyrics98-wifi-audit.json`、`logs/lyrics98-wifi-steady-install.json`、安装后`logs/lyrics98-after-steady-installed-safe.json`、最新ENABLE后`logs/lyrics98-enable-reboot-safe.json`、`logs/lyrics98-ui-final.json`。
+<!-- lyrics98-current:end -->
+
+<!-- lyrics97-current:start -->
+## 当前97实测与显示修正（较早96及之前内容按历史记录保留）
+
+USB已验证97 NEW，保存的独立LAN证据确认新ELF／ota_0／VALID；接口不直接暴露序号。镜像5,035,600 bytes，余量141,744 bytes。先作废D000旧93，再覆盖ota_0；正常96／E000及整ota_1、NVS、其余启动区和资源通过保护摘要校验。旧93安装和所有失败记录继续保留。
+
+纠正已确认的显示差距：96真实生产页面是静态的，没有实现预览中的动效；此前静态／源码一致性检查不能证明预览效果已经上机。97有新的真实生产LVGL多帧／动效报告，但它仍不是物理LCD帧率、流畅度或听感时序验收。
+
+当前设备：当前状态未证明同步歌词取回成功，HTTP=0，lyrics=waiting_track，lines=0；状态字段fetch_elapsed_ms=0，同generation启动日志观察到的最大请求数=None。历史96首次为37165ms／6请求；两者不是已控制的同曲A/B，不能据此宣称加速倍数。新冷路径三请求属于源码／主机验证预期，不能替代本次实际日志。
+
+97将精确404且有专辑的compact v2／ID兼容匹配提前，保持三字段一致、唯一最近、min(10秒,3%)及时间戳不越实际时长，最多8请求／45秒软预算。两首LRU按五字段完整签名匹配，仅缓存Synced／Instrumental，96KiB是估算payload总上限而非实测总RAM；缓存恢复不依赖Wi-Fi。完整同值通知不使缓存／请求失效。暂停保留音乐页，不再15秒退出；断连／禁用仍清除。33ms固定对象动画只在播放态计时、暂停静止、clear销毁timer，未实测LCD FPS。未增加音频、依赖或调整优先级。
+
+证据：`logs/device-lyrics97-usb-audit.json`、`logs/lyrics97-ui-final.json`、`logs/device-lyrics97-status.json`。92触摸静置证据保持其原有范围，未新增真人摸头／LIVE验收。
+<!-- lyrics97-current:end -->
+
+
+<!-- lyrics-fixed96-current:start -->
+## 本轮96状态（本段优先；下文较早部署记录按当时证据保留）
+
+USB已读回seq96 NEW；本地保存的独立LAN证据确认新ELF／ota_1／VALID。LAN接口本身不暴露原始序号。镜像5,030,704 bytes，余量146,640 bytes；临时94先标ABORTED再被覆盖，正常93／ota_0及NVS、其余启动区和资源通过整槽保护校验。
+
+本次《你要的全拿走》的实际手机时长为293016ms；同歌名／歌手／专辑的公开记录标为290000ms和299000ms，携带完全相同的103行LRC时间轴。只改变请求时长即可复现严格404与200，确认时长门槛足以解释这组请求差异；时长标签为什么不同、歌词与音频是否逐句吻合尚未证明。新生产解析器离线重放40项检查通过，旧LRCLIB39／网易49／酷狗45行响应仍通过；证据见 `.tools/lyrics-actual293/brief-summary.json` 和 `.tools/lyrics-fixed96-probe/summary.json`。
+
+匹配兼容：原严格源链保持±2秒；仅精确LRCLIB为NotFound且有专辑时，在链尾追加v2 metadata search与ID下载。歌名、歌手、专辑须全同，时差不超过min(10秒,实际时长3%)，唯一最近ID且下载后复核；全部LRC时间不得超出实际时长，不平移或缩放。最坏8请求，共享45秒软预算、64KiB响应上限和250ms间隔。
+
+实际状态：已收到同步歌词（103行）；HTTP=200，lyrics=synced，lines=103。这与听感时序／LCD验收分开，物理对齐尚未测量。临时明文tuple日志已移除；原失败、PC探针和92触摸静置证据保留，未新增真人摸头／LIVE验收。旧87 UI报告仅作源码未改证据，没有新渲染验收。
+
+诊断更正：Windows列出WINUSB设备并不代表JTAG可用；实际OpenOCD在连接GDB前即以LIBUSB_ERROR_NOT_FOUND退出，未附加／暂停CPU，也未改Windows驱动。实际匹配参数来自随后临时94的USB诊断，不能把失败JTAG记录当作读取成功。
+
+本地证据：`logs/device-lyrics-fixed96-usb-audit.json`、`.tools/device-backups/20261105-151434-lyrics-fixed96-usb/deployment.json`、`logs/device-lyrics-fixed96-status.json`。
+<!-- lyrics-fixed96-current:end -->
+
 更新：2026-11-02。已完整阅读 `STACKCHAN_HANDOFF.txt`，沿用 StackChan + ToF4M 方案。最新全屏菜单与12秒护眼动作说明见本文末尾；历史试验按时间保留。
 
 ## 已验证状态
@@ -23,7 +230,7 @@
 | 摆放目标 | 用户计划将 ToF 固定在电脑屏幕边框，Grove 线连接机器人；USB 较短，先近处测试 |
 | 测距调试入口 | 主菜单 BOTIFIER；顶部下滑/底部上滑打开菜单，DISTANCE 实时调参，HOME退出；读数100ms刷新；用户已确认诊断读数灵敏 |
 
-完整版本、依赖 commit 和固件 SHA256 见 [environment.json](environment.json)。
+公开工具链格式见[环境模板](environment.example.json)，固件摘要与部署结果见[部署记录](DEVICE_DEPLOYMENT.md)；完整本机版本与历史保存在已忽略的`environment.json`。
 设备配网另见 [WIFI_DIAGNOSIS.md](WIFI_DIAGNOSIS.md)。
 
 ## 当前演示与退出问题
@@ -321,7 +528,7 @@ seq59实际内容提交仅45次/11,928ms≈3.77次每秒，44个间隔中43个�
 
 后台网络使用现有保存SSID及驱动重连，不抢占唯一WifiManager callback。StackChan板级StartNetwork在上游安装回调后，若station已经连接则补发正常Connected路径，消除AI重复启动网络后错误保留60秒配网定时器的回归；不修改上游子模块。真实设备部署、登录与独立查询结果另记于`DEVICE_DEPLOYMENT.md`。
 
-首个独立版seq65已实机启动并读回VALID，但用户两次SIGN IN均失败。第二次只读采集到`getaddrinfo`错误202（SDK `EAI_FAIL`），继而连接失败、HTTP状态0；不能把Wi-Fi连接成功当作外部域名可用。电脑上的独立UDP实验中，热点网关192.168.137.1:53立即拒绝，1.1.1.1/8.8.8.8返回DNS成功；这不证明设备收到的具体DNS RCODE。
+首个独立版seq65已实机启动并读回VALID，但用户两次SIGN IN均失败。第二次只读采集到`getaddrinfo`错误202（SDK `EAI_FAIL`），继而连接失败、HTTP状态0；不能把Wi-Fi连接成功当作外部域名可用。电脑上的独立UDP实验中，热点网关<ROBOT_HOST>:53立即拒绝，1.1.1.1/8.8.8.8返回DNS成功；这不证明设备收到的具体DNS RCODE。
 
 修复只补空BACKUP=1.1.1.1、空FALLBACK=8.8.8.8，保留MAIN及已有服务器。起初仅补FALLBACK的候选被源码复核否决：lwIP `dns.c:1136,1385–1401`在非零RCODE分支仅检查紧邻槽，BACKUP空时不会尝试FALLBACK；超时分支才跳过空槽。NOERROR但无可用记录仍不会切换服务器，此限制保留。当前SDK的DNS槽为全局共享，不能声称它仅作用于额度任务。响应数据预算在`HTTP_EVENT_ON_CONNECTED`后重新开始10秒，避免DNS重试/TLS握手耗时误耗响应预算；仍不是整笔请求硬超时。`SC_CODEX_HTTP`仅固定端点枚举及数字错误码，`SC_CODEX_DNS`仅三个服务器地址，不记录请求/响应内容或凭据。以上修复的实际效果须以新设备记录为准。
 
@@ -379,3 +586,95 @@ App仅在LIVE、有效Alert、菜单关闭且无摸头/NFC/完整护眼时启用
 固件按依赖分为 `b45dfbf`（独立账号与局域网更新）、`5753f9f`（摸头、电量与互动优先级）、`0347a09`（持续过近动作）。共享文件从已验证的75、77、78源码清单分阶段暂存，不改当前工作区；最终57份源文件与已部署78构建清单逐字节一致。提交保留既有测试夹具的空文件尾行，没有为整理历史而重写验证版本。
 
 本日重新运行Host **23/23**、PC **95/95**及离线测距模拟，日志 `logs/classified-commit-host-20261104.log`、`logs/classified-commit-pc-20261104.log`。环境记录增加当前提交/树与构建清单的对应关系，设备实测时间及待验收项保留；本轮未操作机器人或将主机通过误写成实体动作验收。设备备份、KEY、日志、二进制及私有探针仍在忽略目录。
+
+## iPhone / Spotify 独立歌词候选（2026-11-04）
+
+实现通过现有 NimBLE host 读取 Apple Media Service，由机器人自己的 HTTPS worker 查询 LRCLIB，不新增依赖、不转发音频。独立元数据代号废弃旧请求，完整批次按 Player Name → Track 四字段 → PlaybackInfo 刷新，避免注册时尚未 Ready 的通知导致有歌名无播放状态。界面接入 BOTIFIER/MUSIC；歌词低于 NFC、完整护眼、摸头和距离提醒，高于普通栏目，不更新 idle activity 或推迟到期护眼。新 20px/1bpp 字体由已有源生成，保留全部 6649 映射字形；位图从1,086,954降至274,538 bytes，脚本 --check 和逐像素/全部 cmap 检查通过。
+
+独立审查发现并修复：GATT UUID重建后count_cfg预算累计及GAP名称分配泄漏；异步断开时快速OFF/ON未恢复媒体广播；较旧PlaybackInfo长读覆盖较新暂停/seek；AMS首配失败后无法FORGET及HCI terminate后SMP迟到保存绑定。最后一项对最终owned DISCONNECT的resolved identity补清理，测试独立保存NimBLE bond与业务owner，保留其他legacy bond。已回到真实固定IDF的ble_gatts、ble_att_svr、ble_sm和GAP源码核对生命周期，顺序为reset→GAP deinit→gatts stop→init→restore name→start；200次切换验证预算、分配与JSON保持。早期测试错误地期待旧读覆盖新通知，已明确修正并留在回归注释；没有把那次错误通过当成正确同步证据。
+
+最终Host 28/28：协议395项、HTTPS/worker实际adapter29项、实际BLE异步回调与共享C函数兼容回归。电脑端95/95和离线模拟通过。真实App+LVGL（硬件/服务替身）16639项，8655次布局检查，100轮歌词/CODEX/触摸生命周期及30轮Alert生命周期无残留；零裁字、缺字、图像借用释放错误。验证时先发现并修复C字体链接、MUSIC长标题裁切与初始Text占位；失败日志/截图保留。新字体要求LV_FONT_FMT_TXT_LARGE=1，私有LVGL库重新构建以保证结构ABI匹配，未使用不匹配的旧库宣称通过。视觉94/pass，属于主机实际渲染，不是LCD实拍。
+
+最终ESP-IDF 5.5.4增量构建成功：logs/lyrics-idf-final.log；28目标日志logs/lyrics-host-final.log；显示报告logs/lyrics-ui-final.json；PC日志logs/lyrics-pc-regression.log。46份固件输入在构建前后hash一致，UI源与验证hash一致。候选归档.tools/firmware-artifacts/20261104-lyrics-74ebaf6cbdb0，镜像5,011,232 bytes，现有0x4f0000应用槽剩166,112 bytes（约3%）。image SHA256=74ebaf6cbdb0acc5982b64725a2b36bb90f574ffb5fdf5a233be75a0df9407f1；ELF SHA256=8a04eb79e759ea09cc72af3fbbf2c093ff2e0595217139f2b0b77dd652c752ee。归档含47份源输入（包括本地sdkconfig），未改变分区表。
+
+构建完成时此候选尚未安装。随后首版无线安装通过，实测iPhone配对、AMS发布和播放时钟；歌词网络请求失败。后续修复和安装结果见下节及DEVICE_DEPLOYMENT.md。Spotify暂停/跳转/锁屏/重连、LRCLIB实际网络及双无线/TLS资源余量仍需分别实测；原配网/DANCE实际模式切换也未实测。DISABLE恢复原厂BLE，首次仅由MUSIC初始化后仍保留legacy广告是已记录行为。固件Flash余量较小，后续扩展需继续验证分区容量。没有提交或推送本轮改动。
+
+### 首版实测后的取词修复与USB部署
+
+首版观察到完整媒体元数据与递增播放时钟，但取词error263、28674、HTTP0、0行。修复复用已有额度服务的同步HTTPS，保留证书验证、64KiB响应上限和失效代号检查，并新增五个数字诊断字段；socket10秒、正文10秒及总45秒软预算，不承诺强制中断DNS。AMS Ready后的Absent Attribute仅对Select/Read特殊处理：空专辑继续原批次，必填属性缺失清旧词并保留订阅重试；不将418一律当成无线断线。无新依赖，无显示重构。
+
+Host28/28、真实App/LVGL16640项／8655布局检查、关键8帧字节一致，完整IDF构建通过。修复镜像5,012,448 bytes，槽剩164,896 bytes，冻结归档 `.tools/firmware-artifacts/20261104-lyrics-repair-700c190b2c23`。两次无线安装未确认后按用户接入USB完成更新；USB实读旧seq79／VALID、校验备用ota_1镜像后写seq80记录，原活动镜像、配置和资源保留。40秒启动采集与独立LAN读回确认目标ELF／ota_1／VALID。具体摘要、保留范围和失败证据见DEVICE_DEPLOYMENT.md；修复后的取词仍待手机播放实测，OTA panic根因未取得堆栈，不声称已修复。
+
+### seq80实测未通过：内部RAM耗尽
+
+用户重新播放后仍反馈OFFLINE，证明上一轮仅改同步HTTPS未解决问题。`logs/device-lyrics-offline80-redacted.log` 直接记录 `esp-tls: select() error: Not enough space`，内部空闲依次2495、403、3467、575 bytes，最低23 bytes，随后AES内存分配失败，连原额度查询也受影响。SystemInfo读取的是 `MALLOC_CAP_INTERNAL`；LAN状态请求全部超时，不能声称已从它取得五个新诊断值。数值摘要 `logs/lyrics-memory-diagnosis.json` 保留本轮结论与此前方案不足。
+
+回到固定IDF源码核对：mbedTLS和NimBLE host早已配置external，但FreeRTOS semaphore、VFS select临时对象、AES DMA等仍需内部RAM。启用 `CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y` 使Wi-Fi通用和lwIP普通分配优先外存，间接减少竞争；不描述为所有select对象被搬到外存。该开关强制静态TX，因此显式设4个DMA TX缓冲，避免默认16个约25.6KiB内部常驻成本；32个TX缓存、RX3／dynamicRX6／RX BA3保留。对照 `lwipopts.h:1708`、`esp_wifi/esp32s3/esp_adapter.c:73`、`esp_wifi/Kconfig:57–126`、`vfs/esp_vfs_private.h:16` 和FreeRTOS heap实现。
+
+配置候选保留内部任务栈、64KiB internal reserve、蓝牙连接数／MTU／ACL缓冲、证书验证。Host28/28重跑通过，47份源输入冻结，全部C/C++和既有UI报告的源摘要与seq80一致；不将旧UI报告写成新渲染。底层完整重编最终通过，日志为 `logs/lyrics-memory-idf-final.log`；此前中断及恢复失败的日志单独保留，不作为成功证据。
+
+### seq81仍不足：迁移AMS缓存
+
+配置候选通过USB写入seq81／ota_0，启动日志确认目标ELF及稳定后标记VALID。初次LAN确认时电脑热点关闭；用户恢复热点后，串口确认联网地址为<ROBOT_HOST>，但内部空闲仍约4.9–5.1KiB、最低1371 bytes，再次出现AES分配失败／TLS错误。证据 `logs/device-lyrics-memory-network-restored-redacted.log`。HTTP服务另报listen errno112；固定工具链的newlib定义它为EADDRINUSE，不能将该码直接写成内存不足，首次服务启动失败原因仍未闭环。
+
+`lyrics/ble_client.cpp` 的value、notification及四份Track缓存合计6144 bytes仅供CPU读写。将其改为在既有初始化锁内、启动BLE之前一次性严格分配到SPIRAM／8BIT；没有内部RAM回退。分配失败返回BLE_HS_ENOMEM，未完成初始化，下一次ENABLE可以重试。缓存跨DISABLE、断连和旧ATT回调保留，通知与长读仍使用不同缓冲；元数据容量、MTU、协议和订阅逻辑不变，无新依赖。
+
+ELF符号Client由6232降为92 bytes，内部静态占用确实减少6140 bytes，不能据此预先声称运行期取词通过。新增分配失败／重试、严格PSRAM标志、6144 bytes容量及生命周期不重复分配测试；原有长读与通知交错、连接代号、FORGET和共享host回归一起28/28通过。冻结48份输入，最终IDF构建通过；归档 `.tools/firmware-artifacts/20261104-lyrics-buffers-b8515206145f`，镜像5,006,512 bytes，分区剩170,832 bytes。显示源码及旧UI报告全部源摘要未变，复用旧报告，不声称进行了新渲染。实机安装与网络结果见DEVICE_DEPLOYMENT.md。
+
+### 无线诊断恢复与AES验证
+
+seq82启动后额度曾恢复HTTP200，但HTTP调试启动仍反复listen112，用户看到NO SYNCED LYRICS；当时没有HTTP诊断值，不由屏幕文字推断具体返回码。seq83将HTTP启动条件从STA已连接提前为WifiManager初始化完成，仍使用内部6144 bytes任务栈、相同鉴权与三条路由，并在失败时记录返回码和分配前内部free／largest。实际启动3174ms监听成功，独立LAN读回目标ELF／ota_0／VALID。该结果证明新启动流程在这一轮可用；原首次启动是否因任务分配失败后遗留监听socket，仍缺少直接日志，不能写成已确定根因。
+
+seq83中仍捕获硬件AES分配失败与TLS读写错误，即使内部空闲约10–13KiB。数值声明更正：曾向用户称DMA路径可能需要两块8KiB缓冲，随即核对发现8KiB仅在ESP32-P4分支启用；实际ESP32-S3分支的AES_MAX_CHUNK_WRITE_SIZE为1600 bytes。原16KiB解释被证伪，不作为诊断依据。固定SDK的esp_aes_dma_core.c中多处分配失败使用相同日志，未取得调用栈前不能精确归到其中一处。seq84通过SDK配置关闭硬件AES，使用已有软件实现避开AES DMA分配，保留证书校验、TLS记录上限和内部任务栈，不修改SDK源码。新ELF不再链接aes_process_dma，仍有mbedTLS AES CBC／CTR实现。设备授权刷新和额度查询均HTTP200，TLS错误和socket errno均0；尚未把额度成功等同于歌词取词验收。
+
+另用新增回归复现可选专辑不一致：AMS允许专辑为空，而响应验证仍无条件比较返回专辑，导致匹配的HTTP200响应被拒绝。只在expected.album非空时比较专辑，歌曲、歌手和±2秒时长校验不变，未改请求URL或添加模糊匹配。修复前失败日志 `logs/lyrics-optional-album-before.log`；修复后28/28通过。重编2456项完成并在最终48份冻结输入下再次检查，归档 `.tools/firmware-artifacts/20261104-lyrics-tls-fe0c787efd44`，显示源码未变。seq84／ota_1／VALID已独立LAN验证，取词与触摸实屏结果继续待手机测试。
+
+用户拔掉ToF后LIVE被表情遮挡的同期串口显示SC_PET代号持续增加，确认是新的摸头互动反复触发。源码中sensor_missing会清距离报警，不会禁止音乐卡片；HAL每50ms读取头顶触摸，无稳定时间去抖。尚无原始触摸值／读错误或用户移开手和线缆后的结果，物理噪声来源待验证；未擅自禁用互动或修改优先级。
+
+### 2026-11-05：触摸连续触发，seq85实机仍失败
+
+更新前再次采集用户明确不摸头的LIVE：`logs/device-head-touch85-live-before-redacted.log` 在56,326ms内记录39个新SC_PET代号，普通pet节目、距离报警false。seq84此时已运行约14.7小时，内部空闲323 bytes／最低43 bytes；内存下降原因未闭环，不将它直接解释成触摸故障。为降低更新风险改用USB，没有再试无线上传。
+
+seq85增加100ms接触／200ms松开确认，读取失败不投递手势，超过200ms采样间隔重新计时；保留通道变化、合法滑动、长按只触发一次及原50ms采样。新增SC_HEAD每2秒输出原始值、过滤值、接触边沿数、接受Press数和读取错误。Host29/29及IDF构建通过，USB安装并独立LAN确认seq85／ota_0／VALID；启动前40秒触摸计数为0，但该短窗口不能代表LIVE验收。
+
+用户实测“不摸头也一直被表情打断”，随后明确头顶从来没有物件，撤回外物接触作为本次解释。`logs/device-head-touch85-live-after-redacted.log` 中117,396ms内原始边沿53→143、Press19→54、读取错误始终0；期间进入LIVE后SC_PET代号0→5。**单纯100／200ms软件去抖不足，seq85没有解决问题。** LIVE专门把Press转为3秒高优先级互动，并允许新Press重启；设置页不准入此控制器，所以同一异常输入在LIVE造成持续占屏。此结论由`update_head_touch`准入和`TouchReaction::trigger`重置起始时间、歌曲渲染的active屏蔽分支共同支持。
+
+官方Si12T手册12.2.5要求0x0D的bit4／5保持1，而旧驱动写0；12.2.4规定置位Ref_rst请求更新，旧初始化只清零没有主动重建参考。另外head_touch_init原先早于io_expander_init开启舵机VM。下一轮修正上述配置／顺序并加读回验证；它们是否构成此次无触摸信号的根因仍待实测。参考官方[Si12T手册](https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1205/Si12T_Datasheet_EN.pdf)及[官方BSP同类误触调查PR](https://github.com/m5stack/StackChan-BSP/pull/6)，后者本身也未宣称消除误触。
+
+seq86候选将0x0D改为0x30；setup先释放数字复位，再写原有配置／灵敏度，最后以Ref_rst1=FF、Ref_rst2=0F、Ref_rst1=00、Ref_rst2=00脉冲重建参考，逐项读回13个配置值。不增加动态灵敏度、自动屏蔽或新优先级。head_touch_init移到servo_init之后；已有内部6KiB任务异步等待1500ms电源稳定，再setup并保留200ms采集前等待。初始化／配置失败不启动手势采样，并明确记错，不将无输入误判为修复成功。
+
+真实Si12T驱动对独立I2C模型新增5场景：必需位、校准顺序、读写失败、13个读回不符逐一拒绝及OUTPUT1读取。旧HEAD驱动编译后测试明确失败“CH_HOLD2 did not preserve required bits 4 and 5”（`.tools/si12t-baseline/expected-failure.log`）；修正后全套Host30/30及ESP-IDF5.5.4构建通过。冻结57份输入，`.tools/firmware-artifacts/20261105-head-touch86-346ca5577c93`，镜像5,013,696 bytes，剩163,648 bytes。显示／App源码不变，复用旧LVGL报告，未声称新渲染或实机通过。部署和现场观察另见DEVICE_DEPLOYMENT.md。
+
+### seq87：独立复现并阻止LIVE无限抢占
+
+用户反馈READER OFF仍出现，且明确要求自行从代码／日志分析，停止重复请求人工试验。更正此前过度归因：后采集`logs/device-head-touch86-nfc-off-result-redacted.log`未捕获SC_PET，观察到普通轮播与到期EyeRest，媒体同时为暂停；因此不能把当时每次宠物脸都算作摸头互动，也不能由该段确认NFC射频是根因。旧SC_HEAD前缀同时用于触摸数值与护眼机头动作，解析必须区分字段。
+
+代码缺陷独立闭环：`TouchReaction::trigger`每次Press重置_start_ms，400–3000ms间隔的持续事件可永远赶在三秒结束之前续期；LIVE的active分支又会一直隐藏歌词。新增回归在未改旧控制器时明确失败“touch stream restarted at its hard deadline”（`logs/head-touch87-cap-negative.log`）。修正保留三秒正常回应和短期二次撒娇，但一次连续会话最多六秒；达到上限后，至少两秒不接受触摸重启，NFC／完整护眼／距离提醒优先级没有重排。迟帧、回绕、锁拥有权及实测姿态接起仍受原有约束。
+
+输入层保留100／200ms确认，四秒内第三个确认接触起暂停接受触摸，向识别器交付零值，避免锁死在TOUCHED；必须连续有效零输入两秒才能恢复。读错或超过200ms采样间隔重新计静默，非零输入打断静默；长按／滑动不累计为多个接触，正常前两次触摸保留。此为异常输入保护策略，快速连续真实第三次触摸也会触及保护，不声称从波形识别了人的意图或消除了硬件误报。17场景／766断言通过，旧过滤器的独立负控仍输出第三个接触而失败（`.tools/head-touch-guard-baseline/expected-failure.log`）。
+
+触摸数值日志改用SC_TOUCH，包含isolated／suppressed；SC_PET增加每两秒心跳和准入／页面／抽屉状态，SC_SURFACE记录实际渲染分支、播放／歌曲准入和NFC开关。没有曲目、歌词正文或凭据输出。后续必须用这些记录区分touch、eye_rest、pet、music与设置页，不能凭“屏幕显示表情”或缺失一次变化日志断言来源。
+
+Host30/30、ESP-IDF5.5.4构建通过，59份源输入冻结。新的真实AppDistance＋LVGL验证40,361项、8,800几何检查通过，0裁切／缺字；回放原始39次SC_PET的精确相对间隔（20ms帧量化），另测400／500／1200／2000ms持续事件，五组最长占屏6000ms、其后歌曲连续可见至少2000ms。该UI测试绕过新HAL隔离，独立验证控制器的终止保证。NFC／完整护眼、正常两摸、缺失ToF、非LIVE丢弃／不补播、暂停15秒合法回闲脸均通过；274个既有帧逐字节一致。报告`logs/head-touch87-ui-final.json`及`logs/head-touch87-ui-frame-comparison.json`。首轮新暂停断言误以为Pet会创建idle View，已只修私有fixture并保留失败报告；生产实现未因此改动。
+
+seq87首启未通过：USB镜像和保护区均校验正确，但AXP2101初始化读取在`I2cDevice::ReadReg`返回0x103并触发ESP_ERROR_CHECK；此时在`Hal::xiaozhi_board_init`，尚未启动头触任务。启动日志确认先加载目标ELF d3067506f，再自动回退seq86／ota_1／VALID；安装报告success=false保持原样，没有将旧SC_HEAD误当成新SC_TOUCH验收。SDK5.5.4同步I2C事务在状态非DONE时可返回INVALID_STATE；未捕获状态细项，不将0x103自行等同于NACK、供电故障或内存不足。该板级读取源码本轮未改，是否为偶发启动总线状态仍待同镜像受控重启交叉验证。
+
+### seq90自动对照：触摸门槛与原始异常输入
+
+在用户明确头顶没有接触、要求停止重复人工试验后，使用一次性诊断镜像自动测15段，每段配置读回、等待1秒、采样24秒；期间不投递摸头手势。依次对照全部12路／仅TS1–3、sleep／awake、LOW3／5／7，并穿插返回LOW3基线。官方电路图仅TS1–3为头顶电极，其余含接地和悬空通道；关掉未用通道是配置匹配，**本轮实测它没有消除异常，不能将通道配置写成根因**。关闭sleep同样无效。
+
+`logs/head-touch90-ab-analysis.json`保留每段原始计数及直方图。LOW3各段非零比例20.37%–27.71%；连续的awake／三通道3→5→3分别为113/480、0/480、129/480，随后再次回到3仍113/480。LOW7两段awake及一段sleep均0/480。所有段读取错误0；这是门槛对无接触输出有可重复影响的证据，不证明电气干扰的来源或人体触摸正确率。FTC为10秒，按采样10秒检查点再单独计算后段，避免把复位校准期间误认为sleep行为；该分段结果与全段结论一致。4条多次printf输出的直方图被其它任务日志插入，分析只保留各行完整的单次printf数值头，缺失直方图记null，不拼造样本。
+
+驱动保留原`si12t_setup`的兼容行为，新增带12位活动通道掩码和sleep选项的入口；CH_ON为反向位，007对应0C=F8、0D=3F，必需位4/5仍为1。补齐SEN6，配置后校准活动通道并读回14个值。注意新增SEN6写入是新all基线与89的额外差异，不能说此轮all基线与89完全相同。真实驱动/fake-I2C覆盖9场景、2180断言，原实现先被SEN6回归证伪；全套Host30/30、诊断和生产候选IDF构建均通过。
+
+生产候选移除整个自动轮测函数，采用仅三路／LOW5／保留sleep，原50ms采样、100/200ms确认和异常隔离保护不变。LOW输出门槛由0.95%提高到1.60%，选较温和的5档，未直接用2.85%的7档。最终配置的连续静置验证和真实摸头验收范围以DEVICE_DEPLOYMENT.md为准。没有新增HTTP控制接口、依赖或持久参数。NFC射频仍属未证实假设：MCU软复位或HOME页面本身不保证外设RF场关闭，不能仅由HOME也有信号就排除射频；本轮没有执行RF状态读回实验。
+
+### 歌词93：404后的有界备用源
+
+用户提供问题歌名《这世界那么多人》。公开接口独立验证发现：以Karen Mok、285.884秒及简体专辑名请求LRCLIB返回404；省略专辑后取得相同歌名、歌手及286秒记录，返回专辑为繁体发行名。以莫文蔚查询网易，严格匹配候选1842025914并取得同步歌词。以上输入来自公开曲目信息，不据此推断手机AMS实际发来的歌手或专辑。
+
+生产查询依次使用LRCLIB完整签名、404后的无专辑签名、网易搜索／歌词、酷狗搜索／歌词。身份匹配保留歌名、歌手及±2秒时长；候选按相同专辑及最小时长差排序，仍歧义则拒绝。未采用无身份回执的直接LRC接口，未硬编码艺名翻译，未增加宽泛搜索与新依赖。每个响应最大64KiB，最多6次串行HTTP，共用45秒软预算，保留证书校验、换歌代号、过期丢弃、错误及Retry-After。数值SC_LYRICS阶段0–5用于现场定位，不记录URL、曲目或歌词正文。
+
+首次真实响应回放发现网易的正常附加字段包含第7层alias数组，原ArduinoJson深度6返回TooDeep。最初按标量深度计数而判断6足够的解释被独立实验否定，已修正并保留失败记录。仅网易搜索使用有界深度8，其余响应仍为6；原创合成结构在旧解析器第210项失败，修正后协议574项通过，没有放宽歌曲身份校验。生产protocol.cpp直接编译后回放真实HTTPS响应：LRCLIB39行、网易49行、酷狗45行全部Synced；酷狗样本为Hello／Adele。响应正文仅在ignored私有工具目录，仓库不加入第三方歌词fixture。
+
+最终Host30/30及ESP-IDF5.5.4构建通过。冻结输入仍为60份，相对92仅protocol.cpp/.h、service.cpp及两个协议／服务测试变化。镜像5,026,672 bytes，剩150,672 bytes；App、显示、触摸、类型和依赖未改，旧seq87渲染报告仅作这些未变源码的历史证据。真实API回放属于电脑端验证，机器人接收与屏幕验收另见DEVICE_DEPLOYMENT.md，不把两者混为一谈。

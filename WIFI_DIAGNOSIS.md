@@ -15,7 +15,7 @@ AX300 的具体 SKU、芯片、驱动和实际发射频段未核验，不作补�
 ## 已确认事实
 
 - 原 AX900 测试期间用户报告：StackChan 能连接 iPhone 17 Pro Max 开启“最大兼容性”的个人热点，不能连接该网卡提供的电脑热点。
-- 用户截图：电脑热点名称 `cmcc_list`；编辑窗口仅有名称和密码，没有频段选项。
+- 用户截图：电脑热点名称 `<HOTSPOT_SSID>`；编辑窗口仅有名称和密码，没有频段选项。
   用户确认 App 手填 SSID 完全相同，无首尾空格。本文及准备文件不保存密码。
 - 用户重试后报告 `wifi reason 201`。IDF 5.5.4 的
   `components/esp_wifi/include/esp_wifi_types_generic.h:166` 定义
@@ -26,7 +26,7 @@ AX300 的具体 SKU、芯片、驱动和实际发射频段未核验，不作补�
   `C:\Windows\INF\oem104.inf` 明确包含该硬件 ID。
   用户批准测试后已更新为 `14.46.40.664`，2026-02-02，绑定 `oem16.inf`。
 - 电脑主连接为有线以太网；热点使用 Microsoft Wi-Fi Direct Virtual Adapter #4，
-  本地地址 `192.168.137.1/24`。测试时 API 回报连接客户端数为 0。
+  本地地址 `<ROBOT_HOST>/24`。测试时 API 回报连接客户端数为 0。
 - 初始 WinRT 热点配置为 `Auto`、`Wpa2`；Native Wi-Fi
   `WlanQueryInterface(wlan_intf_opcode_channel_number)` 对热点虚拟接口返回信道 44，属于 5 GHz 信道。
   这是驱动接口回报，尚无第二台独立扫描设备确认实际无线发射频段。

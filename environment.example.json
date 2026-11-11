@@ -1,0 +1,32 @@
+{
+  "schema": "botifier-environment-template-v1",
+  "description": "Public template only. Keep machine paths, device identity, deployment history and credentials in ignored local files.",
+  "workspace": "<ABSOLUTE_LOCAL_WORKSPACE>",
+  "toolchain": {
+    "platform": "Windows",
+    "target": "esp32s3",
+    "esp_idf": "v5.5.4",
+    "host_tests": "scripts/Test-Host.ps1",
+    "firmware_build": "scripts/Build-Firmware.ps1"
+  },
+  "device": {
+    "host": "<ROBOT_HOST>",
+    "mac": "<ROBOT_MAC>",
+    "running_slot": "<READ_FROM_DEVICE>",
+    "elf_sha256": "<READ_FROM_DEVICE>",
+    "ota_state": "<READ_FROM_DEVICE>"
+  },
+  "local_only": [
+    "environment.json",
+    "logs/",
+    "log/",
+    ".tools/",
+    "pc/reminder-settings.json"
+  ],
+  "public_records": [
+    "EXPERIENCE.md",
+    "DEVELOPMENT.md",
+    "DEVICE_DEPLOYMENT.md",
+    "LYRICS.md"
+  ]
+}
