@@ -2,6 +2,18 @@
 
 此页保留脱敏后的结论和历史边界。实际网络地址、硬件标识、账号信息及原始日志留在本地；`logs/`、`.tools/`和`environment.json`不随公开仓库上传。文中的本地证据路径不能替代随仓库提供的源码与测试。
 
+<!-- lyrics113-current:start -->
+## 当前113：滚动标题修复已两段无线安装
+
+产品归档`.tools/firmware-artifacts/20261111-lyrics113-f35d78db6840`，5176512B／槽余832B，131输入／7变化。BIN SHA `f35d78db6840781b1806f8b46e1ff71bb6651cbe8d714e22a85d774228ea7ae4`、ELF `0ba2979161b02db1efdf92beee74ddf2cc6f170bf1c84e9b4f35d39a220748eb`、manifest `de58e5cbd714fc6e44dfbe35d89c6498ea1ed8203aab7ca35a99b8bfc569fcc8`。Host38/38、实际桌面App/LVGL8140检查通过；两段禁网络／凭据dry-run、工具65项与维护策略32项通过。
+
+安装前保存原MUSIC ON，一次OFF请求获准，10样本无新增重启。独立预检仍为精确112／ota_1／VALID、LIVE、MUSIC OFF／未连接、电量100%且充电，largest3072B。此次没有要求用户RST、HOME或USB。第一跳一次上传709168B，HTTP200、39.891秒，独立确认维护113 ELF `2a531d39abd424af2031b8b27a4aeba219695846131b3e62f2f3201adc252aa7`、ota_0／VALID；第二跳一次上传5176512B，HTTP200、119.812秒，独立确认精确产品113、running／boot均ota_1、VALID。两次上传均完整发送、未中断；切槽后的程序重启正常发生。
+
+维护113归档`.tools/firmware-artifacts/20261111-maintenance113-11d6141dc771`，首次启动绑定原112精确ELF，不能将原112维护桥重刷到当前产品。当前备用为VALID维护113，原112已从产品槽覆盖，保留外部归档。证据为`logs/lyrics113-live-bridge-install-20261111.json`、`logs/lyrics113-live-product-install-20261111.json`和`.tools/lyrics113-meta/offline-validation-final.json`。113是本地候选号；未读取原始ROM序号或整区MD5，未据两次成功宣称历史OTA根因已解决。
+
+依照唯一一次暂停报告恢复原MUSIC ON，一次请求被接受，10样本无新增重启。手机已自动重连；独立隐私检查仍确认未认证详情被拒、普通状态不含原始歌曲信息。当前手机为网易云音乐复合artist输入，实机1799ms／HTTP200／error0取回70行Synced。最后12个样本（uptime153530–176149ms）均保持generation2、70行、同一boot1，无panic或新增重启；设备停HOME，手机暂停于42023ms。该现场证明取词成功和短窗口保留，不冒充持续播放换句、实体LCD或整张歌单验收。证据`logs/lyrics113-music-restore-20261111.json`、`.tools/lyrics113-meta/post-install-track.json`、`logs/lyrics113-final-status-20261111.json`；原始媒体信息仅保留本地。
+<!-- lyrics113-current:end -->
+
 <!-- nfc112-current:start -->
 ## 当前112：从LIVE自动完成两段Wi-Fi安装
 

@@ -2,6 +2,16 @@
 
 本页为公开开发摘要。完整本机环境记录`environment.json`、原始日志和设备备份只保存在忽略目录；环境格式见[公开模板](environment.example.json)，可复用经验见[EXPERIENCE.md](EXPERIENCE.md)。以下历史证据路径仅供本地核对，不包含在公开仓库中。
 
+<!-- lyrics113-current:start -->
+## 113：修正手机滚动标题造成的反复等待（已无线安装）
+
+相对112仅7项输入变化：`lyrics/{protocol.cpp,protocol.h,ble_client.cpp,service.cpp}`及对应协议、BLE、服务测试。稳定专辑查询、完整alias身份重建、内容与时间证明分离，以及读取中重复通知去重，替代反复按歌词句清空查询的流程。失败与超时保留原代次、诊断和预算；真实稳定字段／queue变化仍清旧词。复用原6144字节BLE缓冲及既有TIMING?界面，无新依赖。详细机制和旧行为负对照见[LYRICS.md](LYRICS.md)。
+
+协议4873、服务1048、Host38/38通过，正式IDF镜像5176512B，原槽余832B，字体和分区未改。真实源响应完整链从无候选变为27行；错位正文为Unsynced，正确时间对照为Synced，错误身份拒绝。真实桌面Engine→App→LVGL新增13场景／453检查，总8140检查；64张旧参照帧相同，20次标题更新、三种插播恢复与五类真实身份失效通过。BLE／HTTP任务另有组件回归，未把桌面UI测试冒充实机通知或网络实验。
+
+131项源输入冻结于`.tools/firmware-artifacts/20261111-lyrics113-f35d78db6840`。从原112的LIVE、MUSIC已暂停状态完成两段Wi-Fi安装，各一次HTTP200；独立确认产品113 ELF `0ba2979161b02db1efdf92beee74ddf2cc6f170bf1c84e9b4f35d39a220748eb`、running／boot均ota_1、VALID。没有要求用户RST、HOME或USB操作。恢复与实机播放证据见[DEVICE_DEPLOYMENT.md](DEVICE_DEPLOYMENT.md)；第三方缺词、未经校准时间轴及同步网络调用的无回调阻塞仍有边界。
+<!-- lyrics113-current:end -->
+
 <!-- nfc112-current:start -->
 ## 112：刷卡切换距离提醒，并继续播放片头（已无线安装）
 
