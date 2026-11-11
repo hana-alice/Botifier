@@ -14,12 +14,19 @@
 #include <apps/common/idle_program/view.h>
 #include <apps/common/codex_weekly/service.h>
 #include <apps/common/codex_weekly/network_debug.h>
+#include <apps/common/lyrics/service.h>
+#include <apps/common/runtime_diagnostics.h>
+#include <apps/common/panic_diagnostics.h>
 
 using namespace mooncake;
 using namespace smooth_ui_toolkit;
 
 extern "C" void app_main(void)
 {
+    // Preserve the last boot's numeric breadcrumbs before HAL starts BLE/tasks.
+    botifier_panic_boot();
+    botifier_diag_boot();
+
     // Setup logger
     mclog::set_level(mclog::level_info);
     mclog::set_time_format(mclog::time_format_unix_milliseconds);
@@ -27,7 +34,7 @@ extern "C" void app_main(void)
     // HAL init
     GetHAL().init();
 
-    // The sensor continues sampling when Mooncake apps are unloaded for AI mode.
+    // Scheduled sensing is independent of Mooncake apps, including AI mode.
     const esp_err_t distance_result = distance_sensor::start();
     if (distance_result != ESP_OK) {
         mclog::tagError("distance", "sampler could not start: {}", esp_err_to_name(distance_result));
@@ -43,6 +50,11 @@ extern "C" void app_main(void)
         mclog::tagError("weekly", "native account service could not start: {}", esp_err_to_name(weekly_result));
     } else {
         codex_weekly::network_debug::start();
+    }
+
+    const esp_err_t lyrics_result = lyrics::start();
+    if (lyrics_result != ESP_OK) {
+        mclog::tagError("lyrics", "media service could not start: {}", esp_err_to_name(lyrics_result));
     }
 
     // Setup ui hal

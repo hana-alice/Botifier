@@ -9,7 +9,7 @@
 #include <nvs.h>
 #include <cinttypes>
 #include <cstdio>
-#include <atomic>
+#include <ctime>
 
 namespace distance_sensor {
 namespace {
@@ -23,12 +23,22 @@ ProximityPolicy policy;
 portMUX_TYPE snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
 Snapshot latest_snapshot;
 ProximityConfig requested_config;
-std::atomic<bool> warning_active{false};
-std::atomic<uint32_t> warning_sample_ms{0};
+SchedulePolicy schedule_policy;
+std::uint32_t applied_schedule_generation = 0;
 
 uint32_t now_ms()
 {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
+}
+
+ScheduleStatus schedule_snapshot()
+{
+    const auto wall = static_cast<std::int64_t>(std::time(nullptr));
+    const auto uptime = static_cast<std::uint64_t>(esp_timer_get_time() / 1000);
+    portENTER_CRITICAL(&snapshot_lock);
+    const auto current = schedule_policy.update(wall, uptime);
+    portEXIT_CRITICAL(&snapshot_lock);
+    return current;
 }
 
 struct StoredConfig {
@@ -79,9 +89,18 @@ const char* proximity_name(ProximityState state)
 void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
 {
     const uint32_t timestamp = now_ms();
+    const auto schedule = schedule_snapshot();
+    if (!schedule.enabled()) {
+        reading = nullptr;
+        state = schedule.mode == ScheduleMode::WaitingClock ? "waiting_clock" : "schedule_off";
+    }
     // Only this task touches the policy. UI changes are copied under the same
     // short lock as snapshots; I2C, LVGL and NVS never run inside that lock.
     policy.configure(config());
+    if (applied_schedule_generation != schedule.generation) {
+        policy.invalidate();
+        applied_schedule_generation = schedule.generation;
+    }
     if (reading) {
         policy.feed(reading->valid, reading->millimeters, timestamp);
     } else {
@@ -101,11 +120,10 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
     next.error = error;
     next.stale = false;
     next.config = policy.config();
+    next.schedule = schedule;
     portENTER_CRITICAL(&snapshot_lock);
     latest_snapshot = next;
     portEXIT_CRITICAL(&snapshot_lock);
-    warning_sample_ms.store(timestamp, std::memory_order_relaxed);
-    warning_active.store(warning, std::memory_order_release);
     char distance[12] = "null";
     if (reading) {
         std::snprintf(distance, sizeof(distance), "%u", static_cast<unsigned>(reading->millimeters));
@@ -115,12 +133,16 @@ void emit(const char* state, esp_err_t error, const Reading* reading = nullptr)
     std::printf("SC_DISTANCE {\"v\":1,\"seq\":%" PRIu32 ",\"uptime_ms\":%" PRIu32
                 ",\"valid\":%s,\"distance_mm\":%s,\"raw_status\":%u,\"state\":\"%s\",\"error\":%d,\"robot_alert\":%s"
                 ",\"filtered_mm\":%d,\"near_ms\":%" PRIu32 ",\"proximity_state\":\"%s\""
-                ",\"threshold_mm\":%u,\"hysteresis_mm\":%u,\"hold_ms\":%" PRIu32 "}\n",
+                ",\"threshold_mm\":%u,\"hysteresis_mm\":%u,\"hold_ms\":%" PRIu32
+                ",\"monitoring\":%s,\"schedule\":\"%s\",\"clock_available\":%s"
+                ",\"local_weekday\":%d,\"local_minute\":%d,\"manual_remaining_ms\":%" PRIu32 "}\n",
                 next.sequence, timestamp, next.valid ? "true" : "false", distance,
                 static_cast<unsigned>(next.raw_status), state, error, warning ? "true" : "false",
                 next.filtered_mm, next.near_elapsed_ms, proximity_name(next.proximity_state),
                 static_cast<unsigned>(next.config.threshold_mm), static_cast<unsigned>(next.config.hysteresis_mm),
-                next.config.near_duration_ms);
+                next.config.near_duration_ms, schedule.enabled() ? "true" : "false",
+                schedule_name(schedule.mode), schedule.clock_available ? "true" : "false",
+                schedule.local_weekday, schedule.local_minute, schedule.manual_remaining_ms);
     std::fflush(stdout);
 }
 
@@ -129,6 +151,15 @@ void report_and_wait(const char* state, esp_err_t error, uint32_t milliseconds)
     for (uint32_t waited = 0; waited < milliseconds; waited += 1000) {
         emit(state, error);
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void wait_for_enable()
+{
+    unsigned ticks = 0;
+    while (!schedule_snapshot().enabled()) {
+        if (ticks++ % 10 == 0) emit("schedule_off", ESP_OK);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -163,6 +194,7 @@ void run(void*)
     i2c_master_dev_handle_t device = nullptr;
     esp_err_t result = ESP_OK;
     while (device == nullptr) {
+        wait_for_enable();
         result = create_external_bus(bus);
         if (result != ESP_OK) {
             report_and_wait("i2c_bus_unavailable", result, retry_delay_ms);
@@ -180,12 +212,14 @@ void run(void*)
     Vl53l1x sensor;
     emit("starting", ESP_OK);
     while (true) {
+        wait_for_enable();
         result = i2c_master_probe(bus, 0x29, transaction_timeout_ms);
         if (result != ESP_OK) {
             report_and_wait("sensor_missing", result, retry_delay_ms);
             continue;
         }
         emit("initializing", ESP_OK);
+        const auto session_generation = schedule_snapshot().generation;
         result = sensor.initialize(device);
         if (result != ESP_OK) {
             sensor.stop();
@@ -194,7 +228,8 @@ void run(void*)
         }
 
         uint32_t last_frame = now_ms();
-        while (true) {
+        auto schedule = schedule_snapshot();
+        while (schedule.enabled() && schedule.generation == session_generation) {
             Reading reading;
             bool ready = false;
             result = sensor.poll(reading, ready);
@@ -210,8 +245,16 @@ void run(void*)
                 break;
             }
             vTaskDelay(pdMS_TO_TICKS(20));
+            schedule = schedule_snapshot();
         }
         sensor.stop();
+        // Scheduled stop clears the median/dwell via emit before a later start.
+        // It must not enter the sensor-failure backoff path.
+        schedule = schedule_snapshot();
+        if (!schedule.enabled() || schedule.generation != session_generation) {
+            emit(schedule.enabled() ? "starting" : "schedule_off", ESP_OK);
+            continue;
+        }
         report_and_wait("retrying", result == ESP_OK ? ESP_ERR_TIMEOUT : result, retry_delay_ms);
     }
 }
@@ -221,9 +264,39 @@ void run(void*)
 Snapshot snapshot()
 {
     portENTER_CRITICAL(&snapshot_lock);
-    const Snapshot current = latest_snapshot;
+    Snapshot current = latest_snapshot;
     portEXIT_CRITICAL(&snapshot_lock);
-    return current.at(now_ms());
+    current = current.at(now_ms());
+    const auto sampled_generation = current.schedule.generation;
+    current.schedule = schedule_snapshot();
+    if (!current.schedule.enabled() || current.schedule.generation != sampled_generation) {
+        current.valid = false;
+        current.raw_mm = current.filtered_mm = -1;
+        current.near_elapsed_ms = 0;
+        current.proximity_state = ProximityState::Waiting;
+        current.sensor_state = current.schedule.enabled() ? "starting" :
+            current.schedule.mode == ScheduleMode::WaitingClock ? "waiting_clock" : "schedule_off";
+    }
+    return current;
+}
+
+void enable_from_head_touch()
+{
+    const auto wall = static_cast<std::int64_t>(std::time(nullptr));
+    const auto uptime = static_cast<std::uint64_t>(esp_timer_get_time() / 1000);
+    portENTER_CRITICAL(&snapshot_lock);
+    schedule_policy.touch(wall, uptime);
+    portEXIT_CRITICAL(&snapshot_lock);
+}
+
+ScheduleStatus toggle_from_nfc()
+{
+    const auto wall = static_cast<std::int64_t>(std::time(nullptr));
+    const auto uptime = static_cast<std::uint64_t>(esp_timer_get_time() / 1000);
+    portENTER_CRITICAL(&snapshot_lock);
+    const auto current = schedule_policy.toggle(wall, uptime);
+    portEXIT_CRITICAL(&snapshot_lock);
+    return current;
 }
 
 ProximityConfig config()
@@ -261,9 +334,8 @@ esp_err_t save_config()
 
 bool alert_active()
 {
-    if (!warning_active.load(std::memory_order_acquire)) return false;
-    const uint32_t sampled_at = warning_sample_ms.load(std::memory_order_relaxed);
-    return now_ms() - sampled_at <= sample_timeout_ms;
+    const auto current = snapshot();
+    return current.valid && !current.stale && current.proximity_state == ProximityState::Alert;
 }
 
 esp_err_t start()

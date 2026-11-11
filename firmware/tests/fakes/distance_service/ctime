@@ -1,0 +1,10 @@
+#pragma once
+
+// Isolated to this target. Do not rename time with a preprocessor macro: that
+// can also rename declarations inside unrelated standard-library headers.
+#include <time.h>
+
+namespace std {
+using ::time_t;
+time_t time(time_t* result);
+}

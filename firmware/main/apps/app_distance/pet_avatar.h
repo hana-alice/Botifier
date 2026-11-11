@@ -11,6 +11,7 @@ public:
     DistancePetAvatar();
     ~DistancePetAvatar() override;
     void init(lv_obj_t* parent);
+    void setSurfaceVisible(bool visible);
     void setInteractionForeground(bool active);
     void setMood(distance_pet::Mood mood, std::uint32_t now_ms);
     void tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react = false,
@@ -23,4 +24,5 @@ private:
     distance_pet::Signal _last_signal = distance_pet::Signal::Unavailable;
     std::uint32_t _last_tick = 0;
     bool _started = false;
+    bool _surface_visible = true;
 };

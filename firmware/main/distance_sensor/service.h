@@ -2,6 +2,7 @@
 
 #include <esp_err.h>
 #include "proximity_policy.h"
+#include "schedule.h"
 
 namespace distance_sensor {
 
@@ -19,6 +20,7 @@ struct Snapshot {
     esp_err_t error = ESP_OK;
     bool stale = true;
     ProximityConfig config;
+    ScheduleStatus schedule;
 
     // Age a read-only copy. Looking at diagnostics never advances the policy.
     Snapshot at(std::uint32_t now_ms) const noexcept
@@ -39,6 +41,13 @@ struct Snapshot {
 
 // One coherent sample copied under a short critical section; never polls I2C.
 Snapshot snapshot();
+
+// Filtered head Press, independent of the active app. No I2C, UI or NVS work.
+void enable_from_head_touch();
+
+// One admitted card presentation. No I2C, UI or NVS; expires at the next
+// 09:30/21:30 boundary so the automatic weekday schedule can resume.
+ScheduleStatus toggle_from_nfc();
 
 // Requested settings are applied by the sampler before its next publication.
 // snapshot().config always describes the settings used for that exact sample.

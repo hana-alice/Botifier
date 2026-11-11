@@ -12,12 +12,17 @@
 #include <apps/common/codex_weekly/service.h>
 #include <apps/common/idle_program/service.h>
 #include <apps/common/idle_program/view.h>
+#include <apps/common/lyrics/service.h>
+#include <apps/common/lyrics/view.h>
+#include <apps/common/lyrics/presentation.h>
+#include <apps/common/lyrics/font_cjk_20.h>
 #include <distance_sensor/service.h>
 #include <hal/hal.h>
 #include <smooth_lvgl.hpp>
 #include <stackchan/stackchan.h>
 #include <lvgl_image.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -195,7 +200,7 @@ const char* codex_error_label(codex_weekly::Error error)
 }  // namespace
 
 struct AppDistance::View {
-    enum class Mode { Live, Tune, Nfc, Idle, Codex };
+    enum class Mode { Live, Tune, Nfc, Idle, Codex, Music };
 
     struct Row {
         std::unique_ptr<Label> label;
@@ -207,6 +212,7 @@ struct AppDistance::View {
     // Parents precede their child wrappers so destruction releases children first.
     std::unique_ptr<Container> tune_page;
     std::unique_ptr<Container> codex_page;
+    std::unique_ptr<Container> music_page;
     std::unique_ptr<Container> intro_page;
     std::unique_ptr<Container> drawer_root;
     std::unique_ptr<Container> drawer_panel;
@@ -220,6 +226,7 @@ struct AppDistance::View {
     std::unique_ptr<Button> menu_programs;
     std::unique_ptr<Button> menu_close;
     std::unique_ptr<Button> menu_codex;
+    std::unique_ptr<Button> menu_music;
     std::unique_ptr<Label> menu_title;
     std::unique_ptr<Label> live_distance;
     std::unique_ptr<Label> live_state;
@@ -244,6 +251,16 @@ struct AppDistance::View {
     std::unique_ptr<Button> codex_sign_in;
     std::unique_ptr<Button> codex_refresh;
     std::unique_ptr<Button> codex_forget;
+    std::unique_ptr<Label> music_title;
+    std::unique_ptr<Label> music_link;
+    std::unique_ptr<Label> music_hint;
+    std::unique_ptr<Label> music_track;
+    std::unique_ptr<Label> music_status;
+    std::unique_ptr<Button> music_enable;
+    std::unique_ptr<Button> music_forget;
+    std::unique_ptr<Button> music_live;
+    bool music_enabled = false;
+    std::string music_track_text;
 
     Mode mode = Mode::Tune;
     Mode requested_mode = Mode::Live;
@@ -264,6 +281,8 @@ struct AppDistance::View {
     bool previous_interactions_suspended = false;
     int touch_logged_phase = -1;
     std::uint32_t touch_logged_generation = 0;
+    std::uint32_t touch_logged_at = 0;
+    std::uint32_t surface_logged_at = 0;
     distance_pet::Mood touch_mood = distance_pet::Mood::Idle;
     bool touch_face_active = false;
     distance_pet::ContentTimingWindow content_timings;
@@ -311,10 +330,14 @@ struct AppDistance::View {
         drawer_panel->setBgColor(lv_color_hex(0x14202B));
         drawer_panel->setBgOpa(LV_OPA_COVER);
         drawer_panel->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
-        menu_title = make_label(*drawer_panel, 12, 8, 190, &MontserratSemiBold26);
+        menu_title = make_label(*drawer_panel, 12, 8, 128, &lv_font_montserrat_16);
         menu_title->setText("BOTIFIER");
-        menu_codex = make_button(*drawer_panel, 208, 6, 92, "CODEX");
-        menu_codex->setSize(92, 30);
+        menu_music = make_button(*drawer_panel, 148, 6, 70, "MUSIC");
+        menu_music->setSize(70, 30);
+        menu_music->label().setTextFont(&lv_font_montserrat_14);
+        menu_music->onClick().connect([this]() { request_mode(Mode::Music); });
+        menu_codex = make_button(*drawer_panel, 228, 6, 70, "CODEX");
+        menu_codex->setSize(70, 30);
         menu_codex->label().setTextFont(&lv_font_montserrat_14);
         menu_codex->onClick().connect([this]() { request_mode(Mode::Codex); });
         live_distance = make_label(*drawer_panel, 12, 42, 120, &lv_font_montserrat_16);
@@ -367,7 +390,7 @@ struct AppDistance::View {
         apply_status = make_label(*tune_page, 98, 219, 214, &lv_font_montserrat_14, kMuted);
         nfc_hint = make_label(*tune_page, 8, 118, 304, &lv_font_montserrat_14, kMuted);
         nfc_hint->setTextAlign(LV_TEXT_ALIGN_CENTER);
-        nfc_hint->setText("Tap NFC card to play\nMove away to re-arm");
+        nfc_hint->setText("Tap: toggle distance + play\nMove away to re-arm");
         nfc_counts = make_label(*tune_page, 8, 198, 304, &lv_font_montserrat_14, kMuted);
         nfc_uid = make_label(*tune_page, 8, 219, 304, &lv_font_montserrat_14, kMuted);
         nfc_hint->addFlag(LV_OBJ_FLAG_HIDDEN);
@@ -402,6 +425,26 @@ struct AppDistance::View {
         codex_refresh->onClick().connect([]() { codex_weekly::request_refresh(); });
         codex_forget->onClick().connect([]() { codex_weekly::logout(); });
         codex_page->addFlag(LV_OBJ_FLAG_HIDDEN);
+        music_page = make_page();
+        music_title = make_label(*music_page, 8, 8, 304, &MontserratSemiBold26);
+        music_title->setText("MUSIC / iPHONE");
+        music_link = make_label(*music_page, 8, 42, 304, &lv_font_montserrat_14, kSafe);
+        music_hint = make_label(*music_page, 8, 64, 304, &lv_font_montserrat_14, kMuted);
+        music_hint->setText("iPhone Settings > Bluetooth\nSelect Botifier Music, then play Spotify\nAudio stays on your phone");
+        music_track = make_label(*music_page, 8, 126, 304, &botifier_cjk_20);
+        music_track->setText("");
+        music_status = make_label(*music_page, 8, 160, 304, &lv_font_montserrat_14, kMuted);
+        music_enable = make_button(*music_page, 8, 196, 96, "ENABLE");
+        music_forget = make_button(*music_page, 112, 196, 96, "FORGET");
+        music_live = make_button(*music_page, 216, 196, 96, "LIVE");
+        for (auto* button : {music_enable.get(), music_forget.get(), music_live.get()}) {
+            button->setSize(96, 36);
+            button->label().setTextFont(&lv_font_montserrat_14);
+        }
+        music_enable->onClick().connect([this]() { lyrics::set_enabled(!music_enabled); });
+        music_forget->onClick().connect([]() { lyrics::forget_phone(); });
+        music_live->onClick().connect([this]() { request_mode(Mode::Live); });
+        music_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         intro_page = make_page();
         intro_page->setBgColor(lv_color_hex(0x000000));
         intro_image = lv_image_create(intro_page->get());
@@ -529,11 +572,13 @@ struct AppDistance::View {
         mode = requested_mode;
         if (mode == Mode::Codex) codex_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
         else codex_page->addFlag(LV_OBJ_FLAG_HIDDEN);
+        if (mode == Mode::Music) music_page->removeFlag(LV_OBJ_FLAG_HIDDEN);
+        else music_page->addFlag(LV_OBJ_FLAG_HIDDEN);
         if (mode == Mode::Nfc) nfc_hint->removeFlag(LV_OBJ_FLAG_HIDDEN);
         else nfc_hint->addFlag(LV_OBJ_FLAG_HIDDEN);
-        if (mode == Mode::Codex) {
+        if (mode == Mode::Codex || mode == Mode::Music) {
             tune_page->addFlag(LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(codex_page->get());
+            lv_obj_move_foreground(mode == Mode::Music ? music_page->get() : codex_page->get());
         } else if (mode == Mode::Live) {
             auto avatar = std::make_unique<DistancePetAvatar>();
             avatar->init(lv_screen_active());
@@ -568,10 +613,38 @@ struct AppDistance::View {
         }
     }
 
+    void show_music(const lyrics::Snapshot& value)
+    {
+        music_enabled = value.enabled;
+        music_enable->label().setText(value.enabled ? "DISABLE" : "ENABLE");
+        music_link->setText(lyrics::link_text(value.link));
+        const auto& title = value.track_ready ? value.track.title : std::string{};
+        if (music_track_text != title) {
+            music_track_text = title;
+            const auto fitted = lyrics::presentation::fit_text(title, 304, 1, [](std::string_view text) {
+                lv_point_t size{};
+                lv_text_get_size(&size, text.data(), &botifier_cjk_20, 0, 0,
+                                 LV_COORD_MAX, LV_TEXT_FLAG_EXPAND);
+                return size.x;
+            });
+            music_track->setText(fitted.c_str());
+        }
+        char text[96];
+        if (value.last_error) {
+            std::snprintf(text, sizeof(text), "%s / ERR %d", lyrics::state_text(value.state), value.last_error);
+        } else if (value.http_status && value.http_status != 200) {
+            std::snprintf(text, sizeof(text), "%s / HTTP %d", lyrics::state_text(value.state), value.http_status);
+        } else {
+            std::snprintf(text, sizeof(text), "%s", lyrics::state_text(value.state));
+        }
+        music_status->setText(text);
+        set_enabled(*music_forget, value.enabled);
+    }
+
     void update_pet(std::uint32_t now, const distance_sensor::Snapshot& snapshot, bool distance_alert)
     {
         if (!live_avatar) return;
-        auto signal = distance_pet::Signal::Unavailable;
+        auto signal = snapshot.schedule.enabled() ? distance_pet::Signal::Unavailable : distance_pet::Signal::Ready;
         if (!snapshot.stale && snapshot.valid && snapshot.filtered_mm >= 0) {
             signal = snapshot.proximity_state == distance_sensor::ProximityState::Alert ?
                      distance_pet::Signal::Alert : distance_pet::Signal::Ready;
@@ -636,13 +709,16 @@ struct AppDistance::View {
             touch_reaction.tick(motion, now);
         }
         const auto phase = static_cast<int>(touch_reaction.phase());
-        if (phase != touch_logged_phase || touch_reaction.generation() != touch_logged_generation) {
+        if (phase != touch_logged_phase || touch_reaction.generation() != touch_logged_generation ||
+            now - touch_logged_at >= 2000u) {
+            touch_logged_at = now;
             touch_logged_phase = phase;
             touch_logged_generation = touch_reaction.generation();
             std::printf("SC_PET {\"v\":1,\"uptime_ms\":%" PRIu32 ",\"generation\":%" PRIu32
-                        ",\"phase\":%d,\"active\":%s,\"owns_lock\":%s}\n",
+                        ",\"phase\":%d,\"active\":%s,\"owns_lock\":%s,\"eligible\":%s,\"mode\":%d,\"drawer\":%s}\n",
                         now, touch_logged_generation, phase, touch_reaction.active() ? "true" : "false",
-                        touch_reaction.owns_lock() ? "true" : "false");
+                        touch_reaction.owns_lock() ? "true" : "false", eligible ? "true" : "false",
+                        static_cast<int>(mode), drawer_open ? "true" : "false");
         }
     }
 
@@ -859,7 +935,7 @@ struct AppDistance::View {
             auto next = nfc_sense::config();
             next.enabled = direction > 0;
             nfc_sense::set_config(next);
-            show_nfc(nfc_sense::snapshot());
+            show_nfc(nfc_sense::snapshot(), distance_sensor::snapshot().schedule);
             return;
         }
         const auto previous = distance_sensor::config();
@@ -910,9 +986,12 @@ struct AppDistance::View {
         apply_status->setText("AUTO - WHEN IDLE");
     }
 
-    void show_nfc(const nfc_sense::Snapshot& scanned)
+    void show_nfc(const nfc_sense::Snapshot& scanned, const distance_sensor::ScheduleStatus& schedule)
     {
         char text[96];
+        std::snprintf(text, sizeof(text), "DISTANCE %s\nTap: toggle + play clip\nMove away to re-arm",
+                      !schedule.clock_available ? "CLOCK WAIT" : schedule.enabled() ? "ON" : "OFF");
+        nfc_hint->setText(text);
         const auto& config = scanned.config;
         std::snprintf(text, sizeof(text), "READER %s", nfc_sense::status_text(scanned.status));
         telemetry->setText(text);
@@ -1007,16 +1086,19 @@ struct AppDistance::View {
             menu_battery->setTextColor(lv_color_hex(kMuted));
         }
         const bool usable = snapshot.valid && !snapshot.stale;
-        const char* quality = snapshot.stale ? "STALE" : snapshot.valid ? "VALID" : "INVALID";
+        const char* quality = !snapshot.schedule.enabled() ?
+            (snapshot.schedule.mode == distance_sensor::ScheduleMode::ManualOff ? "PAUSED" :
+             snapshot.schedule.clock_available ? "OFF" : "CLOCK WAIT") :
+            snapshot.stale ? "STALE" : snapshot.valid ? "VALID" : "INVALID";
         const auto color = state_color(snapshot.proximity_state);
         format_cm(centimeters, sizeof(centimeters), usable ? snapshot.filtered_mm : -1);
         std::snprintf(text, sizeof(text), "%s cm", centimeters);
         live_distance->setText(text);
         live_state->setText(usable ? state_text(snapshot.proximity_state) : quality);
         live_state->setTextColor(lv_color_hex(usable ? color : kNear));
-        if (mode == Mode::Codex) return;
+        if (mode == Mode::Codex || mode == Mode::Music) return;
         if (mode == Mode::Nfc) {
-            show_nfc(scanned);
+            show_nfc(scanned, snapshot.schedule);
             return;
         }
         if (mode == Mode::Idle) {
@@ -1076,6 +1158,7 @@ void AppDistance::onOpen()
     const auto current = distance_sensor::snapshot();
     const auto scanned = nfc_sense::snapshot();
     const auto codex = codex_weekly::snapshot();
+    const auto music = lyrics::snapshot();
     _last_nfc_event = scanned.accepted;
     _intro_completed_count = playback.completed_count;
     LvglLockGuard lock;
@@ -1085,6 +1168,7 @@ void AppDistance::onOpen()
     _view->show_reader_status(current, scanned);
     _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
     _view->show_codex(codex);
+    _view->show_music(music);
     _last_refresh_ms = GetHAL().millis();
 }
 
@@ -1109,10 +1193,12 @@ void AppDistance::onRunning()
         return;
     }
     auto playback = intro_player::snapshot();
-    const auto current = distance_sensor::snapshot();
+    auto current = distance_sensor::snapshot();
     auto scanned = nfc_sense::snapshot();
     const auto codex = codex_weekly::snapshot();
+    const auto music = lyrics::snapshot();
     auto now = GetHAL().millis();
+    const auto music_now = static_cast<std::uint64_t>(esp_timer_get_time() / 1000);
     if (playback.completed_count != _intro_completed_count) {
         if (_eye_intro_started && !playback.busy && playback.clip == intro_player::ClipId::Shorekeeper &&
             playback.completed_count != _eye_intro_completion_baseline) {
@@ -1154,6 +1240,8 @@ void AppDistance::onRunning()
     const bool nfc_activity = !playback.busy && new_event && now - scanned.last_accepted_ms <= 500 &&
                               idle_program::try_begin_foreground_animation();
     if (nfc_activity) {
+        distance_sensor::toggle_from_nfc();
+        current = distance_sensor::snapshot();
         if (intro_player::start() == ESP_OK) playback = intro_player::snapshot();
     }
     if (!playback.busy && eye_intro_owned && live_requested && !_eye_intro_started) {
@@ -1217,12 +1305,30 @@ void AppDistance::onRunning()
         _view->update_rest_head(idle);
         frame_timing.head_after_ms = GetHAL().millis() - stage_started_ms;
         _view->update_alert_head(GetHAL().millis(), playback.busy || nfc_activity, idle, distance_alert);
-        _view->update_pet(GetHAL().millis(), current, distance_alert);
         const bool rest_animation = idle.active && !idle.blocked && idle.program == idle_program::Program::EyeRest;
-        if (nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
-            _view->touch_reaction.active() || (distance_alert && !rest_animation)) {
+        const bool foreground = nfc_activity || playback.busy || _view->mode != View::Mode::Live ||
+            _view->touch_reaction.active() || (distance_alert && !rest_animation);
+        const bool music_surface = !foreground && !rest_animation && lyrics::wants_surface(music, music_now);
+        // A covered face still invalidates LVGL areas through its animations.
+        // Keep motion/input updates above, but stop rasterizing that surface.
+        const bool show_pet = !music_surface || _view->drawer_open;
+        if (_view->live_avatar) _view->live_avatar->setSurfaceVisible(show_pet);
+        if (show_pet) _view->update_pet(GetHAL().millis(), current, distance_alert);
+        const char* surface = "idle";
+        if (foreground) {
+            surface = _view->mode != View::Mode::Live ? "settings" : playback.busy ? "video" :
+                nfc_activity ? "nfc" : _view->touch_reaction.active() ? "touch" : "distance";
             idle_program::clear_locked();
+            lyrics::clear_locked();
+        } else if (music_surface) {
+            surface = "music";
+            // Music takes the ordinary information slot. Keep the programme
+            // clock running so its due EyeRest can claim the foreground.
+            idle_program::clear_locked();
+            lyrics::render_locked(music);
         } else {
+            surface = rest_animation ? "eye_rest" : idle.program == idle_program::Program::Pet ? "pet" : "idle";
+            lyrics::clear_locked();
             // EyeRest and NFC are exclusive top-priority animations. TOO CLOSE
             // replaces ordinary cards, but waits for either animation to finish.
             stage_started_ms = GetHAL().millis();
@@ -1232,11 +1338,25 @@ void AppDistance::onRunning()
                 idle.program == idle_program::Program::EyeRest && idle.eye_phase == idle_program::EyePhase::Motion;
             content_generation = idle.generation;
         }
+        const auto surface_now = GetHAL().millis();
+        if (surface_now - _view->surface_logged_at >= 2000u) {
+            _view->surface_logged_at = surface_now;
+            std::printf("SC_SURFACE {\"v\":1,\"uptime_ms\":%" PRIu32 ",\"surface\":\"%s\",\"mode\":%d,"
+                        "\"drawer\":%s,\"music_playing\":%s,\"music_wants\":%s,\"nfc_enabled\":%s,"
+                        "\"music_connected\":%s,\"music_ready\":%s,\"music_generation\":%lu,"
+                        "\"music_state\":%u,\"music_lines\":%u}\n",
+                        surface_now, surface, static_cast<int>(_view->mode), _view->drawer_open ? "true" : "false",
+                        music.playing ? "true" : "false", lyrics::wants_surface(music, music_now) ? "true" : "false",
+                        scanned.config.enabled ? "true" : "false", music.connected ? "true" : "false",
+                        music.track_ready ? "true" : "false", static_cast<unsigned long>(music.generation),
+                        static_cast<unsigned>(music.state), music.lines ? static_cast<unsigned>(music.lines->size()) : 0u);
+        }
         if (refresh || previous_mode != _view->mode) {
             _view->update(current, distance_sensor::config(), scanned);
             _view->show_reader_status(current, scanned);
             _view->show_eye_status(idle_program::snapshot(), current, playback.busy);
             _view->show_codex(codex);
+            _view->show_music(music);
         }
         save = _view->save_requested;
         save_idle = _view->save_idle_requested;
@@ -1272,5 +1392,6 @@ void AppDistance::onClose()
     }
     LvglLockGuard lock;
     idle_program::clear_locked();
+    lyrics::clear_locked();
     _view.reset();
 }

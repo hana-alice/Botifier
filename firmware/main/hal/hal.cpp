@@ -34,11 +34,12 @@ void Hal::init()
 
     xiaozhi_board_init();
     xiaozhi_mcp_init();
-    head_touch_init();
     io_expander_init();
     rtc_init();
     imu_init();
     servo_init();
+    // Establish the capacitive-touch reference after servo power is enabled.
+    head_touch_init();
     lvgl_init();
 }
 

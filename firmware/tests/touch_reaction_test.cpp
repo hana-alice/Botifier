@@ -170,18 +170,27 @@ void repeated_touches_cannot_drift_the_anchor()
     Reaction reaction;
     FakeMotion motion;
     check(reaction.trigger(motion, 0), "first trigger failed");
-    for (std::uint32_t age = 0; age <= 12000; age += 20) {
+    for (std::uint32_t age = 0; age < 6000; age += 20) {
         if (age != 0 && age % 400 == 0) check(reaction.trigger(motion, age), "valid repeated touch failed");
         tick(reaction, motion, age);
     }
-    check(reaction.generation() == 31 && motion.current_reads == 31 && motion.lock_writes == 1,
+    check(reaction.generation() == 15 && motion.current_reads == 15 && motion.lock_writes == 1,
           "repeated input accumulated queue entries or repeatedly locked hardware");
     for (const auto& command : motion.commands) {
         check(command.yaw >= -80 && command.yaw <= 80 && command.pitch >= 110 && command.pitch <= 190,
               "continuous touches drifted the initial pitch safety window");
     }
-    sample(reaction, motion, 12000, Reaction::kDurationMs);
-    check(!reaction.active() && !motion.locked && motion.stops == 1, "touch stream failed to finish after the last event");
+    // A continuous event stream must not indefinitely hide ordinary content.
+    check(!reaction.trigger(motion, 6000), "touch stream restarted at its hard deadline");
+    tick(reaction, motion, 6000);
+    check(!reaction.active() && !motion.locked && motion.stops == 1,
+          "continuous touches exceeded the six-second session limit");
+    for (std::uint32_t now = 6020; now < 8000; now += 20) {
+        reaction.trigger(motion, now);
+        tick(reaction, motion, now);
+        check(!reaction.active(), "input stole the guaranteed information display window");
+    }
+    check(reaction.trigger(motion, 8000), "new touch did not recover after the information window");
 }
 
 void debounce_and_recent_history_have_explicit_bounds()
@@ -202,6 +211,22 @@ void debounce_and_recent_history_have_explicit_bounds()
     tick(reaction, motion, 15721);
     check(reaction.mood() == Mood::Happy, "expired history incorrectly retained the affectionate variant");
     reaction.cancel(motion);
+}
+
+void session_limit_and_information_window_survive_wrap_and_late_tick()
+{
+    Reaction reaction;
+    FakeMotion motion;
+    constexpr std::uint32_t start = std::numeric_limits<std::uint32_t>::max() - 1000u;
+    check(reaction.trigger(motion, start), "wrap session failed to start");
+    for (std::uint32_t age = 500; age < 6000; age += 500) {
+        check(reaction.trigger(motion, start + age), "ordinary in-session retouch was rejected");
+        tick(reaction, motion, start + age);
+    }
+    tick(reaction, motion, start + 7000u); // A missed frame must not backdate the visible interval.
+    check(!reaction.active() && !motion.locked, "late wrapped tick failed to end the session");
+    check(!reaction.trigger(motion, start + 8999u), "wrapped information interval ended early");
+    check(reaction.trigger(motion, start + 9000u), "wrapped information interval did not recover");
 }
 
 void foreign_lock_or_motion_is_never_touched()
@@ -396,6 +421,7 @@ int main()
         retouch_uses_actual_pose_and_changes_intent();
         repeated_touches_cannot_drift_the_anchor();
         debounce_and_recent_history_have_explicit_bounds();
+        session_limit_and_information_window_survive_wrap_and_late_tick();
         foreign_lock_or_motion_is_never_touched();
         ownership_loss_abandons_without_reclaim_or_stop();
         cancel_is_owned_idempotent_and_reusable();
@@ -405,7 +431,7 @@ int main()
         uint32_wrap_preserves_timing_and_debounce();
         extreme_runtime_pitch_has_defined_bounded_arithmetic();
         owned_handover_accepts_settling_but_never_a_foreign_lock();
-        std::cout << "touch_reaction_test: 14 scenarios passed\n";
+        std::cout << "touch_reaction_test: 15 scenarios passed\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "touch_reaction_test: " << error.what() << '\n';

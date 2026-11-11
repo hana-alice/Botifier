@@ -327,6 +327,18 @@ idf_component_register(SRCS ${SOURCES}
                         smooth_ui_toolkit
                     )
 
+# Diagnostic boundaries inside nimble_port_init without modifying the SDK.
+# BLE and panic references cross object files; same-object esp_nimble_init is excluded.
+target_link_options(${COMPONENT_LIB} INTERFACE
+    "-Wl,--wrap=esp_bt_controller_init"
+    "-Wl,--wrap=esp_bt_controller_enable"
+    "-Wl,--wrap=esp_nimble_hci_init"
+    "-Wl,--wrap=ble_transport_hs_init"
+    "-Wl,--wrap=esp_phy_enable"
+    "-Wl,--wrap=coex_enable"
+    "-Wl,--wrap=btdm_controller_enable"
+    "-Wl,--wrap=esp_panic_handler")
+
 # Keep the short local clip in the app slot; do not replace the shared assets partition.
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/apps/app_distance/media/kuro_intro.bin" BINARY)

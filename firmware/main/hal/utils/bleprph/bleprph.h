@@ -168,6 +168,12 @@ int gatt_svr_init(bool use_alt_uuid);
 
 void ble_prph_init(bool use_alt_uuid);
 
+/* Shares the existing host; never changes its GAP callbacks or GATT services. */
+int ble_prph_ensure_initialized(void);
+/* Host-event-queue only: select advertising/security without reinitializing. */
+int ble_prph_media_mode(bool enabled);
+bool ble_prph_host_synced(void);
+
 #ifdef __cplusplus
 }
 #endif

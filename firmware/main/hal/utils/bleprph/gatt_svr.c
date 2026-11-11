@@ -326,10 +326,11 @@ int gatt_svr_init(bool use_alt_uuid)
     int rc;
 
     /* Allocate buffers in PSRAM */
-    stackchan_motion_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN, MALLOC_CAP_SPIRAM);
-    stackchan_avatar_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN, MALLOC_CAP_SPIRAM);
-    stackchan_config_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN, MALLOC_CAP_SPIRAM);
-    stackchan_rgb_data    = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN, MALLOC_CAP_SPIRAM);
+    static bool buffers_initialized;
+    if (!stackchan_motion_data) stackchan_motion_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN + 1, MALLOC_CAP_SPIRAM);
+    if (!stackchan_avatar_data) stackchan_avatar_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN + 1, MALLOC_CAP_SPIRAM);
+    if (!stackchan_config_data) stackchan_config_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN + 1, MALLOC_CAP_SPIRAM);
+    if (!stackchan_rgb_data) stackchan_rgb_data = (char *)heap_caps_malloc(STACKCHAN_MAX_JSON_LEN + 1, MALLOC_CAP_SPIRAM);
 
     if (!stackchan_motion_data || !stackchan_avatar_data || !stackchan_config_data || !stackchan_rgb_data) {
         MODLOG_DFLT(ERROR, "Failed to allocate memory for Stack-Chan characteristics\n");
@@ -355,6 +356,8 @@ int gatt_svr_init(bool use_alt_uuid)
         return rc;
     }
 
+    /* A UUID-table rebuild reuses buffers and the existing characteristic data. */
+    if (buffers_initialized) return 0;
     /* Initialize Stack-Chan data with empty JSON */
     strcpy(stackchan_motion_data, "{}");
     stackchan_motion_len = 2;
@@ -367,6 +370,7 @@ int gatt_svr_init(bool use_alt_uuid)
 
     strcpy(stackchan_rgb_data, "{}");
     stackchan_rgb_len = 2;
+    buffers_initialized = true;
 
     return 0;
 }

@@ -19,11 +19,23 @@ public:
     static constexpr std::uint32_t kCommandIntervalMs = 100;
     static constexpr std::uint32_t kTouchIntervalMs = 400;
     static constexpr std::uint32_t kRecentMs = 7000;
+    static constexpr std::uint32_t kSessionLimitMs = 6000;
+    static constexpr std::uint32_t kInformationWindowMs = 2000;
 
     template <typename Motion>
     bool trigger(Motion& motion, std::uint32_t now_ms, bool interrupted_owned_motion = false)
     {
+        if (_information_window) {
+            if (now_ms - _information_since_ms < kInformationWindowMs) return false;
+            _information_window = false;
+        }
         if (_active && !check_ownership(motion)) return false;
+        if (_active && now_ms - _session_ms >= kSessionLimitMs) {
+            finish(motion);
+            _information_since_ms = now_ms;
+            _information_window = true;
+            return false;
+        }
         if (_has_history && now_ms - _last_touch_ms < kTouchIntervalMs) return false;
         // An owned low-priority movement was just stopped by the app. The SCS
         // moving bit may remain set during its 20 ms hold command; that must
@@ -51,6 +63,7 @@ public:
         _last_goal = _from;
         _affectionate = recent;
         _direction = (++_generation & 1u) ? -1 : 1;
+        if (!_active) _session_ms = now_ms;
         _start_ms = now_ms;
         _last_touch_ms = now_ms;
         _has_history = true;
@@ -63,6 +76,12 @@ public:
     void tick(Motion& motion, std::uint32_t now_ms)
     {
         if (!_active || !check_ownership(motion)) return;
+        if (now_ms - _session_ms >= kSessionLimitMs) {
+            finish(motion);
+            _information_since_ms = now_ms;
+            _information_window = true;
+            return;
+        }
         const auto age = now_ms - _start_ms;
         if (age >= kDurationMs) {
             finish(motion);
@@ -255,8 +274,11 @@ private:
     bool _motion_sent = false;
     bool _has_history = false;
     bool _affectionate = false;
+    bool _information_window = false;
     int _direction = -1;
     std::uint32_t _start_ms = 0;
+    std::uint32_t _session_ms = 0;
+    std::uint32_t _information_since_ms = 0;
     std::uint32_t _last_touch_ms = 0;
     std::uint32_t _last_command_ms = 0;
     std::uint32_t _generation = 0;

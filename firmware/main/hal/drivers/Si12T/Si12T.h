@@ -84,6 +84,18 @@ esp_err_t si12t_init(const si12t_config_t *config, si12t_handle_t *handle);
 esp_err_t si12t_setup(si12t_handle_t handle, si12t_type_t sens_type, si12t_sensitivity_level_t sens_level);
 
 /**
+ * @brief Configure active channels and sleep mode, then reset their references.
+ *
+ * The existing si12t_setup() uses all twelve channels and sleep enabled.
+ * @param active_channels Nonzero 12-bit mask: bit 0 is TS1, bit 11 is TS12.
+ * @param sleep_enabled true allows sleep; false keeps normal operating mode.
+ * @return ESP_ERR_INVALID_ARG for an empty/out-of-range mask or invalid sensitivity.
+ */
+esp_err_t si12t_setup_with_options(si12t_handle_t handle, si12t_type_t sens_type,
+                                   si12t_sensitivity_level_t sens_level,
+                                   uint16_t active_channels, bool sleep_enabled);
+
+/**
  * @brief 删除Si12T设备
  *
  * @param handle 设备句柄

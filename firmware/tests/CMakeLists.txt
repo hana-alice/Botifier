@@ -4,6 +4,16 @@ project(stackchan_firmware_tests LANGUAGES CXX)
 
 enable_testing()
 
+add_executable(head_touch_filter_test head_touch_filter_test.cpp)
+target_include_directories(head_touch_filter_test PRIVATE ../main)
+target_compile_features(head_touch_filter_test PRIVATE cxx_std_17)
+add_test(NAME head_touch_filter_test COMMAND $<TARGET_FILE:head_touch_filter_test>)
+
+add_executable(si12t_driver_test si12t_driver_test.cpp ../main/hal/drivers/Si12T/Si12T.cpp)
+target_include_directories(si12t_driver_test PRIVATE fakes/si12t ../main)
+target_compile_features(si12t_driver_test PRIVATE cxx_std_20)
+add_test(NAME si12t_driver_test COMMAND $<TARGET_FILE:si12t_driver_test>)
+
 add_executable(motion_math_test
     motion_math_test.cpp
     ../main/stackchan/motion/motion_math.cpp
@@ -38,6 +48,16 @@ target_include_directories(distance_snapshot_test PRIVATE fakes ../main)
 
 target_compile_features(distance_snapshot_test PRIVATE cxx_std_17)
 add_test(NAME distance_snapshot_test COMMAND $<TARGET_FILE:distance_snapshot_test>)
+
+add_executable(distance_schedule_test distance_schedule_test.cpp)
+target_include_directories(distance_schedule_test PRIVATE ../main)
+target_compile_features(distance_schedule_test PRIVATE cxx_std_17)
+add_test(NAME distance_schedule_test COMMAND $<TARGET_FILE:distance_schedule_test>)
+
+add_executable(distance_service_test distance_service_test.cpp)
+target_include_directories(distance_service_test PRIVATE fakes/distance_service ../main)
+target_compile_features(distance_service_test PRIVATE cxx_std_17)
+add_test(NAME distance_service_test COMMAND $<TARGET_FILE:distance_service_test>)
 
 # Exercise real avatar ownership; only the element math dependency is replaced.
 add_executable(avatar_lifetime_test avatar_lifetime_test.cpp)
@@ -189,3 +209,101 @@ target_include_directories(firmware_update_test PRIVATE
 target_compile_definitions(firmware_update_test PRIVATE CONFIG_IDF_FIRMWARE_CHIP_ID=9)
 target_compile_features(firmware_update_test PRIVATE cxx_std_17)
 add_test(NAME firmware_update_test COMMAND $<TARGET_FILE:firmware_update_test>)
+
+add_executable(lyrics_protocol_test
+    lyrics_protocol_test.cpp
+    ../main/apps/common/lyrics/protocol.cpp)
+target_include_directories(lyrics_protocol_test PRIVATE
+    fakes/lyrics ../main ../components/ArduinoJson/src)
+target_compile_features(lyrics_protocol_test PRIVATE cxx_std_17)
+add_test(NAME lyrics_protocol_test COMMAND $<TARGET_FILE:lyrics_protocol_test>)
+
+add_executable(lyrics_presentation_test lyrics_presentation_test.cpp)
+target_include_directories(lyrics_presentation_test PRIVATE ../main)
+target_compile_features(lyrics_presentation_test PRIVATE cxx_std_17)
+add_test(NAME lyrics_presentation_test COMMAND $<TARGET_FILE:lyrics_presentation_test>)
+
+# Compile the complete generated font for both the explicit PSRAM allocation
+# path and the static host-preview path. Only LVGL/ROM/heap boundaries are spies.
+foreach(font_target lyrics_font_workspace_test lyrics_font_host_test)
+    add_executable(${font_target} lyrics_font_workspace_test.cpp)
+    target_include_directories(${font_target} PRIVATE fakes/lyrics_font ../main)
+    target_compile_features(${font_target} PRIVATE cxx_std_20)
+    add_test(NAME ${font_target} COMMAND $<TARGET_FILE:${font_target}>)
+endforeach()
+target_compile_definitions(lyrics_font_workspace_test PRIVATE ESP_PLATFORM=1)
+
+# The adapters are isolated to these targets; execute the production callback
+# and worker code rather than a parallel model of its behavior.
+add_executable(lyrics_ble_test lyrics_ble_test.cpp)
+target_include_directories(lyrics_ble_test PRIVATE fakes/lyrics_ble ../main)
+target_compile_features(lyrics_ble_test PRIVATE cxx_std_17)
+add_test(NAME lyrics_ble_test COMMAND $<TARGET_FILE:lyrics_ble_test>)
+
+add_executable(lyrics_service_test
+    lyrics_service_test.cpp
+    ../main/apps/common/lyrics/protocol.cpp)
+target_include_directories(lyrics_service_test PRIVATE
+    fakes/lyrics_service ../main ../components/ArduinoJson/src)
+target_compile_features(lyrics_service_test PRIVATE cxx_std_17)
+add_test(NAME lyrics_service_test COMMAND $<TARGET_FILE:lyrics_service_test>)
+
+# Keep shared-host compatibility checks tied to the actual small C functions.
+# Markers fail closed when their production layout changes.
+function(lyrics_extract input start_marker end_marker output)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${input}")
+    file(READ "${input}" contents)
+    string(FIND "${contents}" "${start_marker}" begin)
+    if(begin LESS 0)
+        message(FATAL_ERROR "Lyrics compatibility source start marker missing: ${input}")
+    endif()
+    string(SUBSTRING "${contents}" ${begin} -1 tail)
+    string(FIND "${tail}" "${end_marker}" end)
+    if(end LESS 0)
+        message(FATAL_ERROR "Lyrics compatibility source end marker missing: ${input}")
+    endif()
+    string(SUBSTRING "${tail}" 0 ${end} extracted)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${output}" "${extracted}")
+endfunction()
+lyrics_extract("${CMAKE_CURRENT_SOURCE_DIR}/../main/hal/utils/bleprph/gatt_svr.c"
+    "int gatt_svr_init(bool use_alt_uuid)\n{" "/**\n * Public API implementations" "lyrics_gatt_init.inc")
+lyrics_extract("${CMAKE_CURRENT_SOURCE_DIR}/../main/hal/utils/bleprph/bleprph.c"
+    "static void bleprph_legacy_request(struct ble_npl_event *event)\n{" "static int bleprph_store_status(" "lyrics_legacy_request.inc")
+add_executable(lyrics_ble_compat_test lyrics_ble_compat_test.cpp)
+target_include_directories(lyrics_ble_compat_test PRIVATE fakes/lyrics_ble ../main "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(lyrics_ble_compat_test PRIVATE cxx_std_17)
+add_test(NAME lyrics_ble_compat_test COMMAND $<TARGET_FILE:lyrics_ble_compat_test>)
+
+# Existing functional suites use inert breadcrumbs. The actual retained-record
+# implementation is compiled separately with controlled reset/heap/time inputs.
+foreach(diag_target firmware_update_test lyrics_ble_test lyrics_service_test lyrics_ble_compat_test)
+    target_sources(${diag_target} PRIVATE runtime_diagnostics_stub.cpp)
+endforeach()
+add_executable(runtime_diagnostics_test runtime_diagnostics_test.cpp)
+target_include_directories(runtime_diagnostics_test PRIVATE fakes/runtime_diagnostics ../main)
+target_compile_features(runtime_diagnostics_test PRIVATE cxx_std_20)
+add_test(NAME runtime_diagnostics_test COMMAND $<TARGET_FILE:runtime_diagnostics_test>)
+
+lyrics_extract("${CMAKE_CURRENT_SOURCE_DIR}/../main/apps/common/codex_weekly/network_debug.cpp"
+    "// MUSIC_COMMAND_BEGIN:" "// MUSIC_COMMAND_END" "music_command_handler.inc")
+lyrics_extract("${CMAKE_CURRENT_SOURCE_DIR}/../main/apps/common/codex_weekly/network_debug.cpp"
+    "void diagnostic_boot(" "// PANIC_STATUS_BEGIN:" "diagnostic_status.inc")
+add_executable(music_command_test music_command_test.cpp)
+target_include_directories(music_command_test PRIVATE
+    fakes/music_command fakes/firmware_update ../main ../components/ArduinoJson/src "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(music_command_test PRIVATE cxx_std_17)
+add_test(NAME music_command_test COMMAND $<TARGET_FILE:music_command_test>)
+
+add_executable(ble_init_diagnostics_test ble_init_diagnostics_test.cpp)
+target_include_directories(ble_init_diagnostics_test PRIVATE
+    fakes/ble_init_diagnostics fakes/firmware_update ../main)
+target_compile_features(ble_init_diagnostics_test PRIVATE cxx_std_20)
+add_test(NAME ble_init_diagnostics_test COMMAND $<TARGET_FILE:ble_init_diagnostics_test>)
+
+lyrics_extract("${CMAKE_CURRENT_SOURCE_DIR}/../main/apps/common/codex_weekly/network_debug.cpp"
+    "// PANIC_STATUS_BEGIN:" "// PANIC_STATUS_END" "panic_status.inc")
+add_executable(panic_diagnostics_test panic_diagnostics_test.cpp)
+target_include_directories(panic_diagnostics_test PRIVATE
+    fakes/panic_diagnostics fakes/runtime_diagnostics ../main ../components/ArduinoJson/src "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(panic_diagnostics_test PRIVATE cxx_std_20)
+add_test(NAME panic_diagnostics_test COMMAND $<TARGET_FILE:panic_diagnostics_test>)

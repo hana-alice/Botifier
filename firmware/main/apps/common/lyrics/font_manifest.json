@@ -1,0 +1,115 @@
+{
+  "schema_version": 2,
+  "source": "StackChan/firmware/managed_components/78__xiaozhi-fonts/src/font_puhui_20_4.c",
+  "source_sha256": "3a23a7d14cf394ab8275c8724ee8928863a0d6f3ba6d23e0775650748e237fa0",
+  "source_component": "78/xiaozhi-fonts 1.6.0",
+  "source_component_declared_license": "MIT",
+  "output": "StackChan/firmware/main/apps/common/lyrics/font_cjk_20.c",
+  "output_sha256": "ebbd2b41540966907dfce0ab301dac781eed6fb72df308155f944316e04698a0",
+  "symbol": "botifier_cjk_20",
+  "algorithm": "Nearest four-level alpha from original 4bpp; independently zlib-compressed glyph blocks",
+  "quantization": "(original_4bit_alpha + 2) // 5",
+  "alpha_levels": [
+    0,
+    85,
+    170,
+    255
+  ],
+  "compression_lossless_relative_to_quantized_pixels": true,
+  "quantization_lossless": false,
+  "input_bpp": 4,
+  "output_bpp": 2,
+  "glyph_count": 6649,
+  "glyph_descriptor_count_including_reserved": 6650,
+  "blank_glyph_count_including_reserved": 11,
+  "mapped_codepoint_count": 6649,
+  "cmap_count": 29,
+  "input_bitmap_bytes": 1086954,
+  "plain_output_bitmap_bytes": 545086,
+  "output_bitmap_bytes": 385926,
+  "block_glyphs": 48,
+  "block_count": 139,
+  "block_index_bytes": 838,
+  "cache_bytes": 4579,
+  "rom_decoder_workspace_bytes_esp32s3": 10992,
+  "workspace_storage": "ESP_PLATFORM: lazy SPIRAM|8BIT allocation, no internal fallback; host: static",
+  "rom_decoder": "ESP-IDF miniz.h tinfl_decompress; PARSE_ZLIB_HEADER | USING_NON_WRAPPING_OUTPUT_BUF",
+  "intermediate_alpha_pixels": 566005,
+  "validated_pixels": 2171938,
+  "maximum_alpha_error": 34,
+  "mean_absolute_alpha_error": 8.638946876015797,
+  "representative_utf8_mappings": {
+    "A": {
+      "codepoint": "U+0041",
+      "glyph_id": 37
+    },
+    "é": {
+      "codepoint": "U+00E9",
+      "glyph_id": 169
+    },
+    "歌": {
+      "codepoint": "U+6B4C",
+      "glyph_id": 3190
+    },
+    "詞": {
+      "codepoint": "U+8A5E",
+      "glyph_id": 5028
+    },
+    "词": {
+      "codepoint": "U+8BCD",
+      "glyph_id": 5110
+    },
+    "爱": {
+      "codepoint": "U+7231",
+      "glyph_id": 3650
+    },
+    "你": {
+      "codepoint": "U+4F60",
+      "glyph_id": 1050
+    },
+    "我": {
+      "codepoint": "U+6211",
+      "glyph_id": 2528
+    },
+    "音": {
+      "codepoint": "U+97F3",
+      "glyph_id": 5862
+    },
+    "乐": {
+      "codepoint": "U+4E50",
+      "glyph_id": 925
+    },
+    "播": {
+      "codepoint": "U+64AD",
+      "glyph_id": 2773
+    },
+    "放": {
+      "codepoint": "U+653E",
+      "glyph_id": 2810
+    },
+    "暂": {
+      "codepoint": "U+6682",
+      "glyph_id": 2926
+    },
+    "停": {
+      "codepoint": "U+505C",
+      "glyph_id": 1131
+    },
+    "蓝": {
+      "codepoint": "U+84DD",
+      "glyph_id": 4799
+    },
+    "牙": {
+      "codepoint": "U+7259",
+      "glyph_id": 3665
+    }
+  },
+  "validation": [
+    "all source ranges contiguous and in bounds",
+    "all source/output padding zero",
+    "every emitted block independently inflates to its exact expected size",
+    "every pixel equals nearest 2bpp quantization of original 4bpp coverage",
+    "all glyph metrics and cmaps preserved",
+    "all compressed indices and glyph offsets bounded"
+  ]
+}

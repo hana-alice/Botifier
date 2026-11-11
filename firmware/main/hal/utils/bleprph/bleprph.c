@@ -25,10 +25,16 @@
 #include "bleprph.h"
 #include "console/console.h"
 #include "host/ble_hs.h"
+#include "host/ble_esp_gatt.h"
 #include "host/util/util.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "services/gap/ble_svc_gap.h"
+#include "apps/common/lyrics/ble_client.h"
+#include <apps/common/runtime_diagnostics.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include <stdatomic.h>
 
 #if CONFIG_EXAMPLE_EXTENDED_ADV
 static uint8_t ext_adv_pattern_1[] = {
@@ -78,6 +84,23 @@ static uint16_t bearers;
 #endif
 
 static bool s_use_alt_uuid = false;
+static bool s_init_attempted;
+static int s_init_result;
+static bool s_synced;
+static bool s_media_mode;
+static struct ble_npl_event s_legacy_event;
+static StaticSemaphore_t s_init_mutex_storage;
+static SemaphoreHandle_t s_init_mutex;
+static portMUX_TYPE s_init_mux = portMUX_INITIALIZER_UNLOCKED;
+static uint8_t s_legacy_io, s_legacy_bonding, s_legacy_sc, s_legacy_mitm;
+static uint8_t s_legacy_our_keys, s_legacy_their_keys;
+static atomic_bool s_requested_alt;
+static bool s_legacy_pending;
+static unsigned s_connections;
+
+static const ble_uuid128_t ams_service_uuid = BLE_UUID128_INIT(
+    0xdc, 0xf8, 0x55, 0xad, 0x02, 0xc5, 0xf4, 0x8e,
+    0x3a, 0x43, 0x36, 0x0f, 0x2b, 0x50, 0xd3, 0x89);
 
 void ble_store_config_init(void);
 
@@ -226,12 +249,13 @@ static void ext_bleprph_advertise(void)
 //     }
 // }
 
-static void bleprph_advertise(void)
+static int bleprph_advertise(void)
 {
     struct ble_gap_adv_params adv_params;
     struct ble_hs_adv_fields fields;
     struct ble_hs_adv_fields rsp_fields;
     int rc;
+    if (s_media_mode && s_connections != 0) return 0;
 
     // 获取MAC地址
     uint8_t mac[6];
@@ -261,26 +285,29 @@ static void bleprph_advertise(void)
     ble_uuid128_t stackchan_uuid     = BLE_UUID128_INIT(STACKCHAN_SVC_UUID_BASE);
     ble_uuid128_t stackchan_uuid_alt = BLE_UUID128_INIT(STACKCHAN_SVC_UUID_BASE_ALT);
 
-    if (s_use_alt_uuid) {
+    if (s_media_mode) {
+        fields.sol_uuids128 = &ams_service_uuid;
+        fields.sol_num_uuids128 = 1;
+    } else if (s_use_alt_uuid) {
         fields.uuids128 = &stackchan_uuid_alt;
     } else {
         fields.uuids128 = &stackchan_uuid;
     }
 
-    fields.num_uuids128         = 1;
+    fields.num_uuids128         = s_media_mode ? 0 : 1;
     fields.uuids128_is_complete = 1;
 
     rc = ble_gap_adv_set_fields(&fields);
     if (rc != 0) {
         MODLOG_DFLT(ERROR, "error setting advertisement data; rc=%d\n", rc);
-        return;
+        return rc;
     }
 
     // ========== 扫描响应包：放详细信息 ==========
     memset(&rsp_fields, 0, sizeof rsp_fields);
 
 #if CONFIG_BT_NIMBLE_GAP_SERVICE
-    const char *name            = ble_svc_gap_device_name();
+    const char *name            = s_media_mode ? "Botifier Music" : ble_svc_gap_device_name();
     rsp_fields.name             = (uint8_t *)name;
     rsp_fields.name_len         = strlen(name);
     rsp_fields.name_is_complete = 1;
@@ -297,7 +324,7 @@ static void bleprph_advertise(void)
     rc = ble_gap_adv_rsp_set_fields(&rsp_fields);
     if (rc != 0) {
         MODLOG_DFLT(ERROR, "error setting scan response data; rc=%d\n", rc);
-        return;
+        return rc;
     }
 
     // 启动广播
@@ -308,8 +335,9 @@ static void bleprph_advertise(void)
     rc = ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER, &adv_params, bleprph_gap_event, NULL);
     if (rc != 0) {
         MODLOG_DFLT(ERROR, "error enabling advertisement; rc=%d\n", rc);
-        return;
+        return rc;
     }
+    return 0;
 }
 
 #endif
@@ -348,6 +376,42 @@ static int bleprph_gap_event(struct ble_gap_event *event, void *arg)
     struct ble_gap_conn_desc desc;
     int rc;
 #endif
+
+    /* Media connections use the same host callback, but must not masquerade
+     * as the legacy control/configuration client's connection. */
+    bool media = false;
+    switch (event->type) {
+        case BLE_GAP_EVENT_CONNECT:
+            media = s_media_mode;
+            if (event->connect.status == 0) ++s_connections;
+            break;
+        case BLE_GAP_EVENT_DISCONNECT:
+            media = botifier_ams_owns_connection(event->disconnect.conn.conn_handle);
+            if (s_connections != 0) --s_connections;
+            if (s_legacy_pending) ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_legacy_event);
+            break;
+        case BLE_GAP_EVENT_ENC_CHANGE:
+            media = botifier_ams_owns_connection(event->enc_change.conn_handle);
+            break;
+        case BLE_GAP_EVENT_REPEAT_PAIRING:
+            if (botifier_ams_owns_connection(event->repeat_pairing.conn_handle)) {
+                /* Re-pairing requires explicit FORGET; never evict another bond. */
+                return BLE_GAP_REPEAT_PAIRING_IGNORE;
+            }
+            break;
+        default:
+            break;
+    }
+    botifier_ams_gap_event(event);
+    if (media) {
+        if (event->type == BLE_GAP_EVENT_DISCONNECT ||
+            (event->type == BLE_GAP_EVENT_CONNECT && event->connect.status != 0)) {
+#if !CONFIG_EXAMPLE_EXTENDED_ADV
+            bleprph_advertise();
+#endif
+        }
+        return 0;
+    }
 
     switch (event->type) {
 #if NIMBLE_BLE_CONNECT
@@ -568,6 +632,9 @@ static int bleprph_gap_event(struct ble_gap_event *event, void *arg)
 
 static void bleprph_on_reset(int reason)
 {
+    s_synced = false;
+    s_connections = 0;
+    botifier_ams_host_reset(reason);
     MODLOG_DFLT(ERROR, "Resetting state; reason=%d\n", reason);
 }
 
@@ -611,6 +678,9 @@ static void bleprph_on_sync(void)
         MODLOG_DFLT(ERROR, "error determining address type; rc=%d\n", rc);
         return;
     }
+    s_synced = true;
+    botifier_ams_host_synced();
+    if (s_legacy_pending) ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_legacy_event);
 
     /* Printing ADDR */
     uint8_t addr_val[6] = {0};
@@ -636,7 +706,56 @@ void bleprph_host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
-void ble_prph_init(bool use_alt_uuid)
+static void bleprph_legacy_request(struct ble_npl_event *event)
+{
+    (void)event;
+    botifier_ams_legacy_requested();
+    /* Changing an already-registered legacy UUID needs the explicit rebuild
+     * below; advertising a different UUID alone breaks app provisioning. */
+    const bool alt = atomic_load(&s_requested_alt);
+    if (s_use_alt_uuid == alt) {
+        s_legacy_pending = false;
+        const int rc = ble_prph_media_mode(false);
+        if (rc != 0) ESP_LOGE(tag, "Legacy advertising restore failed: %d", rc);
+        return;
+    }
+    s_legacy_pending = true;
+    if (!s_synced || s_connections != 0) return;
+    int rc = ble_gap_adv_stop();
+    if (rc != 0 && rc != BLE_HS_EALREADY) {
+        ESP_LOGE(tag, "Stop advertising before GATT rebuild failed: %d", rc);
+        return;
+    }
+    rc = ble_gatts_reset();
+    if (rc == 0) {
+        /* reset unregisters ATT before stop frees its storage; stop also clears
+         * the cumulative count_cfg budgets in this pinned NimBLE release. */
+        ble_svc_gap_deinit();
+        ble_gatts_stop();
+        rc = gatt_svr_init(alt);
+    }
+#if CONFIG_BT_NIMBLE_GAP_SERVICE
+    if (rc == 0) rc = ble_svc_gap_device_name_set("StackChan");
+#endif
+    if (rc == 0) rc = ble_gatts_start();
+    if (rc != 0) {
+        ESP_LOGE(tag, "Legacy GATT rebuild failed: %d", rc);
+        return;
+    }
+    s_use_alt_uuid = alt;
+    s_legacy_pending = false;
+    rc = ble_prph_media_mode(false);
+    if (rc != 0) ESP_LOGE(tag, "Legacy advertising restore failed: %d", rc);
+}
+
+static int bleprph_store_status(struct ble_store_status_event *event, void *arg)
+{
+    /* The example's round-robin helper deletes old bonds on overflow. Media
+     * pairing must fail instead of deleting configuration/control peers. */
+    return s_media_mode ? BLE_HS_ENOMEM : ble_store_util_status_rr(event, arg);
+}
+
+static int bleprph_initialize(bool use_alt_uuid)
 {
     s_use_alt_uuid = use_alt_uuid;
     int rc;
@@ -650,16 +769,20 @@ void ble_prph_init(bool use_alt_uuid)
     // }
     // ESP_ERROR_CHECK(ret);
 
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 8, 0);
+    botifier_diag_sample_memory(BOTIFIER_DIAG_BLE);
     ret = nimble_port_init();
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 9, ret);
+    botifier_diag_sample_memory(BOTIFIER_DIAG_BLE);
     if (ret != ESP_OK) {
         ESP_LOGE(tag, "Failed to init nimble %d ", ret);
-        return;
+        return (int)ret;
     }
     /* Initialize the NimBLE host configuration. */
     ble_hs_cfg.reset_cb          = bleprph_on_reset;
     ble_hs_cfg.sync_cb           = bleprph_on_sync;
     ble_hs_cfg.gatts_register_cb = gatt_svr_register_cb;
-    ble_hs_cfg.store_status_cb   = ble_store_util_status_rr;
+    ble_hs_cfg.store_status_cb   = bleprph_store_status;
 
     ble_hs_cfg.sm_io_cap = CONFIG_EXAMPLE_IO_TYPE;
 #ifdef CONFIG_EXAMPLE_BONDING
@@ -683,14 +806,23 @@ void ble_prph_init(bool use_alt_uuid)
     ble_hs_cfg.sm_our_key_dist |= BLE_SM_PAIR_KEY_DIST_ID;
     ble_hs_cfg.sm_their_key_dist |= BLE_SM_PAIR_KEY_DIST_ID;
 #endif
+    s_legacy_io = ble_hs_cfg.sm_io_cap;
+    s_legacy_bonding = ble_hs_cfg.sm_bonding;
+    s_legacy_sc = ble_hs_cfg.sm_sc;
+    s_legacy_mitm = ble_hs_cfg.sm_mitm;
+    s_legacy_our_keys = ble_hs_cfg.sm_our_key_dist;
+    s_legacy_their_keys = ble_hs_cfg.sm_their_key_dist;
+    ble_npl_event_init(&s_legacy_event, bleprph_legacy_request, NULL);
 
 #if MYNEWT_VAL(STATIC_PASSKEY) && NIMBLE_BLE_CONNECT
     ble_sm_configure_static_passkey(456789, true);
 #endif
 
 #if MYNEWT_VAL(BLE_GATTS)
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 10, 0);
     rc = gatt_svr_init(use_alt_uuid);
-    assert(rc == 0);
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 11, rc);
+    if (rc != 0) return rc;
 #endif
 
 #if CONFIG_BT_NIMBLE_GAP_SERVICE
@@ -702,7 +834,9 @@ void ble_prph_init(bool use_alt_uuid)
     /* XXX Need to have template for store */
     ble_store_config_init();
 
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 12, 0);
     nimble_port_freertos_init(bleprph_host_task);
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 13, 0);
 
     /* Initialize command line interface to accept input from user */
     rc = scli_init();
@@ -715,5 +849,75 @@ void ble_prph_init(bool use_alt_uuid)
     for (int i = 0; i < MYNEWT_VAL(BLE_EATT_CHAN_NUM); i++) {
         cids[i] = 0;
     }
+#endif
+    return 0;
+}
+
+static int bleprph_ensure(bool use_alt_uuid)
+{
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 3, 0);
+    portENTER_CRITICAL(&s_init_mux);
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 4, 0);
+    if (s_init_mutex == NULL) {
+        s_init_mutex = xSemaphoreCreateMutexStatic(&s_init_mutex_storage);
+        botifier_diag_mark(BOTIFIER_DIAG_BLE, 5, s_init_mutex ? 0 : BLE_HS_ENOMEM);
+    }
+    portEXIT_CRITICAL(&s_init_mux);
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 6, 0);
+    if (!s_init_mutex || xSemaphoreTake(s_init_mutex, pdMS_TO_TICKS(3000)) != pdTRUE) {
+        botifier_diag_mark(BOTIFIER_DIAG_BLE, 7, BLE_HS_EBUSY);
+        botifier_diag_sample_memory(BOTIFIER_DIAG_BLE);
+        return BLE_HS_EBUSY;
+    }
+    botifier_diag_mark(BOTIFIER_DIAG_BLE, 7, 0);
+    botifier_diag_sample_memory(BOTIFIER_DIAG_BLE);
+    int rc = 0;
+    if (!s_init_attempted) {
+        s_init_attempted = true;
+        s_init_result = bleprph_initialize(use_alt_uuid);
+    }
+    rc = s_init_result;
+    xSemaphoreGive(s_init_mutex);
+    return rc;
+}
+
+int ble_prph_ensure_initialized(void)
+{
+    return bleprph_ensure(false);
+}
+
+void ble_prph_init(bool use_alt_uuid)
+{
+    int rc = bleprph_ensure(use_alt_uuid);
+    if (rc != 0) {
+        ESP_LOGE(tag, "Shared BLE host initialization failed: %d", rc);
+        return;
+    }
+    atomic_store(&s_requested_alt, use_alt_uuid);
+    ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_legacy_event);
+}
+
+bool ble_prph_host_synced(void)
+{
+    return s_synced;
+}
+
+int ble_prph_media_mode(bool enabled)
+{
+    if (enabled && !s_media_mode && s_connections != 0) return BLE_HS_EBUSY;
+    s_media_mode = enabled;
+    ble_hs_cfg.sm_io_cap = enabled ? BLE_HS_IO_NO_INPUT_OUTPUT : s_legacy_io;
+    ble_hs_cfg.sm_bonding = enabled ? 1 : s_legacy_bonding;
+    ble_hs_cfg.sm_sc = enabled ? 1 : s_legacy_sc;
+    ble_hs_cfg.sm_mitm = enabled ? 0 : s_legacy_mitm;
+    ble_hs_cfg.sm_our_key_dist = enabled ? (BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID) : s_legacy_our_keys;
+    ble_hs_cfg.sm_their_key_dist = enabled ? (BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID) : s_legacy_their_keys;
+    if (!s_synced) return 0;
+    int rc = ble_gap_adv_stop();
+    if (rc != 0 && rc != BLE_HS_EALREADY) return rc;
+#if !CONFIG_EXAMPLE_EXTENDED_ADV
+    return bleprph_advertise();
+#else
+    return BLE_HS_ENOTSUP;
 #endif
 }

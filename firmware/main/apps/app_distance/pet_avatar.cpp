@@ -189,6 +189,14 @@ void DistancePetAvatar::init(lv_obj_t* parent)
     _key_elements.mouth = std::make_unique<PetMouth>(_view->panel);
 }
 
+void DistancePetAvatar::setSurfaceVisible(bool visible)
+{
+    if (!_view || visible == _surface_visible) return;
+    _surface_visible = visible;
+    if (visible) lv_obj_remove_flag(_view->panel, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(_view->panel, LV_OBJ_FLAG_HIDDEN);
+}
+
 void DistancePetAvatar::setMood(distance_pet::Mood mood, std::uint32_t now_ms)
 {
     _controller.play(mood, now_ms);
@@ -207,6 +215,7 @@ void DistancePetAvatar::setInteractionForeground(bool active)
 void DistancePetAvatar::tick(std::uint32_t now_ms, distance_pet::Signal signal, bool react,
                              distance_pet::EyeCue eye_cue, bool hold_mood)
 {
+    if (!_surface_visible) return;
     if (!react && _started && signal == _last_signal && now_ms - _last_tick < 33) return;
     _started = true;
     _last_tick = now_ms;

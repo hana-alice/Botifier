@@ -1,5 +1,6 @@
 #include "service.h"
 #include "policy.h"
+#include <apps/common/runtime_diagnostics.h>
 #include <apps/common/codex_weekly/service.h>
 #include <ArduinoJson.h>
 #include <esp_app_desc.h>
@@ -213,6 +214,7 @@ esp_err_t post_handler(httpd_req_t* request)
         !detail::matches_mac(std::string_view(expected_mac.data(), 17), mac))
         return reject(request, "409 Conflict", "expected_mac");
 
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 1, 0);
     std::unique_ptr<std::uint8_t[]> buffer{new (std::nothrow) std::uint8_t[detail::kChunkBytes]};
     if (!buffer) return reject(request, "500 Internal Server Error", "buffer");
     const auto deadline = esp_timer_get_time() + static_cast<std::int64_t>(detail::kUploadTimeoutMs) * 1000;
@@ -236,11 +238,19 @@ esp_err_t post_handler(httpd_req_t* request)
         project != bounded_text(description->project_name, sizeof(description->project_name)))
         return reject(request, "400 Bad Request", "image_project");
 
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 2, 0);
     Hash hash;
-    if (mbedtls_sha256_starts(&hash.context, 0) != 0)
+    const auto hash_init = mbedtls_sha256_starts(&hash.context, 0);
+    if (hash_init != 0) {
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 2, hash_init);
         return reject(request, "500 Internal Server Error", "hash_init");
+    }
     OtaUpload upload;
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 3, 0);
+    botifier_diag_sample_memory(BOTIFIER_DIAG_OTA);
     const auto begun = esp_ota_begin(target, length, &upload.handle);
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 4, begun);
+    botifier_diag_sample_memory(BOTIFIER_DIAG_OTA);
     // IDF can assign the handle before a later erase fails. Own that partially
     // initialized handle too, so every such failure releases its allocation.
     upload.active = upload.handle != 0;
@@ -250,15 +260,23 @@ esp_err_t post_handler(httpd_req_t* request)
     std::size_t written = 0, count = detail::kPrefixBytes;
     while (true) {
         if (esp_timer_get_time() >= deadline) return reject_receive(request, Receive::Timeout);
-        if (mbedtls_sha256_update(&hash.context, buffer.get(), count) != 0)
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 5, 0);
+        const auto hash_update = mbedtls_sha256_update(&hash.context, buffer.get(), count);
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 6, hash_update);
+        if (hash_update != 0)
             return reject(request, "500 Internal Server Error", "hash_update");
-        if (esp_ota_write(upload.handle, buffer.get(), count) != ESP_OK)
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 7, 0);
+        const auto write_error = esp_ota_write(upload.handle, buffer.get(), count);
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 8, write_error);
+        if (write_error != ESP_OK)
             return reject(request, "500 Internal Server Error", "ota_write");
         if (esp_timer_get_time() >= deadline) return reject_receive(request, Receive::Timeout);
         written += count;
         if (written == length) break;
         count = std::min(detail::kChunkBytes, length - written);
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 9, 0);
         received = read_exact(request, buffer.get(), count, deadline);
+        botifier_diag_mark(BOTIFIER_DIAG_OTA, 10, static_cast<int>(received));
         if (received != Receive::Ok) return reject_receive(request, received);
     }
     std::array<std::uint8_t, 32> digest{};
@@ -274,15 +292,22 @@ esp_err_t post_handler(httpd_req_t* request)
     if (doc.overflowed() || body.empty() || body.size() > 512)
         return reject(request, "500 Internal Server Error", "response");
     if (esp_timer_get_time() >= deadline) return reject_receive(request, Receive::Timeout);
-    if (upload.finish() != ESP_OK)
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 11, 0);
+    const auto finish_error = upload.finish();
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 12, finish_error);
+    if (finish_error != ESP_OK)
         return reject(request, "500 Internal Server Error", "ota_end");
     if (esp_timer_get_time() >= deadline) return reject_receive(request, Receive::Timeout);
-    if (esp_ota_set_boot_partition(target) != ESP_OK)
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 13, 0);
+    const auto boot_error = esp_ota_set_boot_partition(target);
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 14, boot_error);
+    if (boot_error != ESP_OK)
         return reject(request, "500 Internal Server Error", "ota_boot");
     const auto sent = httpd_resp_send(request, body.data(), body.size());
     // Boot selection is already committed. Reboot even if the peer drops the
     // response, otherwise this process would remain in boot!=running state.
     vTaskDelay(pdMS_TO_TICKS(700));
+    botifier_diag_mark(BOTIFIER_DIAG_OTA, 15, 0);
     esp_restart();
     return sent;
 }
