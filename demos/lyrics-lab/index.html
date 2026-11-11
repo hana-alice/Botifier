@@ -1,0 +1,107 @@
+<!doctype html>
+<!--
+Tiny design brief — Lyrics Lab
+Audience: a StackChan owner testing an iPhone + Spotify lyric-screen concept.
+First workflow: see a readable 320×240 lyric screen, scrub a simulated track,
+then interrupt it and verify that it returns to the song's current position.
+Direction: warm-white listening workbench, porcelain robot, ink-black display,
+and a restrained vermilion accent. Density 4, motion 3, variance 6.
+States: playing / paused / disconnected / missing lyrics / protected eye-rest or
+NFC interruption / touch interaction. All tracks and timed lyrics are original
+samples. No Spotify, phone, hardware, real audio, 3D asset, or network connection.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f5f3ee">
+  <title>Lyrics Lab · Botifier 歌词显示概念预览</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='7' fill='%23242725'/%3E%3Cpath d='M11 13v5m10-5v5' stroke='%23f5f3ee' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="preview.css">
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <main class="workbench">
+    <header class="masthead">
+      <a class="wordmark" href="index.html" aria-label="Botifier，重新打开歌词预览">
+        <svg aria-hidden="true" viewBox="0 0 30 26"><rect x="1" y="1" width="28" height="22" rx="7"/><path d="M9 10v4m12-4v4m-9 12h6"/></svg>
+        <span>botifier<span class="wordmark-divider">/</span><span class="lab-name">lyrics lab</span></span>
+      </a>
+      <span class="concept-badge"><span></span>概念预览 · 模拟播放</span>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">A LITTLE SCREEN. A LITTLE CLOSER.</p>
+      <h1 id="page-title">把此刻的歌，<br class="mobile-break">留在眼前。</h1>
+      <p>歌词跟着音乐走。需要休息时，让机器人来提醒。</p>
+    </section>
+
+    <div class="workspace">
+      <section class="listening-stage" aria-label="机器人歌词显示预览">
+        <div class="stage-label"><span class="live-dot"></span><span id="foreground-label">歌词播放</span><span class="screen-spec">320 × 240</span></div>
+        <div class="robot-space">
+          <div class="robot" id="robot">
+            <div class="robot-head" id="robot-head">
+              <div class="robot-camera" aria-hidden="true"></div>
+              <div class="screen-rim">
+                <canvas id="display" width="320" height="240" role="img" aria-label="原创模拟歌词显示屏"></canvas>
+              </div>
+              <div class="robot-chin" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="robot-neck" aria-hidden="true"><span></span></div>
+            <div class="robot-base" aria-hidden="true"><span>BOTIFIER</span><i></i></div>
+          </div>
+        </div>
+        <div class="stage-caption"><span id="stage-message">此刻，只听这一句。</span><span class="caption-rule"></span><span>逐行同步</span></div>
+        <p class="screen-reader-only" id="screen-description" aria-live="polite" aria-atomic="true"></p>
+      </section>
+
+      <aside class="control-panel" aria-labelledby="preview-controls-title">
+        <div class="panel-heading"><h2 id="preview-controls-title">试听工作台</h2><span class="panel-index">01 / PREVIEW</span></div>
+        <div class="sample-choice" role="group" aria-label="切换原创歌词样例">
+          <button type="button" class="sample-button" data-track="0" aria-pressed="true">中文样例<span>晚风经过工作台</span></button>
+          <button type="button" class="sample-button" data-track="1" aria-pressed="false">English<span>Room for the evening</span></button>
+        </div>
+        <div class="now-playing">
+          <div class="album-art" id="album-art" aria-hidden="true"><span class="art-sun"></span><span class="art-ground"></span><span class="art-mark">b.</span></div>
+          <div class="track-meta"><h3 id="track-title">晚风经过工作台</h3><p id="track-artist">Botifier Originals</p><span>原创样例 · 无实际音频</span></div>
+        </div>
+        <div class="transport">
+          <button type="button" class="icon-button" id="previous-line" aria-label="上一句" title="上一句"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5v14m12-13-9 6 9 6z"/></svg></button>
+          <button type="button" class="play-button" id="play-toggle" aria-label="暂停模拟播放"><svg id="play-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 6v12m8-12v12"/></svg><span id="play-label">暂停</span></button>
+          <button type="button" class="icon-button" id="next-line" aria-label="下一句" title="下一句"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 5v14M6 6l9 6-9 6z"/></svg></button>
+        </div>
+        <label class="screen-reader-only" for="timeline">模拟歌曲播放进度</label>
+        <input id="timeline" type="range" min="0" max="66000" step="100" value="11000" aria-describedby="timeline-hint">
+        <div class="timecodes"><output id="elapsed" for="timeline">0:11</output><span id="timeline-hint">拖动进度，看歌词跟随</span><output id="duration" for="timeline">1:06</output></div>
+
+        <div class="interrupt-section">
+          <div class="section-heading"><h3>试试插播</h3><span>音乐进度继续</span></div>
+          <div class="interrupt-buttons">
+            <button type="button" id="trigger-eye"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>护眼提醒</button>
+            <button type="button" id="trigger-nfc"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="3" width="13" height="18" rx="2"/><path d="M9 8c3 2 3 6 0 8m3-10c5 3 5 9 0 12m8-10v8"/></svg>NFC 动画</button>
+            <button type="button" id="trigger-touch"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 12V5a2 2 0 0 1 4 0v6m0-2a2 2 0 0 1 4 0v3a2 2 0 0 1 4 0v4c0 4-3 6-7 6-3 0-5-2-7-5l-3-4a2 2 0 0 1 3-3l2 2"/></svg>摸摸头</button>
+          </div>
+          <div class="interruption-status"><p id="event-message" role="status">护眼与 NFC 动画先来先播，互不打断。</p><button type="button" id="finish-interruption" hidden>结束插播<span aria-hidden="true">↗</span></button></div>
+        </div>
+
+        <details class="preview-settings">
+          <summary>更多预览状态<span aria-hidden="true">＋</span></summary>
+          <div class="settings-content">
+            <label><span>模拟连接</span><input id="connected" type="checkbox" checked><span class="toggle" aria-hidden="true"></span></label>
+            <label><span>模拟无歌词</span><input id="no-lyrics" type="checkbox"><span class="toggle" aria-hidden="true"></span></label>
+            <label><span>减少动态</span><input id="reduced-motion" type="checkbox"><span class="toggle" aria-hidden="true"></span></label>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <section class="behavior-note" aria-labelledby="behavior-title">
+      <h2 id="behavior-title">歌可以等一等，<br>你更重要。</h2>
+      <div><p>护眼与 NFC 动画优先，其次是摸头互动，再回到歌词。恢复时，直接跟上音乐的当前位置。</p><p class="note-secondary">这是浏览器概念预览。未连接 iPhone、Spotify 或机器人；屏幕、动画与动作均为模拟，歌词为原创时间轴样例。</p></div>
+    </section>
+    <footer><span>BOTIFIER / LYRIC STUDY 01</span><span>逐行歌词 · 320 × 240 逻辑画幅 · 不播放音频</span></footer>
+  </main>
+</body>
+</html>
